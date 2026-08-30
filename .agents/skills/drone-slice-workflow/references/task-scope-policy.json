@@ -1,7 +1,15 @@
 {
-  "schema_version": 1,
+  "schema_version": 3,
+  "workflow_baseline_marker": "workflow-simplification-v2",
+  "protected_refs": [],
+  "risk_tiers": [
+    "LOW",
+    "MEDIUM",
+    "HIGH"
+  ],
   "slices": {
     "changes/slice-01-product-facts/tasks.md": {
+      "completion_task": "T09",
       "core_artifacts": [
         "changes/slice-01-product-facts/plan.md",
         "docs/ARCHITECTURE.md",
@@ -10,6 +18,7 @@
         "docs/REFERENCE_ANALYSIS.md"
       ],
       "dependency_files": [
+        ".python-version",
         "pyproject.toml",
         "uv.lock"
       ],
@@ -25,111 +34,165 @@
       ],
       "tasks": {
         "T01": {
-          "allowed_paths": [
-            ".gitignore",
-            ".python-version",
-            "backend/__init__.py",
-            "tests/test_harness.py",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": [".gitignore", ".python-version", "backend/__init__.py", "tests/test_harness.py", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "plan-authorized-minimal",
           "verification_marker": "unit or contract",
-          "verification_rationale": "bootstrap/unit and contract boundary"
+          "verification_rationale": "bootstrap/unit and contract boundary",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         },
         "T02": {
-          "allowed_paths": [
-            "backend/common/",
-            "tests/contract/",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": ["backend/common/", "tests/contract/", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "plan-authorized-minimal",
           "verification_marker": "unit or contract",
-          "verification_rationale": "public Contract and unit boundary"
+          "verification_rationale": "public Contract and unit boundary",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         },
         "T03": {
-          "allowed_paths": [
-            "backend/shopify/",
-            "tests/unit/",
-            "tests/contract/",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": ["backend/shopify/", "tests/unit/", "tests/contract/", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "forbidden",
           "verification_marker": "unit or contract",
-          "verification_rationale": "fixture unit and read-Port contract boundary"
+          "verification_rationale": "fixture unit and read-Port contract boundary",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         },
         "T04": {
-          "allowed_paths": [
-            "backend/application/",
-            "tests/unit/",
-            "tests/contract/",
-            "tests/integration/",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": ["backend/application/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "forbidden",
           "verification_marker": "unit or contract or integration",
-          "verification_rationale": "application walking-skeleton boundary"
+          "verification_rationale": "application walking-skeleton boundary",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         },
         "T05": {
-          "allowed_paths": [
-            "backend/application/",
-            "tests/unit/",
-            "tests/integration/",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": ["backend/application/", "tests/unit/", "tests/integration/", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "forbidden",
           "verification_marker": "unit or contract or integration",
-          "verification_rationale": "identity matrix application boundary"
+          "verification_rationale": "identity matrix application boundary",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         },
         "T06": {
-          "allowed_paths": [
-            "backend/application/",
-            "tests/unit/",
-            "tests/contract/",
-            "tests/integration/",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": ["backend/application/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "forbidden",
           "verification_marker": "unit or contract or integration",
-          "verification_rationale": "fallback mapping application boundary"
+          "verification_rationale": "fallback mapping application boundary",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         },
         "T07": {
-          "allowed_paths": [
-            "backend/application/",
-            "tests/unit/",
-            "tests/contract/",
-            "tests/integration/",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": ["backend/application/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "forbidden",
           "verification_marker": "unit or contract or integration",
-          "verification_rationale": "scope/freshness guard boundary"
+          "verification_rationale": "scope/freshness guard boundary",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         },
         "T08": {
-          "allowed_paths": [
-            "backend/api/",
-            "backend/application/",
-            "tests/unit/",
-            "tests/contract/",
-            "tests/integration/",
-            "tests/e2e/",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": ["backend/api/", "backend/application/", "tests/unit/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "plan-authorized-minimal",
           "verification_marker": null,
-          "verification_rationale": "transport E2E requires the full suite"
+          "verification_rationale": "transport E2E requires the full suite",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         },
         "T09": {
-          "allowed_paths": [
-            "backend/api/",
-            "backend/application/",
-            "backend/common/",
-            "backend/shopify/",
-            "tests/",
-            "changes/slice-01-product-facts/tasks.md"
-          ],
+          "allowed_paths": ["backend/api/", "backend/application/", "backend/common/", "backend/shopify/", "tests/", "changes/slice-01-product-facts/tasks.md"],
           "dependency_policy": "forbidden",
           "verification_marker": null,
-          "verification_rationale": "Slice completion requires the full suite"
+          "verification_rationale": "Slice completion requires the full suite",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
+        }
+      }
+    },
+    "changes/slice-02-single-turn-recommendation/tasks.md": {
+      "completion_task": "T07",
+      "implementation_gate": {
+        "type": "protected-workflow-baseline"
+      },
+      "core_artifacts": [
+        "changes/slice-02-single-turn-recommendation/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        "backend/rag/",
+        "backend/evaluation/",
+        "storefront/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "backend/shopify/",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["backend/catalog/", "backend/shopify/fixture.py", "tests/fixtures/", "tests/unit/", "changes/slice-02-single-turn-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit",
+          "verification_rationale": "minimal synthetic catalog and commerce fixture validation",
+          "risk_tier": "LOW",
+          "checkpoint_policy": "human-decision"
+        },
+        "T02": {
+          "allowed_paths": ["backend/conversation/", "tests/unit/", "tests/contract/", "changes/slice-02-single-turn-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "single-turn ConstraintPatch contract and normalization boundary",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision"
+        },
+        "T03": {
+          "allowed_paths": ["backend/catalog/", "tests/unit/", "tests/integration/", "changes/slice-02-single-turn-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "Variant-level HARD eligibility and fail-closed integration",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision"
+        },
+        "T04": {
+          "allowed_paths": ["backend/catalog/", "tests/unit/", "changes/slice-02-single-turn-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit",
+          "verification_rationale": "deterministic SOFT signals, ordering, ties, and replay",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision"
+        },
+        "T05": {
+          "allowed_paths": ["backend/evidence/", "backend/common/contracts.py", "tests/unit/", "tests/contract/", "changes/slice-02-single-turn-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "Product grouping, Variant disclosure, response Contract, and Evidence binding",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
+        },
+        "T06": {
+          "allowed_paths": ["backend/api/", "backend/agent/", "backend/application/", "backend/catalog/", "backend/conversation/", "backend/evidence/", "tests/unit/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-02-single-turn-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "integration or e2e",
+          "verification_rationale": "deterministic single-turn recommendation walking skeleton and fallbacks",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision"
+        },
+        "T07": {
+          "allowed_paths": ["tests/", "eval/datasets/", "changes/slice-02-single-turn-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "Slice Acceptance and completion evidence require the full suite",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision"
         }
       }
     }

@@ -1,252 +1,449 @@
 #!/usr/bin/env python3
-"""Read-only COMMIT_READY checks for one reviewed and Human-approved Task."""
+"""Produce immutable review evidence; never accepts a checkpoint automatically."""
 
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
-import os
-import stat
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
-from check_scope import changed_paths, check
-from inspect_state import InspectionError, inspect, repository_root, run_git
+from check_scope import RISK_RANK, changed_paths, check, check_slice_range, range_paths
+from inspect_state import (
+    EXPECTED_WORKFLOW_BASELINE_MARKER,
+    EXPECTED_WORKFLOW_SCHEMA_VERSION,
+    InspectionError,
+    inspect,
+    load_revision_policy,
+    normalize_task_ref,
+    porcelain_paths,
+    protected_ref_patterns,
+    protected_refs,
+    repository_root,
+    run_git,
+)
 
 
-def normalize_task_id(task_id: str) -> str:
-    return task_id.strip().upper()
+def _frame(hasher: hashlib._Hash, label: str, value: str | bytes) -> None:
+    payload = value.encode("utf-8") if isinstance(value, str) else value
+    hasher.update(len(label).to_bytes(4, "big"))
+    hasher.update(label.encode("utf-8"))
+    hasher.update(len(payload).to_bytes(8, "big"))
+    hasher.update(payload)
 
 
-def working_diff_sha256(
-    repo: Path,
-    task_id: str,
-    head: str | None = None,
+def resolve_commit(repo: Path, revision: str) -> str:
+    result = run_git(
+        repo, "rev-parse", "--verify", f"{revision}^{{commit}}", check=False
+    )
+    if result.returncode != 0:
+        raise InspectionError(f"invalid commit revision: {revision}")
+    return result.stdout.strip()
+
+
+def is_ancestor(repo: Path, older: str, newer: str) -> bool:
+    return (
+        run_git(
+            repo, "merge-base", "--is-ancestor", older, newer, check=False
+        ).returncode
+        == 0
+    )
+
+
+def tree_entry(repo: Path, revision: str, path: str) -> dict[str, str]:
+    result = run_git(repo, "ls-tree", "-z", revision, "--", path, check=False)
+    if result.returncode != 0 or not result.stdout:
+        return {"mode": "000000", "type": "missing", "path": path}
+    record = result.stdout.split("\0", 1)[0]
+    metadata, entry_path = record.split("\t", 1)
+    mode, entry_type, object_id = metadata.split()
+    return {"mode": mode, "type": entry_type, "oid": object_id, "path": entry_path}
+
+
+def snapshot_content(repo: Path, revision: str, path: str) -> bytes:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "show", f"{revision}:{path}"],
+        check=False,
+        capture_output=True,
+    )
+    if result.returncode != 0:
+        return b""
+    return result.stdout
+
+
+def range_manifest(
+    repo: Path, base_revision: str, snapshot_revision: str
+) -> list[dict[str, Any]]:
+    paths = range_paths(repo, base_revision, snapshot_revision)
+    manifest: list[dict[str, Any]] = []
+    for path in paths:
+        entry = tree_entry(repo, snapshot_revision, path)
+        content = snapshot_content(repo, snapshot_revision, path)
+        file_type = {"120000": "symlink", "160000": "submodule"}.get(
+            entry["mode"], entry["type"]
+        )
+        manifest.append(
+            {
+                "path": path,
+                "file_type": file_type,
+                "mode": entry["mode"],
+                "content_sha256": hashlib.sha256(content).hexdigest(),
+                "content_size": len(content),
+            }
+        )
+    return manifest
+
+
+def commit_range_sha256(
+    repo_arg: str | Path,
+    base_revision: str,
+    snapshot_revision: str,
+    *,
+    task_ref: str = "",
+    mode: str = "task-review",
 ) -> str:
-    """Hash Task, HEAD, and changed content; invariant only to staging."""
-    normalized_task = normalize_task_id(task_id)
-    base_head = head or run_git(repo, "rev-parse", "HEAD").stdout.strip()
-    digest = hashlib.sha256()
-    encoded_task = normalized_task.encode("ascii")
-    digest.update(b"TASK_ID\0")
-    digest.update(len(encoded_task).to_bytes(8, "big"))
-    digest.update(encoded_task)
-    encoded_head = base_head.encode("ascii")
-    digest.update(b"BASE_HEAD\0")
-    digest.update(len(encoded_head).to_bytes(8, "big"))
-    digest.update(encoded_head)
-    paths = changed_paths(repo)["all"]
-    for relative in paths:
-        encoded_path = relative.encode(errors="surrogateescape")
-        digest.update(b"PATH\0")
-        digest.update(len(encoded_path).to_bytes(8, "big"))
-        digest.update(encoded_path)
-        path = repo / relative
-        try:
-            metadata = path.lstat()
-        except FileNotFoundError:
-            digest.update(b"\0DELETED\0")
-            continue
-        digest.update(b"\0MODE\0")
-        digest.update(oct(stat.S_IMODE(metadata.st_mode)).encode("ascii"))
-        if stat.S_ISLNK(metadata.st_mode):
-            content = os.readlink(path).encode(errors="surrogateescape")
-            digest.update(b"\0SYMLINK\0")
-        elif stat.S_ISREG(metadata.st_mode):
-            content = path.read_bytes()
-            digest.update(b"\0FILE\0")
-        else:
-            content = b""
-            digest.update(b"\0OTHER\0")
-        digest.update(len(content).to_bytes(8, "big"))
-        digest.update(content)
-    return digest.hexdigest()
+    repo = repository_root(repo_arg)
+    base = resolve_commit(repo, base_revision)
+    snapshot = resolve_commit(repo, snapshot_revision)
+    state = inspect(repo)
+    _, canonical_task = normalize_task_ref(
+        task_ref or state["slice_id"] + "-T00", state["slice_id"]
+    )
+    manifest = range_manifest(repo, base, snapshot)
+    hasher = hashlib.sha256()
+    _frame(hasher, "digest-version", "immutable-review-v2")
+    _frame(hasher, "slice", state["slice_id"])
+    _frame(hasher, "task", canonical_task)
+    _frame(hasher, "base-head", base)
+    _frame(hasher, "snapshot-head", snapshot)
+    _frame(hasher, "mode", mode)
+    _frame(
+        hasher,
+        "manifest",
+        json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
+    )
+    for item in manifest:
+        _frame(hasher, "path", item["path"])
+        _frame(hasher, "file-type", item["file_type"])
+        _frame(hasher, "file-mode", item["mode"])
+        _frame(hasher, "contents", snapshot_content(repo, snapshot, item["path"]))
+    return hasher.hexdigest()
 
 
-def review_snapshot(task_id: str, repo_arg: str | Path = ".") -> dict[str, Any]:
-    normalized_task = normalize_task_id(task_id)
+def public_manifest(repo: Path, base: str, snapshot: str) -> list[dict[str, Any]]:
+    return range_manifest(repo, base, snapshot)
+
+
+def protected_ref_heads(repo: Path, policy: dict[str, Any]) -> dict[str, str]:
+    heads: dict[str, str] = {}
+    for ref in protected_refs(repo, policy):
+        heads[ref] = resolve_commit(repo, ref)
+    return heads
+
+
+def immutable_evidence(
+    task_ref: str,
+    base_revision: str,
+    snapshot_revision: str,
+    repo_arg: str | Path = ".",
+    *,
+    mode: str = "task-review",
+) -> dict[str, Any]:
     repo = repository_root(repo_arg)
     state = inspect(repo)
-    scope = check(normalized_task, repo)
-    active_tasks = state["active_tasks"]
-    reasons = list(scope.get("blocking_reasons", []))
-    if len(active_tasks) > 1 and "MULTIPLE_IN_PROGRESS" not in reasons:
-        reasons.append("MULTIPLE_IN_PROGRESS")
-    if active_tasks and normalized_task not in active_tasks:
-        reasons.append("DIFFERENT_ACTIVE_TASK_IN_PROGRESS")
-    if "error" in scope and scope["error"] not in reasons:
-        reasons.append(scope["error"])
-    current_head = run_git(repo, "rev-parse", "HEAD").stdout.strip()
+    local_task, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
+    base = resolve_commit(repo, base_revision)
+    snapshot = resolve_commit(repo, snapshot_revision)
+    current = resolve_commit(repo, "HEAD")
+    policy, policy_error = load_revision_policy(repo, snapshot)
+    policy = policy or {}
+    blockers: list[str] = []
+    if policy_error:
+        blockers.append(policy_error)
+    if policy.get("schema_version") != EXPECTED_WORKFLOW_SCHEMA_VERSION:
+        blockers.append("SNAPSHOT_POLICY_SCHEMA_MISMATCH")
+    if policy.get("workflow_baseline_marker") != EXPECTED_WORKFLOW_BASELINE_MARKER:
+        blockers.append("SNAPSHOT_POLICY_MARKER_MISMATCH")
+    if current != snapshot:
+        blockers.append("SNAPSHOT_HEAD_NOT_CHECKED_OUT")
+    if not is_ancestor(repo, base, snapshot):
+        blockers.append("SNAPSHOT_BASE_NOT_ANCESTOR")
+    changed = range_paths(repo, base, snapshot)
+    if not changed:
+        blockers.append("SNAPSHOT_RANGE_EMPTY")
+    dirty = porcelain_paths(repo)
+    if dirty:
+        blockers.append("SNAPSHOT_WORKTREE_DIRTY")
+    task = next((item for item in state["tasks"] if item["id"] == local_task), None)
+    if task is None:
+        blockers.append("ILLEGAL_OR_UNKNOWN_TASK_ID")
+    if mode not in {"task-review", "slice-review"}:
+        blockers.append("INVALID_REVIEW_MODE")
+    if mode == "slice-review":
+        scope = check_slice_range(
+            canonical_task,
+            repo,
+            base_head=base,
+            snapshot_head=snapshot,
+        )
+    else:
+        scope = check(canonical_task, repo, base_head=base, snapshot_head=snapshot)
+        if task is not None and task["status"] != "DONE":
+            blockers.append("TASK_NOT_DONE")
+    blockers.extend(scope.get("blocking_reasons", []))
+    other_slice_active = [
+        item
+        for item in state.get("other_active_worktrees", [])
+        if any(
+            ref.startswith(f"{state['slice_id']}-")
+            for ref in item.get("active_task_refs", [])
+        )
+    ]
+    if other_slice_active:
+        blockers.append("SAME_SLICE_ACTIVE_IN_OTHER_WORKTREE")
+    ref_heads = protected_ref_heads(repo, policy) if policy else {}
+    snapshot_protected_refs = sorted(
+        ref for ref, oid in ref_heads.items() if oid == snapshot
+    )
+    if snapshot_protected_refs:
+        blockers.append("SNAPSHOT_ON_PROTECTED_BRANCH")
+    branch = (
+        run_git(
+            repo, "symbolic-ref", "--short", "-q", "HEAD", check=False
+        ).stdout.strip()
+        or None
+    )
+    if branch:
+        full_ref = f"refs/heads/{branch}"
+        if full_ref in ref_heads and current == snapshot:
+            blockers.append("SNAPSHOT_ON_PROTECTED_BRANCH")
+    digest = commit_range_sha256(
+        repo, base, snapshot, task_ref=canonical_task, mode=mode
+    )
     return {
-        "ok": not reasons,
+        "ok": not blockers,
+        "workflow_stage": "IMMUTABLE_REVIEW_EVIDENCE" if not blockers else "BLOCKED",
         "repository_root": str(repo),
-        "task": normalized_task,
-        "actual_active_tasks": active_tasks,
-        "base_head": current_head,
-        "current_diff_sha256": working_diff_sha256(repo, normalized_task, current_head),
-        "changed_paths": changed_paths(repo)["all"],
+        "slice": state["slice_id"],
+        "task": canonical_task,
+        "local_task": local_task,
+        "mode": mode,
+        "base_head": base,
+        "snapshot_head": snapshot,
+        "current_head": current,
+        "branch": branch,
+        "detached": branch is None,
+        "dirty_paths": dirty,
+        "changed_paths": changed,
+        "manifest": public_manifest(repo, base, snapshot),
+        "digest": digest,
         "scope": scope,
-        "blocking_reasons": reasons,
+        "risk_policy": scope.get("risk_policy"),
+        "protected_ref_patterns": protected_ref_patterns(policy) if policy else [],
+        "protected_refs_at_snapshot": snapshot_protected_refs,
+        "integration_authorized": False,
+        "push_authorized": False,
+        "human_approval": False,
+        "blocking_reasons": list(dict.fromkeys(blockers)),
     }
 
 
-def cached_diff_check(repo: Path) -> dict[str, Any]:
-    result = subprocess.run(
-        ["git", "-C", str(repo), "diff", "--cached", "--check"],
-        check=False,
-        capture_output=True,
-        text=True,
-    )
+def working_diff_sha256(
+    repo_arg: str | Path = ".", task_ref: str | None = None, head: str | None = None
+) -> str:
+    repo = repository_root(repo_arg)
+    result = run_git(repo, "diff", "--binary", "HEAD", check=False)
+    staged = run_git(repo, "diff", "--binary", "--cached", check=False)
+    untracked = "\n".join(porcelain_paths(repo))
+    hasher = hashlib.sha256()
+    _frame(hasher, "digest-version", "working-tree-v1")
+    _frame(hasher, "head", resolve_commit(repo, head or "HEAD"))
+    if task_ref:
+        _frame(hasher, "task", task_ref.strip().upper())
+    _frame(hasher, "unstaged", result.stdout)
+    _frame(hasher, "staged", staged.stdout)
+    _frame(hasher, "paths", untracked)
+    return hasher.hexdigest()
+
+
+def review_snapshot(
+    task_or_repo: str | Path = ".", repo_arg: str | Path | None = None
+) -> dict[str, Any]:
+    task_ref = None if repo_arg is None else str(task_or_repo)
+    repo = repository_root(repo_arg if repo_arg is not None else task_or_repo)
+    digest = working_diff_sha256(repo, task_ref)
+    current_head = resolve_commit(repo, "HEAD")
+    changed = changed_paths(repo)["all"]
     return {
-        "command": "git diff --cached --check",
-        "exit_code": result.returncode,
-        "summary": "\n".join(
-            part.strip() for part in (result.stdout, result.stderr) if part.strip()
-        ),
+        "ok": True,
+        "workflow_stage": "LEGACY_WORKING_TREE_REVIEW",
+        "mode": "legacy-working-tree",
+        "compatibility_only": True,
+        "checkpoint_eligible": False,
+        "task": task_ref.upper() if task_ref else None,
+        "base_head": current_head,
+        "changed_paths": changed,
+        "digest": digest,
+        "current_diff_sha256": digest,
+        "integration_authorized": False,
+        "push_authorized": False,
+        "human_approval": False,
     }
 
 
 def verify(
-    task_id: str,
+    task_ref: str,
     reviewed_head: str,
-    reviewed_diff_sha256: str,
+    reviewed_digest: str,
     repo_arg: str | Path = ".",
     *,
-    ai_review_pass: bool,
-    human_approved: bool,
+    ai_review_pass: bool = False,
+    human_approved: bool = False,
     dependency_review_confirmed: bool = False,
 ) -> dict[str, Any]:
-    task_id = normalize_task_id(task_id)
-    repo = repository_root(repo_arg)
-    state = inspect(repo)
-    scope = check(task_id, repo)
-    if "error" in scope:
-        return scope
-
-    paths = changed_paths(repo)
-    current_head = run_git(repo, "rev-parse", "HEAD").stdout.strip()
-    current_hash = working_diff_sha256(repo, task_id, current_head)
-    cached_check = cached_diff_check(repo)
-    task_done = scope["task_status"] == "DONE"
-    all_changes_staged = (
-        bool(paths["all"])
-        and paths["staged"] == paths["all"]
-        and not paths["unstaged"]
-        and not paths["untracked"]
+    """Compatibility wrapper; legacy working-tree verification cannot accept."""
+    return checkpoint_readiness(
+        task_ref,
+        repo_arg,
+        base_revision=reviewed_head,
+        snapshot_revision=reviewed_head,
+        reviewed_digest=reviewed_digest,
+        ai_review_pass=ai_review_pass,
+        human_approved=human_approved,
+        dependency_review_confirmed=dependency_review_confirmed,
     )
-    extra_staged = [
-        path for path in paths["staged"] if path in set(scope["disallowed_paths"])
-    ]
-    reviewed_hash_matches = reviewed_diff_sha256.lower() == current_hash
-    reviewed_head_matches = reviewed_head.lower() == current_head
-    active_tasks = state["active_tasks"]
-    dependency_review = scope["dependency_review"]
-    dependency_confirmation_required = dependency_review["manual_confirmation_required"]
 
-    reasons: list[str] = []
-    if not task_done:
-        reasons.append("TASK_NOT_DONE")
+
+def checkpoint_readiness(
+    task_ref: str,
+    repo_arg: str | Path = ".",
+    *,
+    base_revision: str | None = None,
+    snapshot_revision: str | None = None,
+    reviewed_digest: str | None = None,
+    mode: str = "task-review",
+    ai_review_pass: bool = False,
+    verification_pass: bool = False,
+    reviewed_risk_tier: str | None = None,
+    human_approved: bool = False,
+    dependency_review_confirmed: bool = False,
+) -> dict[str, Any]:
+    evidence: dict[str, Any] | None = None
+    readiness_blockers: list[str] = []
+    if not (base_revision and snapshot_revision):
+        readiness_blockers.append("IMMUTABLE_BASE_AND_SNAPSHOT_REQUIRED")
+    else:
+        try:
+            evidence = immutable_evidence(
+                task_ref,
+                base_revision,
+                snapshot_revision,
+                repo_arg,
+                mode=mode,
+            )
+            readiness_blockers.extend(evidence.get("blocking_reasons", []))
+        except (InspectionError, OSError, UnicodeError) as exc:
+            readiness_blockers.append(f"EVIDENCE_ERROR:{exc}")
+    digest_matches = bool(
+        evidence and reviewed_digest and reviewed_digest == evidence["digest"]
+    )
+    if not reviewed_digest:
+        readiness_blockers.append("REVIEWED_DIGEST_REQUIRED")
+    elif not digest_matches:
+        readiness_blockers.append("REVIEWED_DIGEST_MISMATCH")
     if not ai_review_pass:
-        reasons.append("AI_REVIEW_PASS_NOT_SUPPLIED")
-    if not human_approved:
-        reasons.append("CURRENT_CONTEXT_HUMAN_APPROVAL_NOT_SUPPLIED")
-    if len(active_tasks) > 1:
-        reasons.append("MULTIPLE_IN_PROGRESS")
-    if active_tasks and task_id not in active_tasks:
-        reasons.append("DIFFERENT_ACTIVE_TASK_IN_PROGRESS")
-    if dependency_confirmation_required and not dependency_review_confirmed:
-        reasons.append("DEPENDENCY_MANUAL_CONFIRMATION_REQUIRED")
-    if not reviewed_head_matches:
-        reasons.append("REVIEWED_HEAD_MISMATCH")
-    if not reviewed_hash_matches:
-        reasons.append("REVIEWED_DIFF_HASH_MISMATCH")
-    if not paths["staged"]:
-        reasons.append("NO_STAGED_CHANGES")
-    if not all_changes_staged:
-        reasons.append("NOT_ALL_CHANGES_STAGED")
-    if extra_staged:
-        reasons.append("EXTRA_STAGED_PATH")
-    if cached_check["exit_code"] != 0:
-        reasons.append("CACHED_DIFF_CHECK_FAILED")
-    if not scope["ok"]:
-        reasons.extend(
-            reason for reason in scope["blocking_reasons"] if reason not in reasons
+        readiness_blockers.append("AI_REVIEW_PASS_NOT_SUPPLIED")
+    if reviewed_risk_tier is None:
+        readiness_blockers.append("REVIEWED_RISK_TIER_REQUIRED")
+    elif reviewed_risk_tier not in RISK_RANK:
+        readiness_blockers.append("REVIEWED_RISK_TIER_INVALID")
+    elif evidence:
+        risk_policy = evidence.get("risk_policy") or {}
+        required_tier = risk_policy.get("effective_tier") or risk_policy.get(
+            "minimum_tier"
         )
+        if required_tier in RISK_RANK and (
+            RISK_RANK[reviewed_risk_tier] < RISK_RANK[required_tier]
+        ):
+            readiness_blockers.append("REVIEWED_RISK_TIER_BELOW_POLICY_MINIMUM")
+    dependency_review = (evidence or {}).get("scope", {}).get("dependency_review", {})
+    if (
+        dependency_review.get("manual_confirmation_required")
+        and not dependency_review_confirmed
+    ):
+        readiness_blockers.append("DEPENDENCY_MANUAL_CONFIRMATION_REQUIRED")
 
-    commit_ready = not reasons
+    ready_for_human = not readiness_blockers
+    workflow_stage = "HUMAN_APPROVAL_REQUIRED" if ready_for_human else "BLOCKED"
+    status = (
+        "CHECKPOINT_READY — Awaiting explicit Human approval"
+        if ready_for_human
+        else "CHECKPOINT_NOT_READY"
+    )
+    reason = (
+        "AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED"
+        if ready_for_human
+        else "CHECKPOINT_EVIDENCE_INVALID"
+    )
+    blockers = [*readiness_blockers, "AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED"]
     return {
-        "ok": commit_ready,
-        "repository_root": str(repo),
-        "task": task_id,
-        "actual_active_tasks": active_tasks,
-        "task_status": scope["task_status"],
-        "ai_review_evidence": {
-            "pass_supplied_from_current_workflow_context": ai_review_pass,
-            "reviewed_head": reviewed_head.lower(),
-            "current_head": current_head,
-            "head_matches": reviewed_head_matches,
-            "reviewed_diff_sha256": reviewed_diff_sha256.lower(),
-            "current_diff_sha256": current_hash,
-            "hash_matches": reviewed_hash_matches,
-        },
-        "human_approval_supplied_from_current_context": human_approved,
-        "dependency_review_evidence": {
-            "required": dependency_confirmation_required,
-            "confirmed_from_current_workflow_context": dependency_review_confirmed,
-            "changed_paths": dependency_review["changed_paths"],
-            "condition": dependency_review["condition"],
-        },
-        "changed_paths": paths["all"],
-        "staged_paths": paths["staged"],
-        "unstaged_paths": paths["unstaged"],
-        "untracked_paths": paths["untracked"],
-        "extra_staged_paths": extra_staged,
-        "all_changes_staged": all_changes_staged,
-        "cached_diff_check": cached_check,
-        "scope": scope,
-        "workflow_stage": "COMMIT_READY" if commit_ready else "HUMAN_APPROVAL_REQUIRED",
-        "blocking_reasons": reasons,
+        "ok": False,
+        "workflow_stage": workflow_stage,
+        "reason": reason,
+        "status": status,
+        "task": task_ref.upper(),
+        "mode": mode,
+        "human_approval_required": ready_for_human,
+        "human_approval_supplied": human_approved,
+        "ai_review_pass": ai_review_pass,
+        "verification_pass_claim_ignored": verification_pass,
+        "caller_verification_pass_claim_ignored": verification_pass,
+        "dependency_review_confirmed": dependency_review_confirmed,
+        "reviewed_risk_tier": reviewed_risk_tier,
+        "reviewed_digest": reviewed_digest,
+        "digest_matches": digest_matches,
+        "ready_for_human_approval": ready_for_human,
+        "checkpoint_accepted": False,
+        "human_approval": False,
+        "integration_authorized": False,
+        "push_authorized": False,
+        "evidence": evidence,
+        "blocking_reasons": list(dict.fromkeys(blockers)),
     }
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("task", help="Task ID, for example T06")
-    parser.add_argument(
-        "--reviewed-head",
-        help="HEAD OID emitted by the passing AI review",
+    parser.add_argument("task", nargs="?", help="Task ID, for example S02-T03 or T03")
+    modes = parser.add_mutually_exclusive_group()
+    modes.add_argument(
+        "--evidence", action="store_true", help="emit immutable review evidence"
     )
-    parser.add_argument(
-        "--reviewed-diff-sha256",
-        help="digest emitted by the passing AI review",
-    )
-    parser.add_argument(
-        "--ai-review-pass",
+    modes.add_argument(
+        "--checkpoint",
         action="store_true",
-        help="assert that current workflow context has AI_REVIEW_PASS",
+        help="show Human-required checkpoint readiness; never accepts",
     )
-    parser.add_argument(
-        "--human-approved",
-        action="store_true",
-        help="assert explicit local-commit approval in the current user context",
-    )
-    parser.add_argument(
-        "--dependency-review-confirmed",
-        action="store_true",
-        help=(
-            "assert manual review of a plan-authorized dependency diff; required only "
-            "when dependency files changed"
-        ),
-    )
-    parser.add_argument(
-        "--hash-only",
-        action="store_true",
-        help="only print the current staging-invariant diff digest",
+    modes.add_argument(
+        "--hash-only", action="store_true", help="emit legacy working-tree digest"
     )
     parser.add_argument("--repo", default=".", help="repository path (default: cwd)")
+    parser.add_argument("--base-head", help="immutable range base commit")
+    parser.add_argument("--snapshot-head", help="immutable range snapshot commit")
+    parser.add_argument("--reviewed-digest")
+    parser.add_argument(
+        "--mode", default="task-review", choices=["task-review", "slice-review"]
+    )
+    parser.add_argument("--ai-review-pass", action="store_true")
+    parser.add_argument(
+        "--verification-pass", action="store_true", help="deprecated claim; ignored"
+    )
+    parser.add_argument("--risk-tier", choices=["LOW", "MEDIUM", "HIGH"])
+    parser.add_argument("--human-approved", action="store_true")
+    parser.add_argument("--dependency-review-confirmed", action="store_true")
     parser.add_argument("--pretty", action="store_true", help="pretty-print JSON")
     return parser
 
@@ -254,36 +451,58 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     try:
-        repo = repository_root(args.repo)
         if args.hash_only:
-            payload = review_snapshot(args.task, repo)
-        elif not args.reviewed_head or not args.reviewed_diff_sha256:
-            payload = {
-                "ok": False,
-                "task": args.task.upper(),
-                "error": (
-                    "--reviewed-head and --reviewed-diff-sha256 are required unless "
-                    "--hash-only is used"
-                ),
-            }
-        else:
-            payload = verify(
-                args.task,
-                args.reviewed_head,
-                args.reviewed_diff_sha256,
-                repo,
+            payload = review_snapshot(args.repo)
+        elif args.checkpoint:
+            payload = checkpoint_readiness(
+                args.task or "UNKNOWN",
+                args.repo,
+                base_revision=args.base_head,
+                snapshot_revision=args.snapshot_head,
+                reviewed_digest=args.reviewed_digest,
+                mode=args.mode,
                 ai_review_pass=args.ai_review_pass,
+                verification_pass=args.verification_pass,
+                reviewed_risk_tier=args.risk_tier,
+                human_approved=args.human_approved,
+                dependency_review_confirmed=args.dependency_review_confirmed,
+            )
+        elif args.evidence:
+            if not args.task or not args.base_head or not args.snapshot_head:
+                raise InspectionError(
+                    "--evidence requires task, --base-head, and --snapshot-head"
+                )
+            payload = immutable_evidence(
+                args.task,
+                args.base_head,
+                args.snapshot_head,
+                args.repo,
+                mode=args.mode,
+            )
+        else:
+            if not args.task:
+                raise InspectionError("task is required")
+            payload = checkpoint_readiness(
+                args.task,
+                args.repo,
+                base_revision=args.base_head,
+                snapshot_revision=args.snapshot_head,
+                reviewed_digest=args.reviewed_digest,
+                mode=args.mode,
+                ai_review_pass=args.ai_review_pass,
+                verification_pass=args.verification_pass,
+                reviewed_risk_tier=args.risk_tier,
                 human_approved=args.human_approved,
                 dependency_review_confirmed=args.dependency_review_confirmed,
             )
     except (InspectionError, OSError, UnicodeError) as exc:
-        payload = {"ok": False, "task": args.task.upper(), "error": str(exc)}
+        payload = {"ok": False, "workflow_stage": "BLOCKED", "error": str(exc)}
         print(
             json.dumps(payload, ensure_ascii=False, indent=2 if args.pretty else None)
         )
         return 2
     print(json.dumps(payload, ensure_ascii=False, indent=2 if args.pretty else None))
-    return 0 if payload["ok"] else 1
+    return 0 if payload.get("ok") else 1
 
 
 if __name__ == "__main__":

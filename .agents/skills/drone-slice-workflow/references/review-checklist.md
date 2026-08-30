@@ -1,26 +1,30 @@
 # Review Checklist
 
-Review behavior before source shape. Read the current Task and relevant plan matrix rows, then inspect `git status --short`, staged/unstaged diffs, untracked files, `check_scope.py`, `verify_task.py`, and the Task Execution Record.
+Review behavior before source shape. Read the Task, plan rows, policy, immutable handoff, and existing verification record; inspect only the exact `base_head..snapshot_head` range.
 
-## Required findings pass
+## Evidence identity
 
-- Every Acceptance item is demonstrably satisfied at its required test level; tests assert behavior rather than names, source text, or line counts.
-- Product/Variant/store identity is exact. No default Variant selection or cross-Variant value mixing occurs.
-- Evidence, claim bindings, output scope, and freshness belong to the same resolved object; dynamic facts originate in the current ToolResult.
-- Trace events describe the order that actually occurred and share the correct correlation identity.
-- ERROR, PARTIAL, UNKNOWN, missing, and inconsistent ToolResult paths fail closed without stale/fixture substitution.
-- Shopify remains read-only, with no write surface and the required zero-write evidence.
-- Public Contract and core Artifact diffs are absent unless explicitly reconciled and authorized.
-- Any dependency diff is allowed by the active Slice/Task policy and manually confirmed as minimal and directly required; major or cross-Slice dependencies have been escalated rather than accepted by path alone.
-- Review evidence is bound to the normalized current Task ID as well as HEAD and content; evidence from another Task is rejected, and no different Task is `IN_PROGRESS`.
-- No later Task or Slice behavior, dependency, generated residue, unchecked untracked file, secret, raw header, or sensitive trace data appears.
-- The Execution Record includes real commands, failures, corrections, exit codes, evidence locations, and limitations, consistent with Git and observed results.
-- AI and Human authority semantics remain separate.
+- The independent checkout is clean at `snapshot_head`, with `base_head` an ancestor.
+- Canonical Slice/Task, base, snapshot, mode, paths, file types/modes, and contents reproduce the supplied digest.
+- No staging, working-tree, extra-path, amended/rebased-snapshot, or different-mode residue is present.
+- The snapshot is not directly on a protected ref. `main` and `master` remain protected even when policy omits them.
+- Scope and deterministic verification output refer to the same immutable range; caller pass claims are not evidence.
+- Task review requires the selected Task to be `DONE`. Slice review requires every Task to be `DONE`, the Task identity to equal the explicit policy `completion_task`, and the complete range to pass the union of configured Task scopes plus core Artifact, dependency, forbidden-path, identity, and aggregate HIGH-risk gates.
+- The reviewer did not modify or implement the snapshot and remains independent.
+
+## Required findings
+
+- Acceptance behavior is demonstrably satisfied at its required test level.
+- Product/Variant/store identity is exact; no default Variant selection or cross-Variant value mixing occurs.
+- Evidence, claims, output scope, freshness, and correlation identity bind to the same resolved object and current ToolResult.
+- ERROR, PARTIAL, UNKNOWN, missing, and inconsistent ToolResult paths fail closed without stale substitution.
+- Shopify stays read-only with zero-write evidence.
+- Public Contract, core Artifact, Product Behavior, Architecture, and Accepted Decision changes are absent or explicitly escalated.
+- Dependency changes are policy-allowed, minimal, and Task-local; major/cross-Slice dependencies are HIGH/escalated.
+- No later Task/Slice behavior, generated residue, secret, raw header, or sensitive trace data appears.
+- The Execution Record contains real commands, failures, corrections, exit codes, evidence, and limitations.
+- AI verdict, Human approval, WIP snapshot, checkpoint handoff, integration/merge, and push remain distinct.
 
 ## Verdicts
 
-Use `AI_REVIEW_NEEDS_CHANGES` when an actionable correctness, scope, test, evidence, or record defect exists. List findings by severity with file/line evidence, then note residual risk.
-
-Use `BLOCKED` only when review cannot reach a conclusion because required evidence is unavailable or a Human authority boundary is reached.
-
-Use `AI_REVIEW_PASS — Awaiting explicit Human approval` only when no actionable finding remains. Include the exact normalized Task ID, reviewed base HEAD, diff SHA-256, and concise verification evidence. Never output `Human Approved` or `APPROVED FOR COMMIT`.
+Use `AI_REVIEW_NEEDS_CHANGES` for any actionable correctness, scope, test, evidence, risk, or record defect; list severity and file/line evidence. Use `BLOCKED` only when evidence is unavailable or a Human boundary prevents a conclusion. Use `AI_REVIEW_PASS` only when no actionable finding remains, and include canonical identity, exact range, mode, digest, reviewed risk tier, verification evidence, residual risk, and the wording `AI_REVIEW_PASS — Awaiting explicit Human approval`.
