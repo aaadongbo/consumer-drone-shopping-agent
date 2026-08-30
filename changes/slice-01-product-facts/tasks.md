@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：IMPLEMENTATION / T07 DONE — AI review pending Human approval
+> 状态：IMPLEMENTATION / T09 DONE — Slice 1 Completion Review pending
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01～T07 已完成，T07 已修正 review finding 并等待 Human approval。
+> 当前按批准顺序执行 Implementation；T01～T09 已完成，等待 Slice 1 Completion Review，不进入 Slice 2。
 
 ## 1. Status Model
 
@@ -22,7 +22,7 @@
 | T06 | 完成 Tool failure 与标准 fallback 映射 | DONE | T04, T05 |
 | T07 | 加固 Evidence、动态事实与输出 scope Gate | DONE | T04, T05, T06 |
 | T08 | 接入薄 Conversation API 与 Minimal E2E Client | DONE | T07 |
-| T09 | 收敛 Verification Matrix 与 Completion Evidence | NOT_STARTED | T08 |
+| T09 | 收敛 Verification Matrix 与 Completion Evidence | DONE | T08 |
 
 只允许一个 Task 处于 `IN_PROGRESS`。Task 未满足自身 Acceptance 与 Verification 时不得标为 `DONE`。
 
@@ -496,11 +496,45 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`6644e8910c1b86f61a64b41591cae97144924c42`; none (`git status --short`, working diff, cached diff, and untracked-path listing produced no changes)
+- Changed paths：`tests/e2e/test_t08_minimal_client.py`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Readiness `pwd`, repository root/HEAD/message/branch, working/cached/untracked diff, `git worktree list --porcelain`, and `python .agents/skills/drone-slice-workflow/scripts/inspect_state.py`: each `0`; HEAD/message matched the authorized `6644e8910c1b86f61a64b41591cae97144924c42` / `feat: expose Slice 1 conversation API`, both worktrees were clean, T01～T08 were `DONE`, and T09 was the unique legal next Task.
+  - After T09 was marked `IN_PROGRESS`, `inspect_state.py` returned `1` only for expected `CURRENT_WORKTREE_DIRTY`; the paired `python .agents/skills/drone-slice-workflow/scripts/check_scope.py T09` returned `0`, proving the dirty path belonged to T09 with no other-worktree contamination.
+  - Initial local-venv baseline Ruff lint/format, Unit, Contract, Integration, E2E, and full suite returned `0`: Unit `59 passed`, Contract `110 passed`, Integration `18 passed`, E2E `11 passed`, full `198 passed`.
+  - The T09 transport completion additions passed targeted Ruff lint/format and `tests/e2e/test_t08_minimal_client.py`: each `0`; E2E target `20 passed`.
+  - Final Matrix walking-skeleton command over T04～T08 Integration plus the complete E2E module returned `0`: `38 passed`.
+  - Final local-venv layered gates returned `0`: Ruff lint/format passed; Unit `59 passed`, Contract `110 passed`, Integration `18 passed`, E2E `20 passed`, full suite `207 passed`.
+  - Read-only/privacy/diagnostic/transport target covering the complete Shopify Port contract, two sensitive-trace negative tests, three invalid-wire transport cases, three scope/output diagnostic cases, and missing dynamic freshness returned `0`: `28 passed`.
+  - Explicit public Port introspection returned `0`: methods and allowlist were exactly `get_products`, `get_variants`, and `refresh_commerce_state`; no write or generic operation surface was present. Core Artifact zero-diff, dependency zero-diff, working/cached diff checks, and scope checks returned `0`.
+  - The first sandboxed `python .agents/skills/drone-slice-workflow/scripts/verify_task.py T09 --full --pretty` returned `1`: its four `uv` subcommands each returned `2` before running because the sandbox could not open the existing `~/.cache/uv`; its Git diff, core Artifact, dependency, and scope sub-gates already returned `0`. The prescribed verifier rerun with permission to read that existing cache returned `0`: lock, Ruff lint/format, full pytest (`207 passed`), working/cached diff, core Artifact, dependency, and T09 scope all passed.
+  - The final post-record prescribed verifier returned `0` again: T09 was `DONE`, the full suite remained `207 passed`, and every static, diff, Artifact, dependency, and scope sub-gate passed against the completed Execution Record.
+- Results / evidence locations：
+
+| Matrix | Result | Reproducible test evidence |
+|---:|:---:|---|
+| #1 | PASS | `tests/integration/test_t04_happy_path.py::test_explicit_variant_battery_count_happy_path`; E2E `explicit-variant-happy-path`; `test_matching_product_card_survives_client_api_and_integrity_gate` covers both Card-omitted and matching Card-present wire paths. |
+| #2 | PASS | `tests/unit/test_t05_identity.py::test_product_fact_uses_only_shared_attributes_and_never_variant_ids`; `tests/integration/test_t05_identity_matrix.py::test_matrix_2_product_shared_fact_is_strictly_product_scoped`; E2E `product-shared`. |
+| #3 | PASS | `tests/unit/test_t04_application.py::test_product_only_variant_question_does_not_claim_resolved_context`; `tests/integration/test_t05_identity_matrix.py::test_matrix_3_product_only_variant_fact_returns_variant_required`; E2E `variant-required`. |
+| #4 | PASS | `tests/integration/test_t05_identity_matrix.py::test_matrix_4_missing_product_returns_product_not_found`; E2E `product-not-found`. |
+| #5 | PASS | `tests/integration/test_t05_identity_matrix.py::test_matrix_5_missing_or_foreign_variant_returns_variant_not_found`; E2E `variant-not-found` and `foreign-variant-not-found`. |
+| #6 | PASS | `tests/unit/test_t06_fallback_mapping.py::test_unknown_or_missing_fact_uses_non_assertive_wording`; `tests/integration/test_t06_fallback_matrix.py::test_matrix_6_unknown_fact_returns_non_assertive_fallback`; E2E `unknown-fact`. |
+| #7 | PASS | Integration and E2E `matrix-7-timeout` cases in `test_matrix_7_through_10_tool_failures_never_reuse_partial_or_old_facts` and `test_minimal_client_preserves_tool_failure_without_fact_claims`. |
+| #8 | PASS | Integration and E2E `matrix-8-rate-limit` cases in the same two parametrized tests. |
+| #9 | PASS | Integration and E2E `matrix-9-auth` cases in the same two parametrized tests. |
+| #10 | PASS | Integration and E2E `matrix-10-partial` cases in the same two parametrized tests. |
+| #11 | PASS | Unit `test_evidence_scope_mismatch_fails_closed`; E2E `matrix-11-product` in `test_scope_mismatch_fails_closed_across_client_and_api`. |
+| #12 | PASS | Unit `test_evidence_scope_mismatch_fails_closed`; E2E `matrix-12-variant` in `test_scope_mismatch_fails_closed_across_client_and_api`. |
+| #13 | PASS | Unit `test_product_card_scope_mismatch_is_output_diagnostic`; Contract `test_internal_consistency_fallback_is_publicly_valid_without_diagnostic`; E2E `matrix-13-card`. |
+| #14 | PASS | Unit `test_dynamic_missing_freshness_is_not_composable`; Contract public consistency fallback gate; Integration `test_missing_dynamic_observed_at_returns_safe_consistency_fallback`; E2E `test_missing_dynamic_freshness_maps_internal_diagnostic_across_transport`. |
+| #15 | PASS | Unit `test_explicit_out_of_scope_route_returns_fallback_without_shopify_call`; Integration `test_matrix_15_out_of_scope_returns_without_shopify_call`; E2E `out-of-scope`. |
+| #16 | PASS | Integration happy/API correlation gates and every successful/fallback E2E assertion share the injected correlation ID across Envelope and trace events. |
+| #17 | PASS | Unit `test_sensitive_trace_values_are_redacted`; Integration `test_trace_contains_allowlisted_fields_only_and_redacts_sensitive_ids`; both were rerun in the `28 passed` operational target. |
+| #18 | PASS | Static Port introspection showed the exact three-read surface; `tests/contract/test_shopify_read_port.py` passed in full, including rejected write/unknown probes and zero-write ledgers; every ledger-bearing Integration/E2E path asserted `write_call_count == 0`. |
+| #19 | PASS | Contract invalid-request cases in `tests/contract/test_t08_conversation_api.py`; E2E `test_invalid_wire_input_stops_before_every_downstream_boundary` passed for missing field, invalid version, and invalid page-context type with application/interpreter/Shopify/trace counts all zero. |
+
+- Slice Completion Evidence：the public `TurnRequest` and `AnswerEnvelope` models remain the single versioned schema set; all 19 Matrix gates are mapped above; full suite is `207 passed`; Port/ledger evidence proves zero Shopify writes; correlation, trace redaction, internal-diagnostic/private-public mapping, and transport rejection negative gates passed; `check_scope.py T09` reported only the two authorized paths, no staged/untracked/core/dependency/forbidden changes, and no dirty other worktree.
+- Discoveries / limitations：The pre-T09 suite already covered all Matrix semantics across lower layers, but completion-level E2E coverage was missing for Matrix #5, #8～#10, #12, and #14; Matrix #1 lacked a matching Card-present transport branch. T09 added only those test paths and also carried Matrix #13 through Client/API; no implementation defect, Product Behavior change, public Contract change, dependency change, Architecture change, or later-Slice behavior was required. Optional live Shopify/model smoke was not run because it requires separate authorization and is explicitly non-blocking. Verification remains deterministic and in-process: the interpreter vocabulary, Shopify fixture, synchronous FastAPI TestClient, and in-memory trace are Slice 1 baselines, not production Shopify/model/widget/observability validation.
 
 ## 4. Dependency Flow
 
@@ -534,25 +568,25 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 6. Slice Completion Checklist
 
-- [ ] T01～T09 均为 DONE，且无跳过的 Acceptance。
-- [ ] Matrix #1～#19 全部 PASS，并有结果定位。
-- [ ] TurnRequest / AnswerEnvelope 使用同一公共版本化 contract set，各自通过对应 wire schema。
-- [ ] 无效 TurnRequest 在 transport boundary 被稳定、安全地拒绝；不产生 AnswerEnvelope，不调用 application、QuestionInterpreter 或 Shopify。
-- [ ] 显式 Variant、Product shared 与 Variant ambiguity 行为正确。
-- [ ] Product Card 可省略；若存在，与 Answer resolved scope、Product / Variant、Evidence 和 binding 无 scope 混淆。
-- [ ] Dynamic facts 来自当前 ToolResult 且保留 observed_at。
-- [ ] UNKNOWN、timeout、rate limit、auth、partial、not-found 和 out-of-scope 均有正确 fallback。
-- [ ] Scope/binding/output/freshness 完整性失败不返回事实 ANSWER；internal diagnostic 留在 trace，对外仅为安全的 `INTERNAL_CONSISTENCY_ERROR`。
-- [ ] 无 Evidence 不生成商品事实结论。
-- [ ] 完整 Turn trace 可由 correlation ID 关联。
-- [ ] Trace 不含 token、secret、credential 或敏感配置。
-- [ ] Shopify Port 无写 surface；Contract、Integration、E2E write-call count 均为 0。
-- [ ] Final diff 未实现完整 state、MongoDB、Redis、RAG、Milvus、推荐、比较、正式 Widget、MCP、Skill 或后续 Slice。
-- [ ] 四个核心 Artifact 未被意外修改；若有授权 Reconcile，Decision 与证据完整。
-- [ ] 实际验证命令、exit code、结果摘要和限制已写入各 Task Execution Record。
-- [ ] Optional live smoke 的运行状态被明确记录，且未成为 CI 唯一依赖。
+- [x] T01～T09 均为 DONE，且无跳过的 Acceptance。
+- [x] Matrix #1～#19 全部 PASS，并有结果定位。
+- [x] TurnRequest / AnswerEnvelope 使用同一公共版本化 contract set，各自通过对应 wire schema。
+- [x] 无效 TurnRequest 在 transport boundary 被稳定、安全地拒绝；不产生 AnswerEnvelope，不调用 application、QuestionInterpreter 或 Shopify。
+- [x] 显式 Variant、Product shared 与 Variant ambiguity 行为正确。
+- [x] Product Card 可省略；若存在，与 Answer resolved scope、Product / Variant、Evidence 和 binding 无 scope 混淆。
+- [x] Dynamic facts 来自当前 ToolResult 且保留 observed_at。
+- [x] UNKNOWN、timeout、rate limit、auth、partial、not-found 和 out-of-scope 均有正确 fallback。
+- [x] Scope/binding/output/freshness 完整性失败不返回事实 ANSWER；internal diagnostic 留在 trace，对外仅为安全的 `INTERNAL_CONSISTENCY_ERROR`。
+- [x] 无 Evidence 不生成商品事实结论。
+- [x] 完整 Turn trace 可由 correlation ID 关联。
+- [x] Trace 不含 token、secret、credential 或敏感配置。
+- [x] Shopify Port 无写 surface；Contract、Integration、E2E write-call count 均为 0。
+- [x] Final diff 未实现完整 state、MongoDB、Redis、RAG、Milvus、推荐、比较、正式 Widget、MCP、Skill 或后续 Slice。
+- [x] 四个核心 Artifact 未被意外修改；若有授权 Reconcile，Decision 与证据完整。
+- [x] 实际验证命令、exit code、结果摘要和限制已写入各 Task Execution Record。
+- [x] Optional live smoke 的运行状态被明确记录，且未成为 CI 唯一依赖。
 - [ ] Human Review 接受 Completion Evidence 后，才进入下一 Slice planning。
 
 ## 7. Recommended Next Task
 
-**T09 — 收敛 Verification Matrix 与 Completion Evidence** 是依赖满足后的下一项，但保持 `NOT_STARTED`；本次仅完成 T08，等待 T08 Human Review，未授权执行 T09。
+T09 已完成并通过 AI verification；当前没有获准的下一 Task。停止并等待 Slice 1 Completion Review，Human Review 接受 Completion Evidence 后才可规划下一 Slice；本次不授权也不执行 Slice 2。

@@ -19,11 +19,16 @@ from backend.common import (
     TURN_REQUEST_VALIDATION_HTTP_STATUS,
     AnswerEnvelope,
     AnswerPayload,
+    AttributeStatus,
+    AttributeValue,
     ConversationRef,
     EnvelopeOutcome,
     FallbackReasonCode,
     InternalDiagnosticCode,
     PageContext,
+    ProductCard,
+    ToolResult,
+    ToolStatus,
     TraceOperation,
     TurnRequest,
 )
@@ -116,6 +121,22 @@ def _system(
             None,
         ),
         (
+            _turn("这个套装有几块电池？", variant_id="missing-variant"),
+            EnvelopeOutcome.FALLBACK,
+            FallbackReasonCode.VARIANT_NOT_FOUND,
+            None,
+        ),
+        (
+            _turn(
+                "这个套装有几块电池？",
+                product_id="drone-mini",
+                variant_id="cine-standard",
+            ),
+            EnvelopeOutcome.FALLBACK,
+            FallbackReasonCode.VARIANT_NOT_FOUND,
+            None,
+        ),
+        (
             _turn("这个套装支持避障吗？"),
             EnvelopeOutcome.FALLBACK,
             FallbackReasonCode.FACT_UNKNOWN_OR_MISSING,
@@ -133,6 +154,8 @@ def _system(
         "product-shared",
         "variant-required",
         "product-not-found",
+        "variant-not-found",
+        "foreign-variant-not-found",
         "unknown-fact",
         "out-of-scope",
     ],
@@ -160,38 +183,144 @@ def test_minimal_client_runs_required_answer_and_fallback_journeys(
     assert fixture.write_call_count == 0
 
 
-def test_minimal_client_preserves_tool_failure_without_fact_claims() -> None:
-    client, fixture, sink = _system(outcome=FixtureOutcome.TIMEOUT)
+@pytest.mark.parametrize(
+    ("question", "outcome", "reason", "retryable", "actions"),
+    [
+        (
+            "这个套装有几块电池？",
+            FixtureOutcome.TIMEOUT,
+            FallbackReasonCode.TOOL_TIMEOUT,
+            True,
+            ["重试"],
+        ),
+        (
+            "这个套装有几块电池？",
+            FixtureOutcome.RATE_LIMITED,
+            FallbackReasonCode.TOOL_RATE_LIMITED,
+            True,
+            ["稍后重试"],
+        ),
+        (
+            "这个套装有几块电池？",
+            FixtureOutcome.UNAUTHORIZED,
+            FallbackReasonCode.TOOL_UNAUTHORIZED,
+            False,
+            ["联系支持或检查商店连接"],
+        ),
+        (
+            "这个套装配遥控器吗？",
+            FixtureOutcome.PARTIAL,
+            FallbackReasonCode.TOOL_PARTIAL_RESULT,
+            True,
+            ["重试", "询问其他可确认字段"],
+        ),
+    ],
+    ids=[
+        "matrix-7-timeout",
+        "matrix-8-rate-limit",
+        "matrix-9-auth",
+        "matrix-10-partial",
+    ],
+)
+def test_minimal_client_preserves_tool_failure_without_fact_claims(
+    question: str,
+    outcome: FixtureOutcome,
+    reason: FallbackReasonCode,
+    retryable: bool,
+    actions: list[str],
+) -> None:
+    client, fixture, sink = _system(outcome=outcome)
 
-    payload = client.ask(_turn("这个套装有几块电池？")).root
+    payload = client.ask(_turn(question)).root
 
     assert payload.outcome is EnvelopeOutcome.FALLBACK
-    assert payload.fallback.reason_code is FallbackReasonCode.TOOL_TIMEOUT
-    assert payload.fallback.retryable is True
+    assert payload.fallback.reason_code is reason
+    assert payload.fallback.retryable is retryable
+    assert payload.fallback.next_actions == actions
     assert payload.claims == payload.evidence == payload.bindings == []
     assert {event.correlation_id for event in sink.events} == {CORRELATION_ID}
     assert fixture.write_call_count == 0
 
 
-def test_scope_mismatch_fails_closed_across_client_and_api(
+def test_matching_product_card_survives_client_api_and_integrity_gate(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     original_compose: Callable[[AnswerPayload], AnswerEnvelope] = (
         slice_1_module._compose_answer
     )
 
-    def inject_wrong_product_scope(payload: AnswerPayload) -> AnswerEnvelope:
-        wrong_evidence = payload.evidence[0].model_copy(
-            update={"product_id": "drone-cine"}
+    def inject_matching_card(payload: AnswerPayload) -> AnswerEnvelope:
+        card = ProductCard(
+            store_id=payload.resolved_scope.store_id,
+            product_id=payload.resolved_scope.product_id,
+            variant_id=payload.resolved_scope.variant_id,
+            display_title="Aero Mini",
         )
-        return original_compose(
-            payload.model_copy(update={"evidence": [wrong_evidence]})
-        )
+        return original_compose(payload.model_copy(update={"product_card": card}))
+
+    monkeypatch.setattr(slice_1_module, "_compose_answer", inject_matching_card)
+    client, fixture, sink = _system()
+
+    payload = client.ask(_turn("这个套装有几块电池？")).root
+
+    assert payload.outcome is EnvelopeOutcome.ANSWER
+    assert payload.product_card is not None
+    assert (
+        payload.product_card.store_id,
+        payload.product_card.product_id,
+        payload.product_card.variant_id,
+    ) == (
+        payload.resolved_scope.store_id,
+        payload.resolved_scope.product_id,
+        payload.resolved_scope.variant_id,
+    )
+    assert {event.correlation_id for event in sink.events} == {CORRELATION_ID}
+    assert fixture.write_call_count == 0
+
+
+@pytest.mark.parametrize(
+    ("corruption", "diagnostic"),
+    [
+        ("evidence-product", InternalDiagnosticCode.EVIDENCE_SCOPE_MISMATCH),
+        ("evidence-variant", InternalDiagnosticCode.EVIDENCE_SCOPE_MISMATCH),
+        ("product-card", InternalDiagnosticCode.OUTPUT_SCOPE_MISMATCH),
+    ],
+    ids=["matrix-11-product", "matrix-12-variant", "matrix-13-card"],
+)
+def test_scope_mismatch_fails_closed_across_client_and_api(
+    monkeypatch: pytest.MonkeyPatch,
+    corruption: str,
+    diagnostic: InternalDiagnosticCode,
+) -> None:
+    original_compose: Callable[[AnswerPayload], AnswerEnvelope] = (
+        slice_1_module._compose_answer
+    )
+
+    def inject_scope_corruption(payload: AnswerPayload) -> AnswerEnvelope:
+        if corruption == "evidence-product":
+            wrong_evidence = payload.evidence[0].model_copy(
+                update={"product_id": "drone-cine"}
+            )
+            payload = payload.model_copy(update={"evidence": [wrong_evidence]})
+        elif corruption == "evidence-variant":
+            wrong_evidence = payload.evidence[0].model_copy(
+                update={"variant_id": "mini-explorer"}
+            )
+            payload = payload.model_copy(update={"evidence": [wrong_evidence]})
+        else:
+            wrong_card = ProductCard(
+                store_id=payload.resolved_scope.store_id,
+                product_id=payload.resolved_scope.product_id,
+                variant_id="mini-explorer",
+                display_title="Wrong Variant",
+            )
+            payload = payload.model_copy(update={"product_card": wrong_card})
+        return original_compose(payload)
 
     monkeypatch.setattr(
         slice_1_module,
         "_compose_answer",
-        inject_wrong_product_scope,
+        inject_scope_corruption,
     )
     client, fixture, sink = _system()
 
@@ -201,13 +330,69 @@ def test_scope_mismatch_fails_closed_across_client_and_api(
     assert payload.fallback.reason_code is (
         FallbackReasonCode.INTERNAL_CONSISTENCY_ERROR
     )
-    assert "EVIDENCE_SCOPE_MISMATCH" not in payload.to_wire_json()
+    assert diagnostic.value not in payload.to_wire_json()
     assert {
         event.summary.diagnostic_code
         for event in sink.events
         if event.summary.diagnostic_code is not None
-    } == {InternalDiagnosticCode.EVIDENCE_SCOPE_MISMATCH}
+    } == {diagnostic}
     assert fixture.write_call_count == 0
+
+
+class _MissingObservedAtPort:
+    def get_products(self, *, store_id: str, product_id: str):
+        raise AssertionError("Dynamic Matrix #14 must not read products")
+
+    def get_variants(
+        self, *, store_id: str, product_id: str, variant_id: str | None = None
+    ):
+        raise AssertionError("Dynamic Matrix #14 must not read variants")
+
+    def refresh_commerce_state(
+        self, *, store_id: str, product_id: str, variant_id: str
+    ):
+        fact = AttributeValue(
+            status=AttributeStatus.KNOWN,
+            value=2999,
+            unit="CNY",
+            source_ref="controlled://commerce#price",
+        )
+        return ToolResult.model_construct(
+            status=ToolStatus.SUCCESS,
+            data={"price": fact},
+            source="controlled://commerce",
+            observed_at=None,
+            retryable=False,
+            error_code=None,
+            missing_fields=[],
+        )
+
+
+def test_missing_dynamic_freshness_maps_internal_diagnostic_across_transport() -> None:
+    sink = InMemoryTraceSink()
+    service = Slice1ApplicationService(
+        shopify=_MissingObservedAtPort(),
+        interpreter=DeterministicQuestionInterpreter(),
+        trace_sink=sink,
+        correlation_id_factory=lambda: CORRELATION_ID,
+        clock=lambda: NOW,
+    )
+    client = MinimalConversationClient(TestClient(create_conversation_api(service)))
+
+    payload = client.ask(_turn("这款现在多少钱？")).root
+
+    assert payload.outcome is EnvelopeOutcome.FALLBACK
+    assert payload.fallback.reason_code is (
+        FallbackReasonCode.INTERNAL_CONSISTENCY_ERROR
+    )
+    assert payload.fallback.retryable is False
+    assert payload.claims == payload.evidence == payload.bindings == []
+    assert "DYNAMIC_FACT_FRESHNESS_MISSING" not in payload.to_wire_json()
+    assert {
+        event.summary.diagnostic_code
+        for event in sink.events
+        if event.summary.diagnostic_code is not None
+    } == {InternalDiagnosticCode.DYNAMIC_FACT_FRESHNESS_MISSING}
 
 
 class _CountingInterpreter:
