@@ -1,0 +1,137 @@
+{
+  "schema_version": 1,
+  "slices": {
+    "changes/slice-01-product-facts/tasks.md": {
+      "core_artifacts": [
+        "changes/slice-01-product-facts/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        "backend/agent/",
+        "backend/catalog/",
+        "backend/conversation/",
+        "backend/evaluation/",
+        "backend/evidence/",
+        "backend/rag/",
+        "eval/",
+        "storefront/"
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": [
+            ".gitignore",
+            ".python-version",
+            "backend/__init__.py",
+            "tests/test_harness.py",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "plan-authorized-minimal",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "bootstrap/unit and contract boundary"
+        },
+        "T02": {
+          "allowed_paths": [
+            "backend/common/",
+            "tests/contract/",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "plan-authorized-minimal",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "public Contract and unit boundary"
+        },
+        "T03": {
+          "allowed_paths": [
+            "backend/shopify/",
+            "tests/unit/",
+            "tests/contract/",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "fixture unit and read-Port contract boundary"
+        },
+        "T04": {
+          "allowed_paths": [
+            "backend/application/",
+            "tests/unit/",
+            "tests/contract/",
+            "tests/integration/",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "application walking-skeleton boundary"
+        },
+        "T05": {
+          "allowed_paths": [
+            "backend/application/",
+            "tests/unit/",
+            "tests/integration/",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "identity matrix application boundary"
+        },
+        "T06": {
+          "allowed_paths": [
+            "backend/application/",
+            "tests/unit/",
+            "tests/contract/",
+            "tests/integration/",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "fallback mapping application boundary"
+        },
+        "T07": {
+          "allowed_paths": [
+            "backend/application/",
+            "tests/unit/",
+            "tests/contract/",
+            "tests/integration/",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "scope/freshness guard boundary"
+        },
+        "T08": {
+          "allowed_paths": [
+            "backend/api/",
+            "backend/application/",
+            "tests/unit/",
+            "tests/contract/",
+            "tests/integration/",
+            "tests/e2e/",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "plan-authorized-minimal",
+          "verification_marker": null,
+          "verification_rationale": "transport E2E requires the full suite"
+        },
+        "T09": {
+          "allowed_paths": [
+            "backend/api/",
+            "backend/application/",
+            "backend/common/",
+            "backend/shopify/",
+            "tests/",
+            "changes/slice-01-product-facts/tasks.md"
+          ],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "Slice completion requires the full suite"
+        }
+      }
+    }
+  }
+}
