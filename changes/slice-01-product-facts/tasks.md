@@ -4,7 +4,7 @@
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 本轮仅生成任务，不执行任何 Coding Task。
+> 当前按批准顺序执行 Implementation；T01 已完成，T02 尚未开始。
 
 ## 1. Status Model
 
@@ -14,7 +14,7 @@
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Bootstrap 最小执行与测试 Harness | NOT_STARTED | SATISFIED — Human Final Approval |
+| T01 | Bootstrap 最小执行与测试 Harness | DONE | SATISFIED — Human Final Approval |
 | T02 | 固化 Slice 1 版本化最小 Contract | NOT_STARTED | T01 |
 | T03 | 建立 Shopify Read Port 与 deterministic fixture | NOT_STARTED | T02 |
 | T04 | 打通显式 Variant 的应用层 Walking Skeleton | NOT_STARTED | T03 |
@@ -84,11 +84,17 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`7dd2090fcbe2542b7da7ec1fe905b9c34c990044`; none (`git status --short` and `git diff --check` both clean)
+- Changed paths：`.python-version`, `.gitignore`, `pyproject.toml`, `uv.lock`, `backend/__init__.py`, `tests/test_harness.py`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Preflight `git status --short`, `git diff --check`, `git log --oneline -5`, source/Task/Architecture reads: `0`.
+  - Initial `uv lock && uv sync --group dev && uv run ruff check . && uv run ruff format --check . && uv run python -c 'import backend; assert backend.__name__ == "backend"' && uv run pytest -m 'unit or contract' -q`: `1`; static/import steps passed, then pytest exposed that the repository root was absent from its import path. Added explicit pytest `pythonpath = ["."]`.
+  - Corrected `uv lock --check`, `uv sync --locked --group dev`, `uv run ruff check .`, `uv run ruff format --check .`, package import check, targeted smoke, `pytest --markers`, and `git diff --check`: each `0`; targeted smoke `1 passed`.
+  - Python 3.12 alignment `uv python find 3.12`: `0`; final `uv lock && uv sync --locked --group dev`: `0`, using CPython `3.12.13`.
+  - Final `uv run python --version`, `uv lock --check`, Ruff lint/format checks, package import check, targeted smoke, pytest collection, and `git diff --check`: each `0`; `1 passed`, `1 test collected`.
+  - Post-review task-status correction followed by lock, Ruff lint/format, package import, targeted smoke, `git diff --check`, core Artifact zero-diff check, and staged full-diff review: each `0`; targeted smoke `1 passed`.
+- Results / evidence locations：Toolchain and four layer markers in `pyproject.toml`; resolved dependency graph in `uv.lock`; import boundary in `backend/__init__.py`; non-business unit smoke in `tests/test_harness.py`.
+- Discoveries / limitations：Pytest 9 required an explicit repository-root import path for this uninstalled minimal package. T01 provides markers for unit/contract, integration, and e2e selection but intentionally adds only one unit smoke; later suites remain unimplemented. Direct development dependencies are only `pytest==9.0.3` and `ruff==0.15.12`; there are no runtime dependencies, API endpoint, business contract, Shopify, state, RAG, Widget, external service, deployment, or CI configuration. FastAPI remains deferred until a task actually uses it.
 
 ### T02 — 固化 Slice 1 版本化最小 Contract
 
@@ -487,6 +493,6 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 - [ ] Optional live smoke 的运行状态被明确记录，且未成为 CI 唯一依赖。
 - [ ] Human Review 接受 Completion Evidence 后，才进入下一 Slice planning。
 
-## 7. Recommended Starting Task
+## 7. Recommended Next Task
 
-Human Final Approval 后，从 **T01 — Bootstrap 最小执行与测试 Harness** 开始。当前所有 Task 均保持 `NOT_STARTED`；本 Planning Session 到此停止，不执行 T01。
+**T01 — Bootstrap 最小执行与测试 Harness** 已完成。Human Review 通过并提交 T01 后，从 **T02 — 固化 Slice 1 版本化最小 Contract** 开始；T02 当前保持 `NOT_STARTED`。

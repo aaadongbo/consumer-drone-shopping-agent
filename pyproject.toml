@@ -1,0 +1,29 @@
+[project]
+name = "consumer-drone-shopping-agent"
+version = "0.0.0"
+description = "Consumer drone shopping agent"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+    "pytest==9.0.3",
+    "ruff==0.15.12",
+]
+
+[tool.pytest.ini_options]
+addopts = "--strict-markers"
+pythonpath = ["."]
+testpaths = ["tests"]
+markers = [
+    "unit: isolated unit and harness tests",
+    "contract: stable cross-module and adapter contract tests",
+    "integration: deterministic collaboration tests across modules",
+    "e2e: vertical-slice journey tests",
+]
+
+[tool.ruff]
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
