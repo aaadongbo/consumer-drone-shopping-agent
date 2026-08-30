@@ -198,17 +198,14 @@ def test_interpreter_classifies_fixed_field_scopes(
     assert decision.action is action
 
 
-def test_dynamic_price_classification_does_not_read_or_answer() -> None:
-    port = _ControlledShopifyPort()
-    service, sink = _service(port)
+def test_dynamic_price_classification_remains_variant_scoped() -> None:
+    decision = DeterministicQuestionInterpreter().interpret(
+        _request("这款现在多少钱？", variant_id="mini-standard")
+    )
 
-    with pytest.raises(RuntimeError, match="Dynamic commerce reads are outside T05"):
-        service.answer(_request("这款现在多少钱？", variant_id="mini-standard"))
-
-    assert (port.product_calls, port.variant_calls, port.commerce_calls) == (0, 0, 0)
-    assert TraceEventType.ANSWER_PRODUCED not in {
-        event.event_type for event in sink.events
-    }
+    assert decision.field_scope is FieldScope.DYNAMIC_VARIANT
+    assert decision.action is RouteAction.READ_VARIANT_FACT
+    assert decision.resolved_scope.variant_id == "mini-standard"
 
 
 @pytest.mark.parametrize(

@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：IMPLEMENTATION / T06 COMMITTED — Human approval recorded
+> 状态：IMPLEMENTATION / T07 DONE — AI review pending Human approval
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01～T06 已完成，T06 已按 Human 明确授权创建本地 commit；T07 尚未开始且等待明确执行授权。
+> 当前按批准顺序执行 Implementation；T01～T07 已完成，T07 已修正 review finding 并等待 Human approval。
 
 ## 1. Status Model
 
@@ -20,7 +20,7 @@
 | T04 | 打通显式 Variant 的应用层 Walking Skeleton | DONE | T03 |
 | T05 | 收敛 Product / Variant identity 与 ambiguity | DONE | T04 |
 | T06 | 完成 Tool failure 与标准 fallback 映射 | DONE | T04, T05 |
-| T07 | 加固 Evidence、动态事实与输出 scope Gate | NOT_STARTED | T04, T05, T06 |
+| T07 | 加固 Evidence、动态事实与输出 scope Gate | DONE | T04, T05, T06 |
 | T08 | 接入薄 Conversation API 与 Minimal E2E Client | NOT_STARTED | T07 |
 | T09 | 收敛 Verification Matrix 与 Completion Evidence | NOT_STARTED | T08 |
 
@@ -389,11 +389,21 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`2358aba7cf9c6e72b2bad9112cd0e5db7b237093`; none (`git status --short` produced no output)
+- Changed paths：`backend/application/slice_1.py`, `tests/unit/test_t05_identity.py`, `tests/unit/test_t07_scope_guards.py`, `tests/contract/test_t07_scope_contract.py`, `tests/integration/test_t07_dynamic_facts.py`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Initial sandboxed baseline `uv run ruff check .`, `uv run ruff format --check .`, and `uv run pytest -m 'unit or contract or integration' -q` each returned `2` before running because the sandbox could not access the existing `~/.cache/uv`; the same read-only baseline rerun with the required permission returned `0`: Ruff lint/format passed and `171 passed`.
+  - Initial T07 targeted implementation tests returned `0`: `10 passed`. The paired targeted Ruff lint/format checks returned `1` for import ordering/line length/formatting; Ruff's mechanical import/format correction returned `0`, and the corrected targeted static checks returned `0`.
+  - T07 plus T04～T06 targeted regression suite returned `0`: `63 passed`.
+  - Final layered gates returned `0`: `uv run ruff check .`; `uv run ruff format --check .`; unit `59 passed, 122 deselected`; contract `105 passed, 76 deselected`; integration `17 passed, 164 deselected`; full `181 passed`.
+  - Final `uv lock --check` returned `0` (`Resolved 13 packages in 4ms`). Prescribed `python .agents/skills/drone-slice-workflow/scripts/verify_task.py T07 --full` returned `0`; its lock, full Ruff lint/format, full pytest (`181 passed`), working/cached diff checks, core Artifact zero-diff and dependency zero-diff sub-gates all returned `0`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py T07` returned `0`: all six changed paths are within T07 scope, with no staged paths, core Artifact changes, dependency changes, forbidden Slice paths, or dirty other worktree. `inspect_state.py` returned `1` with the expected `CURRENT_WORKTREE_DIRTY` while T07 was active; after closeout it is used again during review.
+  - Final `git diff --check`, `git diff --cached --check`, core Artifact zero-diff, dependency zero-diff, `git status --short --untracked-files=all`, and untracked-path listing each returned `0`.
+  - Final review `python .agents/skills/drone-slice-workflow/scripts/check_scope.py T07` and `python .agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py T07 --hash-only` returned `0`; the latter produced the staging-invariant review snapshot used below. `inspect_state.py` returned `1` only because the expected uncommitted T07 paths keep the current worktree dirty; it reported no active Task, no other dirty worktree, and unique next Task T08.
+  - Review correction: the attempted escalated rerun was rejected by the environment usage limit, so no repeated escalation or cache workaround was used. Existing local `.venv` executables were used for the equivalent read-only rerun: `./.venv/bin/ruff check .`, `./.venv/bin/ruff format --check .`, targeted T07 tests, unit, contract, integration, and full pytest each returned `0`; targeted `10 passed`, unit `59 passed`, contract `105 passed`, integration `17 passed`, full `181 passed`.
+  - Status consistency review corrected the stale Recommended Next Task entry from T07 `NOT_STARTED` to T08 `NOT_STARTED`; no T08 implementation was authorized or started. Final scope, diff, and review snapshot checks are recorded by their actual results below.
+- Results / evidence locations：Current `price` answers in `backend/application/slice_1.py` use only `refresh_commerce_state`, propagate ToolResult `observed_at` into the dynamic AttributeValue, Evidence, and FreshnessDisclosure, and emit only read ledger operations. `_compose_answer` enforces exact store/product/variant scope, locator/claim compatibility, binding completeness, optional ProductCard identity, and dynamic freshness; diagnostics map to a generic public `INTERNAL_CONSISTENCY_ERROR` fallback while retaining the specific enum in the safe TraceEvent summary. `tests/unit/test_t07_scope_guards.py` covers scope, Card, binding, freshness, and redaction guards; `tests/contract/test_t07_scope_contract.py` covers public fallback serialization; `tests/integration/test_t07_dynamic_facts.py` covers current-price precedence, missing freshness, trace allowlisting/redaction, correlation, and zero writes.
+- Discoveries / limitations：The existing public ToolResult contract requires `observed_at`; the missing-freshness integration case uses a controlled malformed result via `model_construct` to exercise the application fail-closed boundary. Dynamic support remains limited to the already classified `price` question; inventory/availability text routes are not added. Trace remains the existing in-memory summary sink; no durable observability backend, global TTL, API transport, RAG, or later Slice behavior was introduced. The T05 regression expectation was narrowed to classification because T07 now legitimately owns the dynamic read path.
 
 ### T08 — 接入薄 Conversation API 与 Minimal E2E Client
 
@@ -538,4 +548,4 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 7. Recommended Next Task
 
-**T07 — 加固 Evidence、动态事实与输出 scope Gate** 为唯一合法下一项，保持 `NOT_STARTED`，等待明确执行授权。
+**T08 — 接入薄 Conversation API 与 Minimal E2E Client** 为唯一合法下一项，保持 `NOT_STARTED`，等待明确执行授权。

@@ -1,5 +1,6 @@
 """Deterministic Slice 1 Product-fact answer and fallback paths."""
 
+import re
 from collections.abc import Callable
 from datetime import datetime
 
@@ -17,8 +18,11 @@ from backend.common import (
     FallbackPayload,
     FallbackReasonCode,
     FieldScope,
+    FreshnessDisclosure,
+    InternalDiagnosticCode,
     MinimalRouteDecision,
     ObjectScope,
+    ProductCard,
     ProductRecord,
     RouteAction,
     RouteIntent,
@@ -48,10 +52,22 @@ _OUT_OF_SCOPE_QUESTIONS = frozenset(
         "无人机飞行法规是什么？",
     }
 )
+_DYNAMIC_FIELDS = frozenset({"price", "inventory", "availability"})
+_SENSITIVE_TRACE_VALUE = re.compile(
+    r"(?i)(?:authorization|bearer|api[_-]?key|password|secret|token|sk[-_])"
+)
 
 
 class _LocalNonAnswer(RuntimeError):
     """Stop a branch assigned to later tasks without manufacturing an answer."""
+
+
+class _ComposerDiagnostic(RuntimeError):
+    """Internal consistency failure that must never cross the public boundary."""
+
+    def __init__(self, code: InternalDiagnosticCode) -> None:
+        super().__init__(code.value)
+        self.code = code
 
 
 class DeterministicQuestionInterpreter:
@@ -156,7 +172,7 @@ class Slice1ApplicationService:
         self._clock = clock
 
     def answer(self, request: TurnRequest) -> AnswerEnvelope:
-        correlation_id = self._correlation_id_factory()
+        correlation_id = _safe_trace_value(self._correlation_id_factory())
         request_scope = _request_scope(request)
         self._trace(
             correlation_id,
@@ -194,7 +210,7 @@ class Slice1ApplicationService:
         if decision.field_scope is FieldScope.PRODUCT_SHARED:
             return self._answer_product_fact(request, correlation_id, decision)
         if decision.field_scope is FieldScope.DYNAMIC_VARIANT:
-            raise _LocalNonAnswer("Dynamic commerce reads are outside T05")
+            return self._answer_dynamic_fact(request, correlation_id, decision)
         return self._answer_variant_fact(request, correlation_id, decision)
 
     def _answer_product_fact(
@@ -320,6 +336,70 @@ class Slice1ApplicationService:
             text=_variant_fact_text(requested_field, fact),
         )
 
+    def _answer_dynamic_fact(
+        self,
+        request: TurnRequest,
+        correlation_id: str,
+        decision: MinimalRouteDecision,
+    ) -> AnswerEnvelope:
+        scope = decision.resolved_scope
+        if scope.variant_id is None:
+            raise _LocalNonAnswer("Dynamic fact requires a Variant identity")
+        self._trace_read_call(
+            correlation_id, scope, TraceOperation.REFRESH_COMMERCE_STATE
+        )
+        result = self._shopify.refresh_commerce_state(
+            store_id=scope.store_id,
+            product_id=scope.product_id,
+            variant_id=scope.variant_id,
+        )
+        self._trace_tool_result(
+            correlation_id, scope, TraceOperation.REFRESH_COMMERCE_STATE, result
+        )
+
+        failure_reason = _tool_failure_reason(result)
+        if failure_reason is not None:
+            return self._fallback(request, correlation_id, scope, failure_reason)
+        observed_at = getattr(result, "observed_at", None)
+        if observed_at is None:
+            return self._consistency_fallback(
+                request,
+                correlation_id,
+                scope,
+                InternalDiagnosticCode.DYNAMIC_FACT_FRESHNESS_MISSING,
+            )
+        if result.status is not ToolStatus.SUCCESS or result.data is None:
+            raise _LocalNonAnswer("Commerce read did not succeed")
+
+        requested_field = _required_requested_field(decision)
+        fact = result.data.get(requested_field)
+        if fact is None or fact.status is AttributeStatus.UNKNOWN:
+            return self._fallback(
+                request,
+                correlation_id,
+                scope,
+                FallbackReasonCode.FACT_UNKNOWN_OR_MISSING,
+            )
+        if fact.status is not AttributeStatus.KNOWN:
+            raise _LocalNonAnswer("Dynamic fact is not applicable")
+
+        current_fact = fact.model_copy(update={"observed_at": observed_at})
+        return self._answer_from_fact(
+            request=request,
+            correlation_id=correlation_id,
+            scope=scope,
+            requested_field=requested_field,
+            fact=current_fact,
+            source=result.source,
+            observed_at=observed_at,
+            field_locator=f"commerce.{requested_field}",
+            text=_dynamic_fact_text(requested_field, current_fact),
+            freshness=FreshnessDisclosure(
+                observed_at=observed_at,
+                source=result.source,
+            ),
+        )
+
     def _answer_from_fact(
         self,
         *,
@@ -332,6 +412,8 @@ class Slice1ApplicationService:
         observed_at: datetime,
         field_locator: str,
         text: str,
+        freshness: FreshnessDisclosure | None = None,
+        product_card: ProductCard | None = None,
     ) -> AnswerEnvelope:
         claim_id = f"claim-{requested_field.replace('_', '-')}"
         evidence_id = f"evidence-{requested_field.replace('_', '-')}"
@@ -346,13 +428,6 @@ class Slice1ApplicationService:
             source=source,
             observed_at=observed_at,
         )
-        self._trace(
-            correlation_id,
-            TraceEventType.EVIDENCE_ACCEPTED,
-            TraceResult.ACCEPTED,
-            scope=scope,
-        )
-
         payload = AnswerPayload(
             schema_version=SCHEMA_VERSION,
             outcome=EnvelopeOutcome.ANSWER,
@@ -361,6 +436,7 @@ class Slice1ApplicationService:
             resolved_scope=scope,
             text=text,
             claims=[Claim(claim_id=claim_id, field=requested_field, fact=fact)],
+            product_card=product_card,
             evidence=[evidence],
             bindings=[
                 ClaimEvidenceBinding(
@@ -368,9 +444,30 @@ class Slice1ApplicationService:
                     evidence_ids=[evidence_id],
                 )
             ],
+            freshness=freshness,
         )
-        _require_answer_integrity(payload)
-        envelope = AnswerEnvelope(root=payload)
+        try:
+            envelope = _compose_answer(payload)
+        except _ComposerDiagnostic as diagnostic:
+            self._trace(
+                correlation_id,
+                TraceEventType.EVIDENCE_REJECTED,
+                TraceResult.REJECTED,
+                scope=scope,
+                diagnostic_code=diagnostic.code,
+            )
+            return self._fallback(
+                request,
+                correlation_id,
+                scope,
+                FallbackReasonCode.INTERNAL_CONSISTENCY_ERROR,
+            )
+        self._trace(
+            correlation_id,
+            TraceEventType.EVIDENCE_ACCEPTED,
+            TraceResult.ACCEPTED,
+            scope=scope,
+        )
         self._trace(
             correlation_id,
             TraceEventType.ANSWER_PRODUCED,
@@ -411,6 +508,27 @@ class Slice1ApplicationService:
             fallback_reason=reason_code,
         )
         return envelope
+
+    def _consistency_fallback(
+        self,
+        request: TurnRequest,
+        correlation_id: str,
+        scope: ObjectScope,
+        diagnostic_code: InternalDiagnosticCode,
+    ) -> AnswerEnvelope:
+        self._trace(
+            correlation_id,
+            TraceEventType.EVIDENCE_REJECTED,
+            TraceResult.REJECTED,
+            scope=scope,
+            diagnostic_code=diagnostic_code,
+        )
+        return self._fallback(
+            request,
+            correlation_id,
+            scope,
+            FallbackReasonCode.INTERNAL_CONSISTENCY_ERROR,
+        )
 
     def _trace_page_context_resolved(
         self, correlation_id: str, scope: ObjectScope
@@ -462,19 +580,21 @@ class Slice1ApplicationService:
         operation: TraceOperation | None = None,
         tool_status: ToolStatus | None = None,
         fallback_reason: FallbackReasonCode | None = None,
+        diagnostic_code: InternalDiagnosticCode | None = None,
     ) -> None:
         self._trace_sink.append(
             TraceEvent(
                 schema_version=SCHEMA_VERSION,
-                correlation_id=correlation_id,
+                correlation_id=_safe_trace_value(correlation_id),
                 event_type=event_type,
                 occurred_at=self._clock(),
                 summary=TraceSummary(
                     result=result,
-                    scope=scope,
+                    scope=_safe_trace_scope(scope),
                     operation=operation,
                     tool_status=tool_status,
                     fallback_reason=fallback_reason,
+                    diagnostic_code=diagnostic_code,
                 ),
             )
         )
@@ -534,6 +654,13 @@ def _variant_fact_text(requested_field: str, fact: AttributeValue) -> str:
     raise _LocalNonAnswer("Variant fact has no approved answer template")
 
 
+def _dynamic_fact_text(requested_field: str, fact: AttributeValue) -> str:
+    if requested_field == "price":
+        unit = f" {fact.unit}" if fact.unit is not None else ""
+        return f"这款当前价格为 {fact.value}{unit}。"
+    raise _LocalNonAnswer("Dynamic fact has no approved answer template")
+
+
 def _fallback_copy(
     reason_code: FallbackReasonCode,
 ) -> tuple[str, bool, tuple[str, ...]]:
@@ -583,6 +710,11 @@ def _fallback_copy(
             False,
             ("改问当前商品的规格", "联系人工渠道"),
         ),
+        FallbackReasonCode.INTERNAL_CONSISTENCY_ERROR: (
+            "暂时无法可靠确认该商品事实，请停止展示该结论并联系支持。",
+            False,
+            ("停止展示该结论", "联系支持"),
+        ),
     }[reason_code]
 
 
@@ -600,8 +732,15 @@ def _tool_failure_reason(result: ToolResult) -> FallbackReasonCode | None:
     }.get(result.error_code)
 
 
+def _compose_answer(payload: AnswerPayload) -> AnswerEnvelope:
+    _require_answer_integrity(payload)
+    return AnswerEnvelope(root=payload)
+
+
 def _require_answer_integrity(payload: AnswerPayload) -> None:
     evidence_by_id = {item.evidence_id: item for item in payload.evidence}
+    if len(evidence_by_id) != len(payload.evidence):
+        raise _ComposerDiagnostic(InternalDiagnosticCode.EVIDENCE_SCOPE_MISMATCH)
     bindings_by_claim: dict[str, list[ClaimEvidenceBinding]] = {}
     for binding in payload.bindings:
         bindings_by_claim.setdefault(binding.claim_id, []).append(binding)
@@ -611,22 +750,98 @@ def _require_answer_integrity(payload: AnswerPayload) -> None:
         payload.resolved_scope.product_id,
         payload.resolved_scope.variant_id,
     )
+    if (
+        payload.product_card is not None
+        and (
+            payload.product_card.store_id,
+            payload.product_card.product_id,
+            payload.product_card.variant_id,
+        )
+        != expected_identity
+    ):
+        raise _ComposerDiagnostic(InternalDiagnosticCode.OUTPUT_SCOPE_MISMATCH)
+
+    if set(bindings_by_claim) != {claim.claim_id for claim in payload.claims}:
+        raise _ComposerDiagnostic(InternalDiagnosticCode.OUTPUT_SCOPE_MISMATCH)
+
     for claim in payload.claims:
         claim_bindings = bindings_by_claim.get(claim.claim_id, [])
         if len(claim_bindings) != 1:
-            raise _LocalNonAnswer("Claim must have exactly one binding")
+            raise _ComposerDiagnostic(InternalDiagnosticCode.OUTPUT_SCOPE_MISMATCH)
         evidence_ids = claim_bindings[0].evidence_ids
         if len(evidence_ids) != 1 or evidence_ids[0] not in evidence_by_id:
-            raise _LocalNonAnswer("Binding must identify exactly one existing evidence")
+            raise _ComposerDiagnostic(InternalDiagnosticCode.OUTPUT_SCOPE_MISMATCH)
         bound_evidence = evidence_by_id[evidence_ids[0]]
         if bound_evidence.fact != claim.fact:
-            raise _LocalNonAnswer("Claim and Evidence facts differ")
+            raise _ComposerDiagnostic(InternalDiagnosticCode.EVIDENCE_SCOPE_MISMATCH)
         if (
             bound_evidence.store_id,
             bound_evidence.product_id,
             bound_evidence.variant_id,
         ) != expected_identity:
-            raise _LocalNonAnswer("Evidence identity differs from answer scope")
+            raise _ComposerDiagnostic(InternalDiagnosticCode.EVIDENCE_SCOPE_MISMATCH)
+        if not _evidence_locator_matches_claim(bound_evidence, claim.field):
+            raise _ComposerDiagnostic(InternalDiagnosticCode.EVIDENCE_SCOPE_MISMATCH)
+
+    for evidence in payload.evidence:
+        if (
+            evidence.store_id,
+            evidence.product_id,
+            evidence.variant_id,
+        ) != expected_identity:
+            raise _ComposerDiagnostic(InternalDiagnosticCode.EVIDENCE_SCOPE_MISMATCH)
+        if evidence.field_locator.startswith("commerce."):
+            if evidence.observed_at is None or evidence.fact.observed_at is None:
+                raise _ComposerDiagnostic(
+                    InternalDiagnosticCode.DYNAMIC_FACT_FRESHNESS_MISSING
+                )
+            if payload.freshness is None:
+                raise _ComposerDiagnostic(
+                    InternalDiagnosticCode.DYNAMIC_FACT_FRESHNESS_MISSING
+                )
+            if (
+                evidence.observed_at != evidence.fact.observed_at
+                or payload.freshness.observed_at != evidence.observed_at
+                or payload.freshness.source != evidence.source
+            ):
+                raise _ComposerDiagnostic(
+                    InternalDiagnosticCode.DYNAMIC_FACT_FRESHNESS_MISSING
+                )
+        elif payload.freshness is not None and evidence.field_locator.startswith(
+            "shared_attributes."
+        ):
+            raise _ComposerDiagnostic(InternalDiagnosticCode.OUTPUT_SCOPE_MISMATCH)
+
+
+def _evidence_locator_matches_claim(evidence: Evidence, field: str) -> bool:
+    prefix, separator, locator_field = evidence.field_locator.rpartition(".")
+    if not separator or locator_field != field:
+        return False
+    if prefix == "shared_attributes":
+        return evidence.variant_id is None
+    if prefix == "variant_attributes":
+        return evidence.variant_id is not None
+    if prefix == "commerce":
+        return evidence.variant_id is not None and field in _DYNAMIC_FIELDS
+    return False
+
+
+def _safe_trace_scope(scope: ObjectScope) -> ObjectScope:
+    return ObjectScope(
+        store_id=_safe_trace_value(scope.store_id),
+        product_id=_safe_trace_value(scope.product_id),
+        variant_id=(
+            _safe_trace_value(scope.variant_id)
+            if scope.variant_id is not None
+            else None
+        ),
+    )
+
+
+def _safe_trace_value(value: str) -> str:
+    if _SENSITIVE_TRACE_VALUE.search(value):
+        return "[REDACTED]"
+    return value
 
 
 def _trace_result(status: ToolStatus) -> TraceResult:
