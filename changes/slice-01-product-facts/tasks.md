@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：IMPLEMENTATION / T09 DONE — Slice 1 Completion Review pending
+> 状态：CLOSED / T09 DONE — Slice 1 Completion Evidence accepted
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01～T09 已完成，等待 Slice 1 Completion Review，不进入 Slice 2。
+> 当前按批准顺序执行的 Slice 1 已关闭；T01～T09 全部完成。已获授权进入 Slice 2 Planning，但未授权 Slice 2 Implementation 或 push。
 
 ## 1. Status Model
 
@@ -585,8 +585,14 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 - [x] 四个核心 Artifact 未被意外修改；若有授权 Reconcile，Decision 与证据完整。
 - [x] 实际验证命令、exit code、结果摘要和限制已写入各 Task Execution Record。
 - [x] Optional live smoke 的运行状态被明确记录，且未成为 CI 唯一依赖。
-- [ ] Human Review 接受 Completion Evidence 后，才进入下一 Slice planning。
+- [x] Human Review 接受 Completion Evidence 后，才进入下一 Slice planning。
 
 ## 7. Recommended Next Task
 
-T09 已完成并通过 AI verification；当前没有获准的下一 Task。停止并等待 Slice 1 Completion Review，Human Review 接受 Completion Evidence 后才可规划下一 Slice；本次不授权也不执行 Slice 2。
+T09 已完成并通过 AI verification。Human Review 已接受 HEAD `e1ca844554e3da0fd8d061dff55e149293a1dde3` 下的 Slice 1 Completion Evidence，确认 Matrix #1～#19 全部 PASS，Slice 1 已关闭。
+
+已授权：进入 Slice 2 Planning。
+
+未授权：Slice 2 Implementation、真实 Shopify smoke、任何 push。
+
+真实 Shopify smoke 仍作为独立授权的非阻塞验证。
