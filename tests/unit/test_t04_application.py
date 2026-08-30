@@ -120,7 +120,7 @@ def _service(
     return service, port, sink
 
 
-def test_interpreter_returns_only_fixed_variant_battery_route() -> None:
+def test_interpreter_preserves_fixed_variant_battery_route() -> None:
     decision = DeterministicQuestionInterpreter().interpret(_request())
 
     assert decision.intent is RouteIntent.PRODUCT_QA
@@ -138,25 +138,26 @@ def test_interpreter_returns_only_fixed_variant_battery_route() -> None:
     "turn_request",
     [
         _request(user_text="这个套装价格多少？"),
-        _request(variant_id=None),
     ],
 )
-def test_interpreter_rejects_everything_outside_fixed_t04_question(
+def test_interpreter_rejects_unrecognized_question(
     turn_request: TurnRequest,
 ) -> None:
     with pytest.raises(RuntimeError):
         DeterministicQuestionInterpreter().interpret(turn_request)
 
 
-def test_application_does_not_resolve_product_only_page_context() -> None:
+def test_product_only_variant_question_does_not_claim_resolved_context() -> None:
     service, port, sink = _service(_success([_variant()]))
 
-    with pytest.raises(RuntimeError, match="explicit variant"):
-        service.answer(_request(variant_id=None))
+    payload = service.answer(_request(variant_id=None)).root
 
     assert port.variant_calls == 0
+    assert payload.outcome.value == "FALLBACK"
     assert [event.event_type for event in sink.events] == [
-        TraceEventType.TURN_REQUEST_ACCEPTED
+        TraceEventType.TURN_REQUEST_ACCEPTED,
+        TraceEventType.ROUTE_DECISION,
+        TraceEventType.FALLBACK_PRODUCED,
     ]
 
 
@@ -175,8 +176,6 @@ def _partial_result() -> ToolResult[list[VariantRecord]]:
     "result",
     [
         _partial_result(),
-        _success([]),
-        _success([_variant(), _variant(variant_id="mini-explorer")]),
         _success([_variant(attributes={})]),
         _success(
             [
@@ -190,15 +189,11 @@ def _partial_result() -> ToolResult[list[VariantRecord]]:
                 )
             ]
         ),
-        _success([_variant(product_id="drone-cine")]),
     ],
     ids=[
         "non-success",
-        "zero-variants",
-        "multiple-variants",
         "missing-field",
         "unknown-field",
-        "identity-mismatch",
     ],
 )
 def test_application_fails_closed_without_answer(result: ToolResult) -> None:

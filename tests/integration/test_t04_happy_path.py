@@ -74,6 +74,7 @@ def test_explicit_variant_battery_count_happy_path() -> None:
     assert claim.fact.status is AttributeStatus.KNOWN
     assert claim.fact.value == 1
     assert claim.fact == evidence.fact
+    assert evidence.observed_at == NOW
     assert (
         evidence.store_id,
         evidence.product_id,
@@ -84,10 +85,10 @@ def test_explicit_variant_battery_count_happy_path() -> None:
 
     assert [event.event_type for event in trace_sink.events] == [
         TraceEventType.TURN_REQUEST_ACCEPTED,
-        TraceEventType.PAGE_CONTEXT_RESOLVED,
         TraceEventType.ROUTE_DECISION,
         TraceEventType.SHOPIFY_READ_CALLED,
         TraceEventType.TOOL_RESULT,
+        TraceEventType.PAGE_CONTEXT_RESOLVED,
         TraceEventType.EVIDENCE_ACCEPTED,
         TraceEventType.ANSWER_PRODUCED,
     ]

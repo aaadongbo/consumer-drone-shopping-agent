@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：IMPLEMENTATION / T04 DONE — Human Re-review Approved
+> 状态：IMPLEMENTATION / T05 DONE — Human Re-review Approved
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01～T04 已完成，T04 Human Re-review 已批准本地提交，T05 尚未开始且未获授权。
+> 当前按批准顺序执行 Implementation；T01～T05 已完成，T05 Human Re-review 已批准并待集成，T06 尚未开始且未获授权。
 
 ## 1. Status Model
 
@@ -18,7 +18,7 @@
 | T02 | 固化 Slice 1 版本化最小 Contract | DONE | T01 |
 | T03 | 建立 Shopify Read Port 与 deterministic fixture | DONE | T02 |
 | T04 | 打通显式 Variant 的应用层 Walking Skeleton | DONE | T03 |
-| T05 | 收敛 Product / Variant identity 与 ambiguity | NOT_STARTED | T04 |
+| T05 | 收敛 Product / Variant identity 与 ambiguity | DONE | T04 |
 | T06 | 完成 Tool failure 与标准 fallback 映射 | NOT_STARTED | T04, T05 |
 | T07 | 加固 Evidence、动态事实与输出 scope Gate | NOT_STARTED | T04, T05, T06 |
 | T08 | 接入薄 Conversation API 与 Minimal E2E Client | NOT_STARTED | T07 |
@@ -285,11 +285,19 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`ff19f1266fde6aa8abcae54ec21fc3c0790eed3b`; none (`git status --short` produced no output and `git diff --check` passed)
+- Changed paths：`backend/application/slice_1.py`, `tests/unit/test_t04_application.py`, `tests/unit/test_t05_identity.py`, `tests/integration/test_t04_happy_path.py`, `tests/integration/test_t05_identity_matrix.py`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Readiness `git rev-parse HEAD`, `git status --short --branch`, repository instruction/Task/plan/source reads, `git log --oneline -8`, `git diff --check`, `uv lock --check`, full Ruff lint/format, and `pytest -m 'unit or contract' -q`: each `0`; baseline `131 passed, 1 deselected`.
+  - Initial targeted T04/T05 run returned `1`: six historical T04 expectations correctly exposed the newly authorized Product-only fallback, identity-failure fallback, and post-read trace ordering. The T04 regression expectations were reconciled without weakening their happy-path/no-fact gates.
+  - Corrected targeted static and T04/T05 application-boundary runs returned `0`: first `29 passed`, then `31 passed` after adding explicit Product-not-found propagation and second-Variant isolation coverage.
+  - Pre-final full Ruff lint/format and `pytest -q` returned `0`; full suite `149 passed`.
+  - Final `uv lock --check`, full Ruff lint/format, application/public Contract import, unit-only, contract-only, integration-only, full pytest, collection, `git diff --check`, four core Artifact zero-diff, Contract/fixture/Port/dependency zero-diff, changed-path status, and T06/dynamic scope grep returned `0`; unit `44 passed`, contract `98 passed`, integration `7 passed`, full `149 passed`, collection `149 tests`. Scope grep found only the controlled Port method declaration/assertion used to prove dynamic calls remain zero.
+  - Human Review returned T05 to `IN_PROGRESS`: P1 identified that the T05 fact helper had stopped propagating the current ToolResult `observed_at` into Evidence; P2 identified that Matrix #2 used an unapproved camera-sensor scenario instead of the fixed manufacturer scenario. Both findings were corrected locally above commit `b8e438d` without amend; final re-review verification is recorded below after execution.
+  - Re-review correction verification `uv lock --check`, full Ruff lint/format, application/public Contract import, unit-only, contract-only, integration-only, full pytest, collection, `git diff --check`, four core Artifact zero-diff, Contract/fixture/Port/dependency zero-diff, detached HEAD/status/diff review, and stale camera-scenario/dynamic-read scope grep returned `0`; targeted correction run `22 passed`, unit `44 passed`, contract `98 passed`, integration `7 passed`, full `149 passed`, collection `149 tests`. The resulting five-path correction was left unstaged and uncommitted above `b8e438d` for Human Re-review.
+  - Human Re-review approved both corrections with no new implementation findings and authorized the T05 status closeout, amend, and `main` fast-forward; push and T06 remain unauthorized.
+- Results / evidence locations：Three fixed deterministic classifications, exact Product/Variant identity resolution, Product-scope fact assembly, current ToolResult `observed_at` propagation into static Product/Variant Evidence, three local identity/ambiguity fallbacks, and truthful post-read context trace in `backend/application/slice_1.py`; controlled SUCCESS identity mismatch/empty/multiple/no-default/dynamic-zero-read and Product Evidence timestamp tests in `tests/unit/test_t05_identity.py`; approved manufacturer Matrix #2 plus Matrix #3～#5 wire round-trip, exact real-fixture ledger counts, Product-scope Evidence/binding/timestamp, fallback shape, correlation, and foreign-Variant tests in `tests/integration/test_t05_identity_matrix.py`; T04 happy-path event-order and restored Evidence timestamp regression in `tests/integration/test_t04_happy_path.py`.
+- Discoveries / limitations：`PAGE_CONTEXT_RESOLVED` now occurs only after an exact SUCCESS Product/Variant ToolResult identity match; classification may precede identity resolution but does not claim ownership. Product shared facts read only `ProductRecord.shared_attributes` and never `variant_ids` or `get_variants`. The fixed price question is classified as `price / DYNAMIC_VARIANT / READ_VARIANT_FACT`; an explicit-Variant price request locally stops with zero Shopify calls, while Product-only dynamic/Variant-specific requests use the T05 `VARIANT_REQUIRED` ambiguity fallback. No `refresh_commerce_state`, price Evidence/Answer, inventory/availability classifier, public Contract/reason-code change, generic ToolResult mapper/registry, T06 failure mapping, Product Card, real Shopify, RAG, document, model, state, API, or new dependency was added. Other ToolResult failures, UNKNOWN/missing, partial, and unsupported questions remain private local non-answers.
 
 ### T06 — 完成 Tool failure 与标准 fallback 映射
 
@@ -519,4 +527,4 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 7. Recommended Next Task
 
-**T04 — 打通显式 Variant 的应用层 Walking Skeleton** 已完成。下一顺序任务是 **T05 — 收敛 Product / Variant identity 与 ambiguity**，当前保持 `NOT_STARTED`。
+**T05 — 收敛 Product / Variant identity 与 ambiguity** 已获 Human Re-review 批准并待集成。**T06 — 完成 Tool failure 与标准 fallback 映射** 保持 `NOT_STARTED`，未获授权。
