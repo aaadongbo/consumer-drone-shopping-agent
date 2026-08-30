@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：IMPLEMENTATION / T05 DONE — Human Re-review Approved
+> 状态：IMPLEMENTATION / T06 DONE — AI_REVIEW_PASS / Human Re-review Required
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01～T05 已完成，T05 Human Re-review 已批准并待集成，T06 尚未开始且未获授权。
+> 当前按批准顺序执行 Implementation；T01～T06 已完成，T06 Human review finding 已修正并通过 AI re-review，正在等待明确 Human re-review；T07 尚未开始且未获授权。
 
 ## 1. Status Model
 
@@ -19,7 +19,7 @@
 | T03 | 建立 Shopify Read Port 与 deterministic fixture | DONE | T02 |
 | T04 | 打通显式 Variant 的应用层 Walking Skeleton | DONE | T03 |
 | T05 | 收敛 Product / Variant identity 与 ambiguity | DONE | T04 |
-| T06 | 完成 Tool failure 与标准 fallback 映射 | NOT_STARTED | T04, T05 |
+| T06 | 完成 Tool failure 与标准 fallback 映射 | DONE | T04, T05 |
 | T07 | 加固 Evidence、动态事实与输出 scope Gate | NOT_STARTED | T04, T05, T06 |
 | T08 | 接入薄 Conversation API 与 Minimal E2E Client | NOT_STARTED | T07 |
 | T09 | 收敛 Verification Matrix 与 Completion Evidence | NOT_STARTED | T08 |
@@ -334,11 +334,22 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`4e09a80eb78261f2d99acf02c66d42ab67cfc444`; none (`git status --short` and `git diff HEAD` produced no output)
+- Changed paths：`backend/application/slice_1.py`, `tests/unit/test_t04_application.py`, `tests/unit/test_t06_fallback_mapping.py`, `tests/contract/test_t06_fallback_contract.py`, `tests/integration/test_t06_fallback_matrix.py`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Readiness `git rev-parse`, `git status --short`, `git worktree list --porcelain`, `inspect_state.py`, repository/plan/Task/source reads, recent history, complete baseline diff/untracked checks, scope policy read, and `git diff --check` returned `0`; HEAD was `4e09a80eb78261f2d99acf02c66d42ab67cfc444`, current and other worktrees were clean, and T06 was the unique legal next Task with T04/T05 satisfied.
+  - After T06 was marked `IN_PROGRESS`, `inspect_state.py` returned `1` with the expected `CURRENT_WORKTREE_DIRTY` reason for `tasks.md`; the immediately following `check_scope.py T06` returned `0`, proving that the only dirty path belonged to the authorized active Task with no other-worktree contamination.
+  - Baseline full Ruff lint/format and `pytest -m 'unit or contract or integration' -q` returned `0`; baseline `149 passed`. The first sandboxed `uv lock --check` returned `2` because `~/.cache/uv` was not accessible; the same read-only command rerun with the required permission returned `0` and resolved 13 packages.
+  - The first targeted T04/T05 regression run returned `1`: three historical T04 cases still expected private exceptions for partial, missing, and UNKNOWN. Their assertions were reconciled to the T06 public fail-closed reason codes without permitting Answer or Evidence. The corrected targeted T04–T06 application/contract/integration run returned `0`: `49 passed`.
+  - Initial targeted Ruff lint and format-check each returned `1` for one overlong parametrization line; `ruff format` returned `0`, and the corrected targeted lint/format checks returned `0`.
+  - Final full Ruff lint/format, unit-only, contract-only, integration-only, full pytest, and collection returned `0`: unit `52 passed`, contract `104 passed`, integration `13 passed`, full `169 passed`, collection `169 tests`.
+  - The first sandboxed `verify_task.py T06` returned `1` because its internal uv commands could not access `~/.cache/uv`; its Git diff, core Artifact, dependency, and scope sub-gates already returned `0`. The prescribed script's permissioned implementation run and final post-record rerun each returned `0`: lock, full Ruff lint/format, selected full suite `169 passed`, working/cached diff checks, core Artifact zero-diff, dependency zero-diff, and T06 scope all passed.
+  - Final `check_scope.py T06`, `git diff --check`, full tracked/untracked diff review, core Artifact zero-diff, dependency zero-diff, changed-path status, and later-scope grep returned `0`; all six changed paths belong to T06, with no staged paths, dependency change, other dirty worktree, or blocking reason.
+  - Human Review returned T06 to `IN_PROGRESS`: a KNOWN `obstacle_sensing` value followed the shared Variant success path but inherited the battery-count sentence template, producing text such as `这个套装有 three-direction 块电池。` while the structured claim field remained `obstacle_sensing`. The reviewed snapshot `c6fdb32b143b11bdfabc7980d84f7e5fe23abdb3ae4e52d5ed1e1ede2217d859` is invalid for any later approval or commit.
+  - The added real-fixture KNOWN `obstacle_sensing` regression reproduced the Human finding exactly and returned `1`: expected `这个套装的避障规格为 three-direction。`, received `这个套装有 three-direction 块电池。`. The bounded correction introduced field-specific Variant answer templates and a second KNOWN `remote_controller` regression; both correction tests returned `0` (`2 passed`), and the corrected T04–T06 targeted set returned `0` (`51 passed`).
+  - Correction verification `uv lock --check`, full Ruff lint/format, unit-only, contract-only, integration-only, full pytest, collection, `verify_task.py T06`, `check_scope.py T06`, working/cached diff checks, core Artifact zero-diff, and dependency zero-diff returned `0`; unit `53 passed`, contract `104 passed`, integration `14 passed`, full/selected `171 passed`, collection `171 tests`.
+- Results / evidence locations：Stable fallback copy/retry/action table, shared ToolResult failure mapping, UNKNOWN/missing handling, explicit bounded OUT_OF_SCOPE routing, and field-specific Variant answer templates in `backend/application/slice_1.py`; preserved T04 fail-closed regression expectations in `tests/unit/test_t04_application.py`; error/partial mapping, UNKNOWN wording, KNOWN remote-controller semantics, bounded-route, correlation, and no-open-agent unit gates in `tests/unit/test_t06_fallback_mapping.py`; all six newly generated fallback wire round-trips in `tests/contract/test_t06_fallback_contract.py`; Matrix #6～#10/#15 deterministic fixture injection plus the real-fixture KNOWN obstacle-sensing regression, exact action/retry semantics, zero fact reuse, zero out-of-scope calls, correlation, and zero-write proof in `tests/integration/test_t06_fallback_matrix.py`.
+- Discoveries / limitations：The deterministic interpreter now recognizes only two additional fixed Product-fact questions plus three explicit out-of-scope samples; arbitrary unrecognized input still stops privately rather than entering an open Agent fallback. The two added fields and the pre-existing battery field now use separate answer templates, preventing structured field/text semantic drift. Missing/UNKNOWN requested facts map to `FACT_UNKNOWN_OR_MISSING`, while `NOT_APPLICABLE` remains distinct and outside this Task's mapping. Every PARTIAL result conservatively maps to `TOOL_PARTIAL_RESULT` before consuming typed data; Matrix #10 uses the fixture's explicitly missing `remote_controller` field. Timeout/rate-limit/auth mappings use the approved retry baselines but do not implement retries or backoff. Dynamic commerce reads, price/inventory/availability answers, internal consistency diagnostics, freshness/output scope guards, API transport, recommendation/regulatory answers, public Contract changes, new dependencies, and external services remain unimplemented.
 
 ### T07 — 加固 Evidence、动态事实与输出 scope Gate
 
@@ -527,4 +538,4 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 7. Recommended Next Task
 
-**T05 — 收敛 Product / Variant identity 与 ambiguity** 已获 Human Re-review 批准并待集成。**T06 — 完成 Tool failure 与标准 fallback 映射** 保持 `NOT_STARTED`，未获授权。
+**T06 — 完成 Tool failure 与标准 fallback 映射** 已修正 Human review finding 并通过 AI re-review，正在等待明确 Human re-review。**T07 — 加固 Evidence、动态事实与输出 scope Gate** 保持 `NOT_STARTED`，未获授权。

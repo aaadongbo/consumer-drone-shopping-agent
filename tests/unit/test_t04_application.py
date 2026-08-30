@@ -14,6 +14,8 @@ from backend.common import (
     AttributeStatus,
     AttributeValue,
     ConversationRef,
+    EnvelopeOutcome,
+    FallbackReasonCode,
     FieldScope,
     PageContext,
     RouteAction,
@@ -173,21 +175,27 @@ def _partial_result() -> ToolResult[list[VariantRecord]]:
 
 
 @pytest.mark.parametrize(
-    "result",
+    ("result", "reason_code"),
     [
-        _partial_result(),
-        _success([_variant(attributes={})]),
-        _success(
-            [
-                _variant(
-                    attributes={
-                        "battery_count": AttributeValue(
-                            status=AttributeStatus.UNKNOWN,
-                            source_ref="fixture://variant#battery_count",
-                        )
-                    }
-                )
-            ]
+        (_partial_result(), FallbackReasonCode.TOOL_PARTIAL_RESULT),
+        (
+            _success([_variant(attributes={})]),
+            FallbackReasonCode.FACT_UNKNOWN_OR_MISSING,
+        ),
+        (
+            _success(
+                [
+                    _variant(
+                        attributes={
+                            "battery_count": AttributeValue(
+                                status=AttributeStatus.UNKNOWN,
+                                source_ref="fixture://variant#battery_count",
+                            )
+                        }
+                    )
+                ]
+            ),
+            FallbackReasonCode.FACT_UNKNOWN_OR_MISSING,
         ),
     ],
     ids=[
@@ -196,13 +204,19 @@ def _partial_result() -> ToolResult[list[VariantRecord]]:
         "unknown-field",
     ],
 )
-def test_application_fails_closed_without_answer(result: ToolResult) -> None:
+def test_application_fails_closed_with_t06_fallback(
+    result: ToolResult, reason_code: FallbackReasonCode
+) -> None:
     service, port, sink = _service(result)
 
-    with pytest.raises(RuntimeError):
-        service.answer(_request())
+    payload = service.answer(_request()).root
 
     assert port.variant_calls == 1
+    assert payload.outcome is EnvelopeOutcome.FALLBACK
+    assert payload.fallback.reason_code is reason_code
+    assert payload.claims == []
+    assert payload.evidence == []
+    assert payload.bindings == []
     assert TraceEventType.ANSWER_PRODUCED not in {
         event.event_type for event in sink.events
     }
