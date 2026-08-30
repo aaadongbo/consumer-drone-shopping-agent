@@ -21,7 +21,7 @@
 | T05 | 收敛 Product / Variant identity 与 ambiguity | DONE | T04 |
 | T06 | 完成 Tool failure 与标准 fallback 映射 | DONE | T04, T05 |
 | T07 | 加固 Evidence、动态事实与输出 scope Gate | DONE | T04, T05, T06 |
-| T08 | 接入薄 Conversation API 与 Minimal E2E Client | NOT_STARTED | T07 |
+| T08 | 接入薄 Conversation API 与 Minimal E2E Client | DONE | T07 |
 | T09 | 收敛 Verification Matrix 与 Completion Evidence | NOT_STARTED | T08 |
 
 只允许一个 Task 处于 `IN_PROGRESS`。Task 未满足自身 Acceptance 与 Verification 时不得标为 `DONE`。
@@ -444,11 +444,18 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`9e92566826b973e49bb87555166dee38b342b41a`; none (`git status --short` produced no output)
+- Changed paths：`backend/api/__init__.py`, `backend/api/conversation.py`, `tests/contract/test_t08_conversation_api.py`, `tests/integration/test_t08_api_integration.py`, `tests/e2e/test_t08_minimal_client.py`, `pyproject.toml`, `uv.lock`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Initial sandboxed baseline `uv lock --check && uv run ruff check . && uv run ruff format --check . && uv run pytest -m 'unit or contract or integration' -q` returned `2` before executing the gates because the sandbox could not access the existing `~/.cache/uv`; the identical permission-authorized rerun returned `0`: lock and Ruff passed, `181 passed`.
+  - Dependency resolver dry-runs for `fastapi httpx` and then Starlette's locally recommended `httpx2` each returned `0`. The first `uv lock` with pinned FastAPI/httpx returned `0`; after the installed Starlette emitted its httpx deprecation warning, the bounded correction replaced the dev-only transport with pinned `httpx2==2.12.0`, and the final `uv lock` returned `0` (`Resolved 23 packages`).
+  - Initial targeted Ruff lint returned `0`, targeted format check returned `1` for one E2E file, so pytest did not run. Mechanical Ruff formatting returned `0`; the next targeted command reached pytest and returned `2` during collection because two test modules shared a basename and pytest 9 reserves the parameter name `request`. Renaming the integration module and parameter was Task-local; corrected targeted Ruff lint/format and T08 contract/integration/E2E tests returned `0` (`17 passed`).
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py T08` and `git diff --check` returned `0`; all eight changed paths are authorized for T08, there are no staged paths, core Artifact changes, forbidden Slice paths, or dirty other worktrees. Dependency review reported `pyproject.toml` and `uv.lock` as plan-authorized minimal changes requiring manual confirmation.
+  - Final layered gates returned `0`: `uv lock --check`; full Ruff lint/format; unit `59 passed`; contract `110 passed`; integration `18 passed`; E2E `11 passed`; full pytest `198 passed`.
+  - Prescribed `python .agents/skills/drone-slice-workflow/scripts/verify_task.py T08 --full` returned `0`; its lock, full Ruff lint/format, full pytest (`198 passed`), working/cached diff checks, core Artifact zero-diff, and scope sub-gates all passed.
+  - Independent review tightened the scope-mismatch E2E from accepting any diagnostic to requiring exact `EVIDENCE_SCOPE_MISMATCH`; targeted Ruff lint/format and E2E returned `0` (`11 passed`), and the prescribed full verifier returned `0` again (`198 passed`).
+- Results / evidence locations：The injected FastAPI factory, stable 422 validation handler, one synchronous `/v1/conversation/turn` endpoint, public-schema response declaration, typed minimal client, and safe client rejection are in `backend/api/conversation.py`. Contract tests prove valid request/response compatibility and stable invalid-input rejection. Integration proves API -> application -> deterministic fixture for a current Variant price. E2E covers explicit Variant, Product-shared, Variant-required, product-not-found, UNKNOWN, timeout, injected Evidence scope mismatch, out-of-scope, full correlation, and zero Shopify writes through the typed minimal client.
+- Discoveries / limitations：FastAPI `0.141.1` is the approved thin API runtime dependency; `httpx2==2.12.0` is dev-only and directly required by the installed Starlette TestClient. Manual dependency review confirmed both are pinned, actually used, replaceable, Task-local, and do not introduce an external service or cross-Slice Architecture dependency. The minimal client accepts a validated `TurnRequest`, serializes it with the public model, and validates the returned `AnswerEnvelope`; only negative transport tests deliberately mutate a public-model wire payload to prove invalid input cannot reach application, interpreter, trace, or Shopify. The endpoint is synchronous and in-process tests are the E2E transport; no production server/deployment, full error framework, streaming, browser UI, formal Widget, state, recommendation, RAG, real Shopify/model, or application business behavior was added. Successful envelopes currently omit Product Card, which remains valid under the existing T07 integrity guard.
 
 ### T09 — 收敛 Verification Matrix 与 Completion Evidence
 
@@ -548,4 +555,4 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 7. Recommended Next Task
 
-**T08 — 接入薄 Conversation API 与 Minimal E2E Client** 为唯一合法下一项，保持 `NOT_STARTED`，等待明确执行授权。
+**T09 — 收敛 Verification Matrix 与 Completion Evidence** 是依赖满足后的下一项，但保持 `NOT_STARTED`；本次仅完成 T08，等待 T08 Human Review，未授权执行 T09。
