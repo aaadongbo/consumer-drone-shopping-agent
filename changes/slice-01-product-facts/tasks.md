@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：IMPLEMENTATION / T03 DONE — Human Review Approved
+> 状态：IMPLEMENTATION / T04 DONE — Human Re-review Approved
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01、T02、T03 已完成，T03 Human Review 已批准本地提交，T04 尚未开始且未获授权。
+> 当前按批准顺序执行 Implementation；T01～T04 已完成，T04 Human Re-review 已批准本地提交，T05 尚未开始且未获授权。
 
 ## 1. Status Model
 
@@ -17,7 +17,7 @@
 | T01 | Bootstrap 最小执行与测试 Harness | DONE | SATISFIED — Human Final Approval |
 | T02 | 固化 Slice 1 版本化最小 Contract | DONE | T01 |
 | T03 | 建立 Shopify Read Port 与 deterministic fixture | DONE | T02 |
-| T04 | 打通显式 Variant 的应用层 Walking Skeleton | NOT_STARTED | T03 |
+| T04 | 打通显式 Variant 的应用层 Walking Skeleton | DONE | T03 |
 | T05 | 收敛 Product / Variant identity 与 ambiguity | NOT_STARTED | T04 |
 | T06 | 完成 Tool failure 与标准 fallback 映射 | NOT_STARTED | T04, T05 |
 | T07 | 加固 Evidence、动态事实与输出 scope Gate | NOT_STARTED | T04, T05, T06 |
@@ -236,11 +236,19 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`cfd2ab9`; none (`git status --short` produced no output and `git diff --check` passed)
+- Changed paths：`backend/application/__init__.py`, `backend/application/slice_1.py`, `tests/unit/test_t04_application.py`, `tests/contract/test_t04_application_boundary.py`, `tests/integration/test_t04_happy_path.py`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Readiness baseline `uv lock --check`, full Ruff lint/format, and `pytest -m 'unit or contract' -q`: each `0`; baseline `118 passed`.
+  - Initial targeted static run returned `1` for one import-order finding; Ruff's mechanical fix and the corrected lint/format checks returned `0`.
+  - Initial targeted pytest collection returned `1` because `request` is a pytest-reserved parametrization name; renamed it to `turn_request`. Corrected targeted T04 run returned `0`: `13 passed`.
+  - Final `uv lock --check`, full Ruff lint/format, `pytest -q`, unit-only, contract-only, integration-only, collection, and `git diff --check`: each `0`; full `131 passed`, unit `32 passed`, contract `98 passed`, integration `1 passed`, collection `131 tests`.
+  - Complete tracked/untracked source and test review plus scope grep returned `0`; the application module contains no fixture construction or dynamic commerce/fallback implementation.
+  - Human Review independently reproduced an inaccurate `PAGE_CONTEXT_RESOLVED` event for Product-only input and requested changes. T04 returned to `IN_PROGRESS`; explicit-Variant validation moved ahead of that event and an application-level zero-call/trace regression was added.
+  - Post-review targeted T04 run and final full gate each returned `0`: targeted `14 passed`; full `132 passed`, unit `33 passed`, contract `98 passed`, integration `1 passed`, collection `132 tests`. Lock, Ruff lint/format, `git diff --check`, and core Artifact/dependency zero-diff checks also passed.
+  - Human Re-review approved the corrected implementation and Execution Record for local commit; push and T05 execution remain unauthorized.
+- Results / evidence locations：Fixed deterministic interpretation, injected `ShopifyReadPort`, fail-closed read/identity/fact checks, minimal Evidence/Answer assembly, in-memory Trace sink, injected correlation ID factory and aware clock in `backend/application/slice_1.py`; fail-closed and current-ToolResult fact tests in `tests/unit/test_t04_application.py`; public boundary and fixture-injection checks in `tests/contract/test_t04_application_boundary.py`; Matrix #1 identity, binding, trace-correlation, wire round-trip, single-read and zero-write proof in `tests/integration/test_t04_happy_path.py`.
+- Discoveries / limitations：T04 intentionally recognizes only `这个套装有几块电池？` and always routes to `battery_count / VARIANT_SPECIFIC / READ_VARIANT_FACT / get_variants`. Product-only input now stops immediately after `TURN_REQUEST_ACCEPTED`: it does not claim page-context resolution and makes zero Shopify calls. Non-SUCCESS, zero/multiple Variant, missing field, non-KNOWN fact, and ToolResult scope mismatch stop through a private local non-answer exception before Evidence/ANSWER; no public fallback reason or AnswerEnvelope Contract changed. Product Card and freshness are omitted. No price, inventory, availability, Product-only answer behavior, formal fallback mapping, API transport, model generation, general router/composer/trace/DI framework, durable trace, or external service was added.
 
 ### T05 — 收敛 Product / Variant identity 与 ambiguity
 
@@ -511,4 +519,4 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 7. Recommended Next Task
 
-**T03 Human Review/提交完成后进入 T04**。**T04 — 打通显式 Variant 的应用层 Walking Skeleton** 当前保持 `NOT_STARTED` 且未执行。
+**T04 — 打通显式 Variant 的应用层 Walking Skeleton** 已完成。下一顺序任务是 **T05 — 收敛 Product / Variant identity 与 ambiguity**，当前保持 `NOT_STARTED`。
