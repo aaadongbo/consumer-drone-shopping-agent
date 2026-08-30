@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：IMPLEMENTATION / T02 DONE
+> 状态：IMPLEMENTATION / T03 DONE — Human Review Approved
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01、T02 已完成，T03 尚未开始且未获授权。
+> 当前按批准顺序执行 Implementation；T01、T02、T03 已完成，T03 Human Review 已批准本地提交，T04 尚未开始且未获授权。
 
 ## 1. Status Model
 
@@ -16,7 +16,7 @@
 |---|---|---|---|
 | T01 | Bootstrap 最小执行与测试 Harness | DONE | SATISFIED — Human Final Approval |
 | T02 | 固化 Slice 1 版本化最小 Contract | DONE | T01 |
-| T03 | 建立 Shopify Read Port 与 deterministic fixture | NOT_STARTED | T02 |
+| T03 | 建立 Shopify Read Port 与 deterministic fixture | DONE | T02 |
 | T04 | 打通显式 Variant 的应用层 Walking Skeleton | NOT_STARTED | T03 |
 | T05 | 收敛 Product / Variant identity 与 ambiguity | NOT_STARTED | T04 |
 | T06 | 完成 Tool failure 与标准 fallback 映射 | NOT_STARTED | T04, T05 |
@@ -186,11 +186,19 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`a19e85005d2769d81b16c0e939e74f59adfa97e4`; none (`git status --short` produced no output)
+- Changed paths：`backend/shopify/__init__.py`, `backend/shopify/port.py`, `backend/shopify/fixture.py`, `tests/unit/test_shopify_fixture.py`, `tests/contract/test_shopify_read_port.py`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Readiness `git status --short`, HEAD/message/status checks, `uv lock --check`, Ruff lint/format, public Contract import, `pytest -m 'unit or contract' -q`, and `pytest -m contract -q`: each `0`; baseline targeted `78 passed`, contract-only `77 passed, 1 deselected`.
+  - Initial targeted implementation run: Ruff lint `1` for two Python 3.12 generic-style findings and three line-length findings; Ruff format check `1` for three files; targeted T03 pytest `0`, `36 passed`. Replaced legacy `TypeVar` helpers with PEP 695 type parameters and applied Ruff formatting without changing Contract semantics.
+  - Corrected targeted Ruff lint/format and T03 pytest: each `0`; `36 passed`.
+  - Final `uv lock --check`, full Ruff lint/format, public Contract import, Shopify Port/fixture import, `pytest -m 'unit or contract' -q`, `pytest -m unit -q`, `pytest -m contract -q`, collection, and `git diff --check`: each `0`; targeted `114 passed`, unit `18 passed, 96 deselected`, contract `96 passed, 18 deselected`, collection `114 tests`.
+  - Explicit Port surface inspection, generic dispatcher/write-surface absence, three-real-read zero-write ledger plus rejected write probe, four core Artifact zero-diff, dependency zero-diff, sensitive-value grep, complete tracked/untracked path review, and scope review: each `0`; public methods were exactly `get_products`, `get_variants`, `refresh_commerce_state`; ledger evidence was `reads=3`, `writes=0`, rejected-probe ledger delta `0`.
+  - Human Review fixture-isolation regression initially returned `1`: four new SUCCESS/PARTIAL Product/Variant cases failed (`4 failed, 17 passed`), reproducing nested `list`/`dict` pollution. ProductRecord/VariantRecord returns were isolated with Pydantic `model_copy(deep=True)`; corrected unit `21 passed` and T03 targeted `40 passed` returned `0`. One intermediate Ruff format check returned `1` for the new test layout; formatting and the corrected static/targeted rerun returned `0`.
+  - Post-review full final gate returned `0`: lock, full Ruff lint/format, public/Shopify imports, `pytest -m 'unit or contract' -q`, unit-only, contract-only, collection, diff check, four core Artifact zero-diff, and dependency zero-diff all passed; targeted `118 passed`, unit `22 passed, 96 deselected`, contract `96 passed, 22 deselected`, collection `118 tests`. Independent SUCCESS/PARTIAL mutation probe reported `product polluted: False`, `variant polluted: False`; Port surface remained the approved three reads and ledger remained `reads=3`, `writes=0`.
+  - Human Re-review approved the implementation and Execution Record for local commit; push and T04 execution remain unauthorized.
+- Results / evidence locations：Typed protocol and exact read allowlist in `backend/shopify/port.py`; deterministic two-Product/three-Variant data, fixed-clock commerce values, failure injection, deep-copy return isolation, source locators, and immutable safe ledger in `backend/shopify/fixture.py`; public Shopify imports in `backend/shopify/__init__.py`; lookup/data/freshness plus Product/Variant SUCCESS/PARTIAL nested-mutation isolation branches in `tests/unit/test_shopify_fixture.py`; Port surface, public ToolResult branch, operation rejection, and zero-write gates in `tests/contract/test_shopify_read_port.py`.
+- Discoveries / limitations：Human Review confirmed that Pydantic `frozen=True` does not deeply freeze nested containers; every internally stored ProductRecord/VariantRecord is now deep-copied at the SUCCESS and PARTIAL return boundary, so caller mutation cannot make fixture results order-dependent. No T02 public Contract change or new dependency was needed. The existing `TraceOperation` is reused as the sole operation vocabulary; there is no operation string dispatcher. Fixture outcomes are construction-time, per-read-capability controls rather than retry/fallback orchestration. The injected clock is required and must return a timezone-aware datetime; no wall clock, freshness TTL, cache, network, Shopify SDK/API, credential, search, pagination, retry/backoff, application flow, Evidence/Composer gate, API, integration, or E2E implementation was added. `CallClassification.WRITE` exists only to classify/count safe in-memory ledger summaries; actual entries can only be appended by the three hard-coded read methods and remained zero-write.
 
 ### T04 — 打通显式 Variant 的应用层 Walking Skeleton
 
@@ -503,4 +511,4 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 7. Recommended Next Task
 
-**T02 — 固化 Slice 1 版本化最小 Contract** 已完成 Review 修正。Human Review 通过并提交 T02 前，**T03 — 建立 Shopify Read Port 与 deterministic fixture** 保持 `NOT_STARTED` 且不得执行。
+**T03 Human Review/提交完成后进入 T04**。**T04 — 打通显式 Variant 的应用层 Walking Skeleton** 当前保持 `NOT_STARTED` 且未执行。
