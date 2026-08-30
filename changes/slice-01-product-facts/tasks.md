@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：IMPLEMENTATION / T06 DONE — AI_REVIEW_PASS / Human Re-review Required
+> 状态：IMPLEMENTATION / T06 COMMITTED — Human approval recorded
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01～T06 已完成，T06 Human review finding 已修正并通过 AI re-review，正在等待明确 Human re-review；T07 尚未开始且未获授权。
+> 当前按批准顺序执行 Implementation；T01～T06 已完成，T06 已按 Human 明确授权创建本地 commit；T07 尚未开始且等待明确执行授权。
 
 ## 1. Status Model
 
@@ -538,4 +538,4 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 7. Recommended Next Task
 
-**T06 — 完成 Tool failure 与标准 fallback 映射** 已修正 Human review finding 并通过 AI re-review，正在等待明确 Human re-review。**T07 — 加固 Evidence、动态事实与输出 scope Gate** 保持 `NOT_STARTED`，未获授权。
+**T07 — 加固 Evidence、动态事实与输出 scope Gate** 为唯一合法下一项，保持 `NOT_STARTED`，等待明确执行授权。
