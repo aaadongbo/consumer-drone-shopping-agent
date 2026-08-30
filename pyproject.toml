@@ -3,7 +3,7 @@ name = "consumer-drone-shopping-agent"
 version = "0.0.0"
 description = "Consumer drone shopping agent"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = ["pydantic==2.13.5"]
 
 [dependency-groups]
 dev = [

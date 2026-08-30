@@ -1,10 +1,10 @@
 # Slice 1 Ordered Implementation Tasks
 
-> 状态：APPROVED / Authorized for T01
+> 状态：IMPLEMENTATION / T02 DONE
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前按批准顺序执行 Implementation；T01 已完成，T02 尚未开始。
+> 当前按批准顺序执行 Implementation；T01、T02 已完成，T03 尚未开始且未获授权。
 
 ## 1. Status Model
 
@@ -15,7 +15,7 @@
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
 | T01 | Bootstrap 最小执行与测试 Harness | DONE | SATISFIED — Human Final Approval |
-| T02 | 固化 Slice 1 版本化最小 Contract | NOT_STARTED | T01 |
+| T02 | 固化 Slice 1 版本化最小 Contract | DONE | T01 |
 | T03 | 建立 Shopify Read Port 与 deterministic fixture | NOT_STARTED | T02 |
 | T04 | 打通显式 Variant 的应用层 Walking Skeleton | NOT_STARTED | T03 |
 | T05 | 收敛 Product / Variant identity 与 ambiguity | NOT_STARTED | T04 |
@@ -136,11 +136,19 @@
 
 **Execution Record（执行后填写）**
 
-- Start commit / pre-existing diff：TBD
-- Changed paths：TBD
-- Commands and exit codes：TBD
-- Results / evidence locations：TBD
-- Discoveries / limitations：TBD
+- Start commit / pre-existing diff：`9d194d48723ebc23ec42ef419ed3d6b1e7cd1f1f`; none (`git status --short` produced no output and `git diff --check` passed)
+- Changed paths：`backend/common/__init__.py`, `backend/common/contracts.py`, `tests/contract/test_slice_1_contracts.py`, `pyproject.toml`, `uv.lock`, `changes/slice-01-product-facts/tasks.md`
+- Commands and exit codes：
+  - Readiness/baseline `git status --short`, HEAD/message/status checks, `git diff --check`, `uv lock --check`, Ruff lint/format, public package import, and targeted baseline smoke: each `0`; baseline `1 passed`.
+  - Dependency resolution `uv pip install --dry-run pydantic`: `0`, selected `pydantic==2.13.5`; `uv lock && uv sync --locked --group dev`: `0`.
+  - Initial formatting gate: `1` because `contracts.py` required Ruff formatting; `uv run ruff format backend/common` and follow-up import/lint: `0`.
+  - Initial contract command: `1` on an unused test import, corrected by exercising the valid route contract. Two subsequent contract runs each returned `1` after `54 passed` because JSON Schema assertions assumed discriminator/version literals were inline; assertions were corrected to resolve Pydantic `$defs` references without weakening the gates.
+  - Corrected and iterative Ruff/targeted/contract-only runs: `0`; semantic review additions remained green.
+  - Final `uv lock --check`, `uv run ruff check .`, `uv run ruff format --check .`, public Contract import plus JSON Schema serialization, `uv run pytest -m 'unit or contract' -q`, `uv run pytest -m contract -q`, `uv run pytest --collect-only -q`, `git diff --check`, and core Artifact zero-diff check: each `0`; targeted `66 passed`, contract-only `65 passed, 1 deselected`, collection `66 tests`.
+  - Complete changed-path review combined `git status --short`, tracked diff paths, direct inspection of all untracked files, scope grep, and `plan.md` plus core Artifact zero-diff check: `0`.
+  - Human Review requested RouteDecision conditional semantics; T02 returned to `IN_PROGRESS`, a local validator and 12 valid/invalid combination cases were added, and the full final gate returned `0`: targeted `78 passed`, contract-only `77 passed, 1 deselected`, collection `78 tests`.
+- Results / evidence locations：Public exports in `backend/common/__init__.py`; versioned Pydantic wire models, invariants, intent-safe MinimalRouteDecision, discriminated AnswerEnvelope, HTTP 422 transport rejection body, and allowlisted trace schema in `backend/common/contracts.py`; 77 contract cases in `tests/contract/test_slice_1_contracts.py`; runtime dependency pin in `pyproject.toml` and resolved graph in `uv.lock`.
+- Discoveries / limitations：The current resolver selected `pydantic==2.13.5`, added as the sole direct runtime dependency; FastAPI was not added. Slice-local choices are schema version `1.0`, `TOOL` as the only Slice 1 Evidence type, and invalid TurnRequest HTTP `422` with body `{schema_version, error_code=INVALID_TURN_REQUEST, message}`. Pydantic emits reusable literals/unions through JSON Schema `$defs`; tests resolve those references. Human Review established that RouteDecision enum validity alone was insufficient: `PRODUCT_QA` now requires `requested_field/field_scope`, while `OUT_OF_SCOPE` requires `RETURN_FALLBACK` and omits both field-semantics fields, preventing a schema-valid out-of-scope read action. This Task defines shapes and basic invariants only: Product/Variant merge and Shopify Port/fixture remain T03+, fallback mapping/retry orchestration remains T06, cross-scope Card/Evidence/binding and dynamic freshness enforcement plus runtime trace sanitization remain T07, and transport downstream no-call behavior/API implementation remains T08. No `state_revision`, stream event, business router/interpreter, API endpoint, Shopify adapter, state, RAG, recommendation, comparison, durable trace, or external service was implemented.
 
 ### T03 — 建立 Shopify Read Port 与 deterministic fixture
 
@@ -495,4 +503,4 @@ T04 尽早形成应用层纵向闭环；T05～T07 在该闭环上增加明确失
 
 ## 7. Recommended Next Task
 
-**T01 — Bootstrap 最小执行与测试 Harness** 已完成。Human Review 通过并提交 T01 后，从 **T02 — 固化 Slice 1 版本化最小 Contract** 开始；T02 当前保持 `NOT_STARTED`。
+**T02 — 固化 Slice 1 版本化最小 Contract** 已完成 Review 修正。Human Review 通过并提交 T02 前，**T03 — 建立 Shopify Read Port 与 deterministic fixture** 保持 `NOT_STARTED` 且不得执行。
