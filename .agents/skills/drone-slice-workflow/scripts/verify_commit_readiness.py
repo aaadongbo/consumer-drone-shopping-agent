@@ -27,6 +27,15 @@ from inspect_state import (
 )
 from verify_task import verify as verify_task
 
+WORKFLOW_POLICY_REPAIR_IDENTITY = "WORKFLOW-S03-POLICY"
+WORKFLOW_POLICY_REPAIR_TASKS_FILE = "changes/slice-03-target-resolution/tasks.md"
+WORKFLOW_POLICY_REPAIR_PATHS = {
+    ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+    ".agents/skills/drone-slice-workflow/scripts/inspect_state.py",
+    ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
+    ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
+}
+
 
 def _frame(hasher: hashlib._Hash, label: str, value: str | bytes) -> None:
     payload = value.encode("utf-8") if isinstance(value, str) else value
@@ -110,9 +119,7 @@ def commit_range_sha256(
     base = resolve_commit(repo, base_revision)
     snapshot = resolve_commit(repo, snapshot_revision)
     state = inspect(repo)
-    _, canonical_task = normalize_task_ref(
-        task_ref or state["slice_id"] + "-T00", state["slice_id"]
-    )
+    canonical_task = canonical_review_identity(task_ref, state)
     manifest = range_manifest(repo, base, snapshot)
     hasher = hashlib.sha256()
     _frame(hasher, "digest-version", "immutable-review-v2")
@@ -132,6 +139,81 @@ def commit_range_sha256(
         _frame(hasher, "file-mode", item["mode"])
         _frame(hasher, "contents", snapshot_content(repo, snapshot, item["path"]))
     return hasher.hexdigest()
+
+
+def canonical_review_identity(task_ref: str, state: dict[str, Any]) -> str:
+    identity = (task_ref or state["slice_id"] + "-T00").strip().upper()
+    if identity == WORKFLOW_POLICY_REPAIR_IDENTITY:
+        if state["tasks_file"] != WORKFLOW_POLICY_REPAIR_TASKS_FILE:
+            raise InspectionError(
+                f"{WORKFLOW_POLICY_REPAIR_IDENTITY} requires active "
+                f"{WORKFLOW_POLICY_REPAIR_TASKS_FILE}"
+            )
+        return identity
+    _, canonical_task = normalize_task_ref(identity, state["slice_id"])
+    return canonical_task
+
+
+def workflow_policy_repair_scope(
+    repo: Path,
+    state: dict[str, Any],
+    base: str,
+    snapshot: str,
+) -> dict[str, Any]:
+    paths = range_paths(repo, base, snapshot)
+    disallowed = [path for path in paths if path not in WORKFLOW_POLICY_REPAIR_PATHS]
+    reasons: list[str] = []
+    if state["tasks_file"] != WORKFLOW_POLICY_REPAIR_TASKS_FILE:
+        reasons.append("WORKFLOW_POLICY_IDENTITY_SLICE_MISMATCH")
+    if not paths:
+        reasons.append("NO_WORKFLOW_POLICY_CHANGES")
+    if disallowed:
+        reasons.append("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE")
+    return {
+        "ok": not reasons,
+        "scope_kind": "workflow-policy",
+        "repository_root": str(repo),
+        "active_slice_tasks_file": state["tasks_file"],
+        "slice": state["slice_id"],
+        "task": WORKFLOW_POLICY_REPAIR_IDENTITY,
+        "local_task": None,
+        "immutable_range": True,
+        "base_head": base,
+        "snapshot_head": snapshot,
+        "allowed_patterns": sorted(WORKFLOW_POLICY_REPAIR_PATHS),
+        "changed_paths": paths,
+        "staged_paths": [],
+        "unstaged_paths": [],
+        "untracked_paths": [],
+        "disallowed_paths": disallowed,
+        "core_artifact_changes": [],
+        "dependency_review": {
+            "mode": "workflow-policy-repair-only",
+            "changed_paths": [],
+            "allowed_by_task_policy": False,
+            "manual_confirmation_required": False,
+            "condition": (
+                "Only the explicit S03 workflow policy repair identity may change "
+                "the predefined workflow policy files."
+            ),
+        },
+        "forbidden_slice_path_changes": [],
+        "risk_policy": {
+            "minimum_tier": "HIGH",
+            "effective_tier": "HIGH",
+            "checkpoint_policy": "human-decision",
+            "automation": {
+                "auto_advance": False,
+                "human_gate": "task",
+                "review_required": True,
+                "verification_mode": "workflow-policy-repair",
+            },
+            "deterministic_escalation_paths": [],
+            "semantic_review_required": True,
+            "human_decision_required": True,
+        },
+        "blocking_reasons": reasons,
+    }
 
 
 def public_manifest(repo: Path, base: str, snapshot: str) -> list[dict[str, Any]]:
@@ -155,7 +237,12 @@ def immutable_evidence(
 ) -> dict[str, Any]:
     repo = repository_root(repo_arg)
     state = inspect(repo)
-    local_task, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
+    requested_identity = task_ref.strip().upper()
+    workflow_policy_repair = requested_identity == WORKFLOW_POLICY_REPAIR_IDENTITY
+    if workflow_policy_repair:
+        local_task, canonical_task = None, WORKFLOW_POLICY_REPAIR_IDENTITY
+    else:
+        local_task, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
     base = resolve_commit(repo, base_revision)
     snapshot = resolve_commit(repo, snapshot_revision)
     current = resolve_commit(repo, "HEAD")
@@ -178,12 +265,21 @@ def immutable_evidence(
     dirty = porcelain_paths(repo)
     if dirty:
         blockers.append("SNAPSHOT_WORKTREE_DIRTY")
-    task = next((item for item in state["tasks"] if item["id"] == local_task), None)
-    if task is None:
+    task = (
+        None
+        if workflow_policy_repair
+        else next((item for item in state["tasks"] if item["id"] == local_task), None)
+    )
+    if task is None and not workflow_policy_repair:
         blockers.append("ILLEGAL_OR_UNKNOWN_TASK_ID")
     if mode not in {"task-review", "slice-review"}:
         blockers.append("INVALID_REVIEW_MODE")
-    if mode == "slice-review":
+    if workflow_policy_repair and mode != "task-review":
+        scope = workflow_policy_repair_scope(repo, state, base, snapshot)
+        blockers.append("INVALID_WORKFLOW_POLICY_REVIEW_MODE")
+    elif workflow_policy_repair:
+        scope = workflow_policy_repair_scope(repo, state, base, snapshot)
+    elif mode == "slice-review":
         scope = check_slice_range(
             canonical_task,
             repo,

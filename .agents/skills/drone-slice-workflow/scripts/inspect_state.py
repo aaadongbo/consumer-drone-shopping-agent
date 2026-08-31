@@ -34,6 +34,7 @@ DEFAULT_PROTECTED_REFS = {
 }
 WORKFLOW_GATED_TASK_FILES = {
     "changes/slice-02-single-turn-recommendation/tasks.md",
+    "changes/slice-03-target-resolution/tasks.md",
 }
 
 

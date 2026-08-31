@@ -71,6 +71,24 @@ SLICE_2_DEPENDENCIES = {
     "T06": "T05",
     "T07": "T06",
 }
+SLICE_3_TITLES = {
+    "T01": "Target Resolution contract",
+    "T02": "Confirmed context reducer",
+    "T03": "Explicit reference resolution",
+    "T04": "Turn Target precedence",
+    "T05": "Product Fact walking skeleton",
+    "T06": "Typed routing handoff",
+    "T07": "Completion evidence",
+}
+SLICE_3_DEPENDENCIES = {
+    "T01": "Human-approved Planning Baseline + S03 workflow policy",
+    "T02": "T01",
+    "T03": "T01",
+    "T04": "T02, T03",
+    "T05": "T04",
+    "T06": "T05",
+    "T07": "T06",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -115,6 +133,8 @@ class TemporaryRepository:
         git(root, "config", "user.email", "workflow-test@example.invalid")
         if slice_name == "slice-01-product-facts":
             self.titles, self.dependencies = SLICE_1_TITLES, SLICE_1_DEPENDENCIES
+        elif slice_name == "slice-03-target-resolution":
+            self.titles, self.dependencies = SLICE_3_TITLES, SLICE_3_DEPENDENCIES
         else:
             self.titles, self.dependencies = SLICE_2_TITLES, SLICE_2_DEPENDENCIES
         self.write_tasks(status_map(list(self.titles)))
@@ -131,11 +151,18 @@ class TemporaryRepository:
             policy.pop("workflow_baseline_marker", None)
             policy_target.write_text(json.dumps(policy), encoding="utf-8")
         for directory in (
+            "backend/agent",
+            "backend/api",
             "backend/catalog",
             "backend/conversation",
             "backend/evidence",
             "backend/common",
             "backend/application",
+            "backend/rag",
+            "eval/datasets",
+            "tests/contract",
+            "tests/e2e",
+            "tests/integration",
         ):
             (root / directory).mkdir(parents=True, exist_ok=True)
         for path in (
@@ -190,6 +217,38 @@ class TemporaryRepository:
             extra.write_text("extra\n", encoding="utf-8")
         git(self.root, "add", ".")
         git(self.root, "commit", "-qm", f"wip({task_id}): snapshot")
+        return base, git(self.root, "rev-parse", "HEAD")
+
+    def workflow_policy_snapshot(
+        self,
+        *,
+        extra_path: str | None = None,
+    ) -> tuple[str, str]:
+        base = git(self.root, "rev-parse", "HEAD")
+        changes = {
+            ".agents/skills/drone-slice-workflow/references/task-scope-policy.json": (
+                (
+                    self.root / ".agents/skills/drone-slice-workflow/references/"
+                    "task-scope-policy.json"
+                ).read_text(encoding="utf-8")
+                + "\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/inspect_state.py": (
+                "WORKFLOW_GATED_TASK_FILES = set()\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/"
+            "test_workflow_scripts.py": "def test_policy():\n    pass\n",
+            ".agents/skills/drone-slice-workflow/scripts/"
+            "verify_commit_readiness.py": "def evidence():\n    pass\n",
+        }
+        if extra_path:
+            changes[extra_path] = "extra\n"
+        for relative, content in changes.items():
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "wip(WORKFLOW-S03-POLICY): snapshot")
         return base, git(self.root, "rev-parse", "HEAD")
 
 
@@ -698,6 +757,288 @@ class WorkflowScriptTests(unittest.TestCase):
         self.addCleanup(holder.cleanup)
         with self.assertRaises(Exception):
             inspect(repo.root, implementation_authorized_slice="S01")
+
+    def test_s03_tasks_are_configured_and_t01_requires_task_authorization(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root)
+
+        self.assertEqual(
+            [task["canonical_id"] for task in state["tasks"]],
+            [
+                "S03-T01",
+                "S03-T02",
+                "S03-T03",
+                "S03-T04",
+                "S03-T05",
+                "S03-T06",
+                "S03-T07",
+            ],
+        )
+        self.assertEqual(state["ordered_candidate"], "S03-T01")
+        self.assertIsNone(state["executable_task"])
+        t01 = next(item for item in state["tasks"] if item["id"] == "T01")
+        self.assertIn(
+            "CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED",
+            t01["execution_blockers"],
+        )
+        self.assertEqual(t01["automation_policy"]["human_gate"], "task")
+        self.assertFalse(t01["automation_policy"]["auto_advance"])
+
+        slice_authorized = inspect(repo.root, implementation_authorized_slice="S03")
+        self.assertIsNone(slice_authorized["executable_task"])
+        self.assertIn(
+            "SLICE_AUTHORIZATION_REQUIRES_LOW_RISK_TASK",
+            next(item for item in slice_authorized["tasks"] if item["id"] == "T01")[
+                "execution_blockers"
+            ],
+        )
+
+        task_authorized = inspect(repo.root, implementation_authorized_task="S03-T01")
+        self.assertEqual(task_authorized["executable_task"], "S03-T01")
+
+    def test_s03_t01_is_high_risk_and_cannot_auto_advance(self) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot(
+            task_id="T01", changed_path="backend/common/contracts.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("S03-T01", base, snapshot, repo.root)
+        verification = {
+            "ok": True,
+            "verification_complete": True,
+            "task": "S03-T01",
+            "base_head": base,
+            "snapshot_head": snapshot,
+            "results": [{"command": "targeted", "exit_code": 0}],
+        }
+        with patch("verify_commit_readiness.verify_task", return_value=verification):
+            result = checkpoint_readiness(
+                "S03-T01",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=evidence["digest"],
+                ai_review_pass=True,
+                reviewed_risk_tier="HIGH",
+            )
+
+        self.assertEqual(evidence["risk_policy"]["minimum_tier"], "HIGH")
+        self.assertFalse(evidence["risk_policy"]["automation"]["auto_advance"])
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
+        self.assertTrue(result["human_approval_required"])
+
+    def test_s03_scope_accepts_task_paths_and_rejects_forbidden_paths(self) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot(
+            task_id="T03", changed_path="backend/catalog/alias_registry.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+        allowed = check("S03-T03", repo.root, base_head=base, snapshot_head=snapshot)
+        self.assertTrue(allowed["ok"], allowed)
+
+        guarded_cases = {
+            "changes/slice-04-future/plan.md": "PATH_OUTSIDE_TASK_SCOPE",
+            "docs/PROJECT_SPEC.md": "CORE_ARTIFACT_CHANGED",
+            "pyproject.toml": "DEPENDENCY_FILE_CHANGED_WITHOUT_TASK_POLICY",
+            ".agents/skills/drone-slice-workflow/SKILL.md": (
+                "FORBIDDEN_SLICE_PATH_CHANGED"
+            ),
+            "backend/rag/future.py": "FORBIDDEN_SLICE_PATH_CHANGED",
+        }
+        for changed_path, reason in guarded_cases.items():
+            holder_case, repo_case = self.repo(slice_name="slice-03-target-resolution")
+            self.addCleanup(holder_case.cleanup)
+            base_case, snapshot_case = repo_case.snapshot(
+                task_id="T03", changed_path=changed_path
+            )
+            git(repo_case.root, "switch", "--detach", snapshot_case)
+
+            scoped = check(
+                "S03-T03",
+                repo_case.root,
+                base_head=base_case,
+                snapshot_head=snapshot_case,
+            )
+
+            self.assertFalse(scoped["ok"], changed_path)
+            self.assertIn(reason, scoped["blocking_reasons"], changed_path)
+
+    def test_workflow_s03_policy_identity_accepts_only_explicit_workflow_paths(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.workflow_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("WORKFLOW-S03-POLICY", base, snapshot, repo.root)
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["task"], "WORKFLOW-S03-POLICY")
+        self.assertEqual(evidence["mode"], "task-review")
+        self.assertEqual(evidence["scope"]["scope_kind"], "workflow-policy")
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertFalse(evidence["integration_authorized"])
+        self.assertFalse(evidence["push_authorized"])
+        self.assertFalse(evidence["human_approval"])
+
+    def test_workflow_s03_policy_identity_rejects_extra_paths_and_wildcards(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.workflow_policy_snapshot(
+            extra_path=".agents/skills/drone-slice-workflow/SKILL.md"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("WORKFLOW-S03-POLICY", base, snapshot, repo.root)
+
+        self.assertFalse(evidence["ok"])
+        self.assertIn(
+            "PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", evidence["blocking_reasons"]
+        )
+        with self.assertRaises(Exception):
+            immutable_evidence("WORKFLOW-S03-ANYTHING", base, snapshot, repo.root)
+        with self.assertRaises(Exception):
+            immutable_evidence("WORKFLOW-S04-POLICY", base, snapshot, repo.root)
+
+    def test_workflow_s03_policy_identity_retains_protected_ref_rejection(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        git(repo.root, "switch", "main")
+        base, snapshot = repo.workflow_policy_snapshot()
+
+        evidence = immutable_evidence("WORKFLOW-S03-POLICY", base, snapshot, repo.root)
+
+        self.assertFalse(evidence["ok"])
+        self.assertIn("SNAPSHOT_ON_PROTECTED_BRANCH", evidence["blocking_reasons"])
+
+    def test_workflow_s03_policy_identity_does_not_relax_regular_s03_task_scope(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.workflow_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+
+        task_evidence = immutable_evidence("S03-T07", base, snapshot, repo.root)
+
+        self.assertFalse(task_evidence["ok"])
+        self.assertIn("PATH_OUTSIDE_TASK_SCOPE", task_evidence["blocking_reasons"])
+
+    def test_s03_public_contract_escalates_and_dependency_diff_fails_closed(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot(
+            task_id="T06", changed_path="backend/common/contracts.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("S03-T06", base, snapshot, repo.root)
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["risk_policy"]["minimum_tier"], "MEDIUM")
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertEqual(
+            evidence["risk_policy"]["deterministic_escalation_paths"],
+            ["backend/common/contracts.py"],
+        )
+
+        holder_dep, repo_dep = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder_dep.cleanup)
+        base_dep, snapshot_dep = repo_dep.snapshot(
+            task_id="T01", changed_path="uv.lock"
+        )
+        git(repo_dep.root, "switch", "--detach", snapshot_dep)
+        dependency_scope = check(
+            "S03-T01",
+            repo_dep.root,
+            base_head=base_dep,
+            snapshot_head=snapshot_dep,
+        )
+        self.assertFalse(dependency_scope["ok"])
+        self.assertIn(
+            "DEPENDENCY_FILE_CHANGED_WITHOUT_TASK_POLICY",
+            dependency_scope["blocking_reasons"],
+        )
+
+    def test_s03_task_review_requires_done_status(self) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        statuses = status_map(list(repo.titles))
+        statuses["T01"] = "IN_PROGRESS"
+        repo.write_tasks(statuses)
+        (repo.root / "backend/common/contracts.py").write_text(
+            "VALUE = 1\n", encoding="utf-8"
+        )
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S03-T01): incomplete snapshot")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("S03-T01", base, snapshot, repo.root)
+
+        self.assertFalse(evidence["ok"])
+        self.assertIn("TASK_NOT_DONE", evidence["blocking_reasons"])
+
+    def test_s03_slice_review_uses_union_scope_and_completion_task(self) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        repo.write_tasks(status_map(list(repo.titles), "T07"))
+        changes = {
+            "backend/common/contracts.py": "CONTRACT = 1\n",
+            "backend/conversation/reducer.py": "STATE = 1\n",
+            "backend/catalog/alias_registry.py": "ALIAS = 1\n",
+            "backend/application/target_fact.py": "APP = 1\n",
+            "backend/agent/handoff.py": "HANDOFF = 1\n",
+            "eval/datasets/s03_matrix.json": "{}\n",
+            "tests/e2e/test_s03_journey.py": "VALUE = 1\n",
+        }
+        for relative, content in changes.items():
+            path = repo.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S03): complete slice snapshot")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence(
+            "S03-T07", base, snapshot, repo.root, mode="slice-review"
+        )
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["scope"]["scope_kind"], "slice-range")
+        self.assertEqual(evidence["scope"]["completion_task"], "T07")
+        self.assertEqual(
+            evidence["scope"]["configured_tasks"],
+            ["T01", "T02", "T03", "T04", "T05", "T06", "T07"],
+        )
+        self.assertEqual(evidence["risk_policy"]["minimum_tier"], "HIGH")
+
+        wrong_task = immutable_evidence(
+            "S03-T06", base, snapshot, repo.root, mode="slice-review"
+        )
+        self.assertFalse(wrong_task["ok"])
+        self.assertIn(
+            "SLICE_REVIEW_TASK_IDENTITY_MISMATCH",
+            wrong_task["blocking_reasons"],
+        )
 
     def test_high_risk_requires_explicit_human(self) -> None:
         holder, repo = self.repo()

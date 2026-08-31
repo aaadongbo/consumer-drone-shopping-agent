@@ -259,6 +259,149 @@
           }
         }
       }
+    },
+    "changes/slice-03-target-resolution/tasks.md": {
+      "completion_task": "T07",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "independent-per-task",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "human_gates": {
+          "LOW": "slice-completion",
+          "MEDIUM": "key-checkpoint",
+          "HIGH": "task"
+        }
+      },
+      "implementation_gate": {
+        "type": "protected-workflow-baseline"
+      },
+      "core_artifacts": [
+        "changes/slice-03-target-resolution/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "backend/rag/",
+        "backend/evaluation/",
+        "storefront/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "backend/shopify/",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["backend/common/contracts.py", "backend/conversation/", "tests/contract/", "tests/fixtures/", "eval/datasets/", "changes/slice-03-target-resolution/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "contract",
+          "verification_rationale": "Target Resolution contract, schema round-trip, and golden matrix baseline",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T02": {
+          "allowed_paths": ["backend/conversation/", "tests/unit/", "tests/contract/", "changes/slice-03-target-resolution/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "confirmed context, revision, idempotent reducer, stale/idempotency contract cases",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T03": {
+          "allowed_paths": ["backend/catalog/", "backend/conversation/", "tests/unit/", "tests/integration/", "changes/slice-03-target-resolution/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "store-scoped explicit Product/Variant reference resolution and ownership guards",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T04": {
+          "allowed_paths": ["backend/conversation/", "backend/catalog/", "tests/unit/", "tests/integration/", "changes/slice-03-target-resolution/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "Turn Target precedence, pending confirmation/switch, revision, idempotency, and replay regressions",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T05": {
+          "allowed_paths": ["backend/application/", "backend/conversation/", "backend/evidence/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-03-target-resolution/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "contract or integration or e2e",
+          "verification_rationale": "single-object Target Resolution walking skeleton through existing Product Fact flow",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T06": {
+          "allowed_paths": ["backend/agent/", "backend/application/", "backend/common/contracts.py", "backend/conversation/", "tests/unit/", "tests/contract/", "tests/e2e/", "changes/slice-03-target-resolution/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or e2e",
+          "verification_rationale": "typed comparison/recommendation/support handoff boundaries without downstream Slice 4+ execution",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T07": {
+          "allowed_paths": ["tests/", "eval/datasets/", "changes/slice-03-target-resolution/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "Slice 3 Acceptance matrix and completion evidence require the full suite",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        }
+      }
     }
   }
 }
