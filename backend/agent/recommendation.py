@@ -110,6 +110,13 @@ class Slice2RecommendationService:
             scope=request_scope,
             operation=TraceOperation.REFRESH_COMMERCE_STATE,
         )
+        if not _snapshot_matches_store(snapshot, request.store_id):
+            return self._fallback(
+                request,
+                correlation_id,
+                request_scope,
+                FallbackReasonCode.PRODUCT_NOT_FOUND,
+            )
         self._trace_commerce_results(correlation_id, snapshot)
         if not snapshot.products or not snapshot.variants or not snapshot.commerce:
             return self._fallback(
@@ -277,6 +284,19 @@ def _request_scope(request: TurnRequest) -> ObjectScope:
         product_id=request.page_context.product_id,
         variant_id=request.page_context.variant_id,
     )
+
+
+def _snapshot_matches_store(
+    snapshot: CatalogFixtureSnapshot,
+    requested_store_id: str,
+) -> bool:
+    if snapshot.store_id != requested_store_id:
+        return False
+    if any(product.store_id != requested_store_id for product in snapshot.products):
+        return False
+    if any(variant.store_id != requested_store_id for variant in snapshot.variants):
+        return False
+    return not any(entry.store_id != requested_store_id for entry in snapshot.commerce)
 
 
 def _recommendation_text(
