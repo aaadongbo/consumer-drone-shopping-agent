@@ -126,20 +126,22 @@ def build_recommendation_candidates(
         (entry.product_id, entry.variant_id): entry.result.data
         for entry in snapshot.commerce
     }
-    eligibility_by_identity = {
-        (result.product_id, result.variant_id): result for result in eligibility_results
-    }
+    eligibility_by_identity = _unique_by_identity(
+        eligibility_results,
+        label="eligibility",
+    )
 
     candidates: list[RecommendationCandidate] = []
     selected_products: set[str] = set()
     for score in soft_scores:
         if score.store_id != snapshot.store_id:
             raise ValueError("Soft score crossed the store boundary")
+        score_identity = (score.product_id, score.variant_id)
         if score.product_id in selected_products:
             continue
         product = products[score.product_id]
-        variant = variants[(score.product_id, score.variant_id)]
-        eligibility = eligibility_by_identity[(score.product_id, score.variant_id)]
+        variant = variants[score_identity]
+        eligibility = eligibility_by_identity[score_identity]
         if not eligibility.eligible:
             raise ValueError("Recommendation candidates require eligible Variants")
         candidate = _candidate_for(
@@ -158,6 +160,20 @@ def build_recommendation_candidates(
         store_id=snapshot.store_id,
         candidates=tuple(candidates),
     )
+
+
+def _unique_by_identity(
+    eligibility_results: Iterable[EligibilityResult],
+    *,
+    label: str,
+) -> dict[tuple[str, str], EligibilityResult]:
+    by_identity: dict[tuple[str, str], EligibilityResult] = {}
+    for result in eligibility_results:
+        identity = (result.product_id, result.variant_id)
+        if identity in by_identity:
+            raise ValueError(f"Duplicate {label} identity is not allowed")
+        by_identity[identity] = result
+    return by_identity
 
 
 def _candidate_for(

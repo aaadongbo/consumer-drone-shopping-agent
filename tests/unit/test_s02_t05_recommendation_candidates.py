@@ -159,3 +159,35 @@ def test_ineligible_variant_cannot_be_promoted_into_candidate() -> None:
             eligibility_results=eligibility,
             soft_scores=[bad_score],
         )
+
+
+def test_duplicate_eligibility_identity_cannot_shadow_ineligible_variant() -> None:
+    snapshot = load()
+    eligibility = evaluate_store_eligibility(snapshot=snapshot, constraints=[])
+    unavailable = next(item for item in eligibility if item.variant_id == "travel-pack")
+    forged_eligible = unavailable.model_copy(
+        update={"eligible": True, "rejection_reasons": ()}
+    )
+    score = rank_eligible_variants_by_soft_preferences(
+        snapshot=snapshot,
+        eligibility_results=[next(item for item in eligibility if item.eligible)],
+        constraints=[],
+    )[0]
+    forged_score = score.model_copy(
+        update={
+            "product_id": unavailable.product_id,
+            "variant_id": unavailable.variant_id,
+            "tie_break_key": (
+                unavailable.product_id,
+                unavailable.variant_id,
+                unavailable.store_id,
+            ),
+        }
+    )
+
+    with pytest.raises(ValueError, match="Duplicate eligibility identity"):
+        build_recommendation_candidates(
+            snapshot=snapshot,
+            eligibility_results=[unavailable, forged_eligible],
+            soft_scores=[forged_score],
+        )
