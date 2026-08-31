@@ -13,6 +13,12 @@ from backend.catalog.fixture import (
     DeterministicCatalogFixture,
     VariantCommerceSnapshot,
 )
+from backend.catalog.preferences import (
+    SoftPreferenceScore,
+    SoftPreferenceSignal,
+    rank_eligible_variants_by_soft_preferences,
+    score_soft_preferences,
+)
 
 __all__ = [
     "CatalogFixtureSnapshot",
@@ -21,7 +27,11 @@ __all__ = [
     "EligibilityRejectionReason",
     "EligibilityResult",
     "EvaluatedConstraint",
+    "SoftPreferenceScore",
+    "SoftPreferenceSignal",
     "VariantCommerceSnapshot",
     "evaluate_store_eligibility",
     "evaluate_variant_eligibility",
+    "rank_eligible_variants_by_soft_preferences",
+    "score_soft_preferences",
 ]
