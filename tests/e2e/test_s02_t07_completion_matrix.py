@@ -277,6 +277,19 @@ def test_s2_tool_error_fails_closed_without_answer() -> None:
     }
 
 
+def test_s2_missing_commerce_entry_fails_closed_without_exception() -> None:
+    client, _catalog, sink = _client(_missing_commerce_snapshot())
+
+    payload = client.ask(_request("预算 10000 元以内，适合旅行")).root
+
+    assert payload.outcome is EnvelopeOutcome.FALLBACK
+    assert payload.fallback.reason_code is FallbackReasonCode.FACT_UNKNOWN_OR_MISSING
+    assert payload.claims == payload.evidence == payload.bindings == []
+    assert TraceEventType.ANSWER_PRODUCED not in {
+        event.event_type for event in sink.events
+    }
+
+
 def _constraint(
     field: ConstraintField,
     operator: ConstraintOperator,
@@ -335,4 +348,14 @@ def _commerce_error_snapshot() -> CatalogFixtureSnapshot:
         products=snapshot.products,
         variants=snapshot.variants,
         commerce=commerce,
+    )
+
+
+def _missing_commerce_snapshot() -> CatalogFixtureSnapshot:
+    snapshot = _snapshot()
+    return CatalogFixtureSnapshot(
+        store_id=snapshot.store_id,
+        products=snapshot.products,
+        variants=snapshot.variants,
+        commerce=snapshot.commerce[:-1],
     )

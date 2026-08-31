@@ -19,6 +19,11 @@ and does not contain real customer, Shopify, or product data.
 | S2-A12 | Public contract and trace correlation | `test_s2_a04_a05_a09_a12_response_identity_and_evidence_contract` |
 | S2-A13 | Deterministic reproducibility | `test_s2_a06_a07_a13_candidate_cap_order_and_replay_are_stable` |
 
+Additional safety replay:
+
+- Missing commerce entry for a declared Variant fails closed without exception:
+  `test_s2_missing_commerce_entry_fails_closed_without_exception`.
+
 Representative replay prompts:
 
 - `请推荐一款适合旅行的无人机，预算 3000 元，重量 250g 以内，至少1块电池`
