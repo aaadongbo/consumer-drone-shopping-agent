@@ -18,9 +18,9 @@ Slice 2 的文件路径已经包含 `slice-02`；任务在本文件内使用 `T0
 | T04 | S02 SOFT preference baseline | DONE | T03 |
 | T05 | S02 Product-grouped recommendation contract | DONE | T03, T04 |
 | T06 | S02 单轮推荐 Walking Skeleton | DONE | T05 |
-| T07 | S02 Verification Matrix 与 Completion Evidence | NOT_STARTED | T06 |
+| T07 | S02 Verification Matrix 与 Completion Evidence | DONE | T06 |
 
-S02-T01、S02-T02、S02-T03、S02-T04、S02-T05 已完成、reviewed 并集成到 `main`。当前 Human 上下文已授权并完成 S02-T06；S02-T07 未获实现授权，不得因为 T06 已完成而自动执行下一 Task。
+S02-T01、S02-T02、S02-T03、S02-T04、S02-T05、S02-T06 已完成、reviewed 并集成到 `main`。当前 Human 上下文已授权并完成 S02-T07；不得因为 T07 已完成而进入 Slice 3 或 push。
 
 ## 2. Task Details
 
@@ -208,6 +208,22 @@ S02-T01、S02-T02、S02-T03、S02-T04、S02-T05 已完成、reviewed 并集成�
 - **Limitations**：本轮仅返回 top candidate 的公共 `AnswerEnvelope`，不扩展公共 schema 为多卡推荐列表；候选集合仍由 T05 contract 在内部表达。未实现 T07 完整 Verification Matrix、真实 Shopify/model、RAG、多轮状态、正式 Widget、比较或 Slice 3～7。
 - **Recommended Next Task**：先完成 `S02-T06` snapshot、independent AI Review 和 MEDIUM key-checkpoint；经 Human 决策后才可进入 `S02-T07`。
 
+### T07 — S02 Verification Matrix 与 Completion Evidence
+
+- **Status**：`DONE`
+- **Start commit**：`f875f9a25b96673f3e687874641911aee5e5f60b`
+- **Start state**：`main` 已按 Human approval fast-forward 集成 S02-T06 snapshot；从干净 `main` 创建任务分支 `codex/s02-t07-snapshot`；`inspect_state.py --authorize-task S02-T07` 报告唯一 `executable_task` 为 `S02-T07`；T01～T06=`DONE`，T07=`NOT_STARTED`。
+- **Authority/readiness**：当前 Human 上下文明确批准集成 `S02-T06` snapshot `f875f9a25b96673f3e687874641911aee5e5f60b` 到 `main`，并授权执行 `S02-T07`；不授权 push、不授权 Slice 3。workflow policy 报告 T07 risk=`HIGH`、human gate=`task`、verification=`full suite`。
+- **Implementation**：新增可回放 Slice 2 completion matrix，覆盖 S2-A01～S2-A13 的约束解析、Variant-level HARD eligibility、UNKNOWN/missing fail-closed、Product/Variant/Store identity、no mixing、candidate cap、SOFT deterministic ranking、no-match fallback、Evidence/binding、动态事实 `observed_at`、store isolation、公共 envelope/trace contract 和 deterministic replay。新增 `eval/datasets/slice_02_completion_matrix.md` 仅作为非训练、匿名 replay manifest。
+- **Changed paths**：`tests/e2e/test_s02_t07_completion_matrix.py`；`eval/datasets/slice_02_completion_matrix.md`；`changes/slice-02-single-turn-recommendation/tasks.md`。
+- **First failure and fix**：首次 targeted matrix exit 1，原因是测试预期错误地认为 cinema candidate 会排在 travel candidate 前；实际 `travel-lite` 同时匹配 travel 与 4K，应为首位。修正 replay expectation 后 targeted 通过。随后 Ruff exit 1，包含未使用导入和长行；删除未使用导入并折行后通过。首次 format check exit 1，新矩阵文件需格式化；执行 `ruff format` 后通过。
+- **Targeted verification**：`uv run pytest tests/e2e/test_s02_t07_completion_matrix.py -q` exit 0（7 passed）。
+- **Policy verification**：`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S02-T07 --repo .` exit 0（`ok: true`，HIGH，无 disallowed/core/dependency/forbidden path）；`python .agents/skills/drone-slice-workflow/scripts/verify_task.py S02-T07 --repo .` exit 0（`ok: true`，policy-selected full suite：290 passed）。
+- **Static/lock/full verification**：`uv lock --check` exit 0；`uv run ruff check .` exit 0；`uv run ruff format --check .` exit 0；`git diff --check` exit 0；`uv run pytest -q` exit 0（290 passed）。
+- **Acceptance coverage**：S2-A01～S2-A13 全部具备可回放测试映射；completion matrix 不改变业务代码、公共 contracts、核心 Artifact、依赖或 workflow policy；真实 Shopify/model smoke 未运行且按 plan 明确为非阻塞。
+- **Limitations**：未执行真实 Shopify 或真实模型 smoke；未新增训练数据；未进入 Slice 3、多轮 state、RAG、比较、正式 Widget、部署或 push。
+- **Recommended Next Task**：先完成 `S02-T07` snapshot、independent AI Review、HIGH task checkpoint 与 Slice completion review；经 Human 决策后才可集成/关闭 Slice 2 或进入后续规划。
+
 ## 4. Human Escalation
 
 任一 Task 触发公共 Contract、Product Behavior、Architecture Boundary、Accepted Decision、主要依赖、真实外部服务或后续 Slice 扩展时，立即停止并请求 Human Decision。局部 fixture、私有函数和测试组织不需要审批。
@@ -216,9 +232,9 @@ S02-T01、S02-T02、S02-T03、S02-T04、S02-T05 已完成、reviewed 并集成�
 
 - Slice 1 Completion Evidence：Human accepted at HEAD `e1ca844554e3da0fd8d061dff55e149293a1dde3`。
 - Slice 2 Planning：Human Final Approval accepted by current user context on 2026-08-30，覆盖目标、Scope、Acceptance 和 T01～T07。
-- Slice 2 Implementation：当前 Human 上下文已授权并完成 `S02-T01`、`S02-T02`、`S02-T03`、`S02-T04`、`S02-T05` 与 `S02-T06`；`S02-T07` 仍未授权。
+- Slice 2 Implementation：当前 Human 上下文已授权并完成 `S02-T01`～`S02-T07`；Slice 2 实现任务已全部完成，等待 `S02-T07` independent AI Review、HIGH checkpoint 和 Slice completion review。
 - Workflow Simplification：已形成受保护主线 baseline `d23c988e6c523e879c718c51474ae13d348d5c14`，implementation gate satisfied。
-- Slice 2 Task Policy：已配置；S02-T01～S02-T06 scope/verification gate 通过。
+- Slice 2 Task Policy：已配置；S02-T01～S02-T07 scope/verification gate 通过。
 - Push：not authorized。
 - Real Shopify smoke：independent authorization required; non-blocking。
 - Human Final Approval of this plan/tasks：SATISFIED。
