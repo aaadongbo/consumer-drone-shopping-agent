@@ -16,11 +16,11 @@ Slice 2 的文件路径已经包含 `slice-02`；任务在本文件内使用 `T0
 | T02 | S02 单轮 ConstraintPatch 与规范化 | DONE | T01 |
 | T03 | S02 Variant-level HARD eligibility | DONE | T02 |
 | T04 | S02 SOFT preference baseline | DONE | T03 |
-| T05 | S02 Product-grouped recommendation contract | NOT_STARTED | T03, T04 |
+| T05 | S02 Product-grouped recommendation contract | DONE | T03, T04 |
 | T06 | S02 单轮推荐 Walking Skeleton | NOT_STARTED | T05 |
 | T07 | S02 Verification Matrix 与 Completion Evidence | NOT_STARTED | T06 |
 
-S02-T01、S02-T02、S02-T03 已完成、reviewed 并集成到 `main`。当前 Human 上下文已授权并完成 S02-T04；S02-T05～S02-T07 未获实现授权，不得因为 T04 已完成而自动执行下一 Task。
+S02-T01、S02-T02、S02-T03、S02-T04 已完成、reviewed 并集成到 `main`。当前 Human 上下文已授权并完成 S02-T05；S02-T06～S02-T07 未获实现授权，不得因为 T05 已完成而自动执行下一 Task。
 
 ## 2. Task Details
 
@@ -174,6 +174,22 @@ S02-T01、S02-T02、S02-T03 已完成、reviewed 并集成到 `main`。当前 Hu
 - **Limitations**：未实现 T05 Product-grouped recommendation contract、Evidence binding、候选上限、response payload、T06 walking skeleton、真实 Shopify/model、RAG、多轮状态、API 或新依赖。
 - **Recommended Next Task**：先完成 `S02-T04` snapshot、independent AI Review 和 MEDIUM key-checkpoint；经 Human 决策后才可进入 `S02-T05`。
 
+### T05 — S02 Product-grouped recommendation contract
+
+- **Status**：`DONE`
+- **Start commit**：`639a362458263fed5f98e02ec709464c9a576f20`
+- **Start state**：`main` 工作区干净；S02-T04 已按 Human approval 集成到 `main`；从 `main` 创建任务分支 `codex/s02-t05-snapshot`；`inspect_state.py --authorize-task S02-T05` 报告唯一 `executable_task` 为 `S02-T05`。
+- **Authority/readiness**：当前 Human 上下文明确授权执行 `S02-T05`，不授权 `S02-T06`，不授权 push；workflow policy 报告 T05 risk=`HIGH`、human gate=`task`、verification=`targeted`。
+- **Implementation**：新增 Slice-local `RecommendationCandidateSet`、`RecommendationCandidate` 与 `RecommendationReason`；候选按 Product 分组，最多三款不同 Product，且每个候选保留实际 Variant identity、ProductCard scope、T03 eligibility、T04 soft score、关键事实 Evidence 与 ClaimEvidenceBinding。模型自身验证 ProductCard、Eligibility、SoftScore、Evidence、Claim binding 均与候选 store/product/variant identity 一致；不修改公共 `AnswerEnvelope` 核心语义。
+- **Changed paths**：`backend/evidence/__init__.py`；`backend/evidence/recommendation.py`；`tests/unit/test_s02_t05_recommendation_candidates.py`；`tests/contract/test_s02_t05_recommendation_contract.py`；`changes/slice-02-single-turn-recommendation/tasks.md`。
+- **First failure and fix**：首次 targeted tests exit 0（8 passed），但首次 Ruff exit 1，包含三处长行；执行 `ruff format` 后仍有一个过长测试函数名，改短后通过。随后为避免仅依赖 builder 约束，补充模型级 invariant 和 3 个 contract regression，targeted 变为 11 passed。
+- **Targeted verification**：`uv run pytest tests/unit/test_s02_t05_recommendation_candidates.py tests/contract/test_s02_t05_recommendation_contract.py -q` exit 0（11 passed）。
+- **Policy verification**：`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S02-T05 --repo .` exit 0（`ok: true`，HIGH，无 disallowed/core/dependency/forbidden path）；`python .agents/skills/drone-slice-workflow/scripts/verify_task.py S02-T05 --repo .` exit 0（`ok: true`，policy-selected unit or contract：233 passed, 41 deselected）。
+- **Static/lock/full verification**：`uv lock --check` exit 0；`uv run ruff check .` exit 0；`uv run ruff format --check .` exit 0；`git diff --check` exit 0；`uv run pytest -m unit -q` exit 0（103 passed, 171 deselected）；`uv run pytest -m contract -q` exit 0（130 passed, 144 deselected）；`uv run pytest -q` exit 0（274 passed）。
+- **Acceptance coverage**：候选最多三款不同 Product；同 Product 重复 score 不重复占位；ProductCard/Eligibility/SoftScore/Evidence/Claim binding scope 均一致；ineligible Variant 不能晋级；候选暴露实际 Variant；recommendation contract 可 wire JSON round-trip；未新增公共 AnswerEnvelope 字段。
+- **Limitations**：未实现 T06 walking skeleton、API 响应组装、推荐自然语言文案、fallback orchestration、真实 Shopify/model、RAG、多轮状态、正式 Widget 或新依赖。
+- **Recommended Next Task**：先完成 `S02-T05` snapshot、independent AI Review 和 HIGH task checkpoint；经 Human 决策后才可进入 `S02-T06`。
+
 ## 4. Human Escalation
 
 任一 Task 触发公共 Contract、Product Behavior、Architecture Boundary、Accepted Decision、主要依赖、真实外部服务或后续 Slice 扩展时，立即停止并请求 Human Decision。局部 fixture、私有函数和测试组织不需要审批。
@@ -182,9 +198,9 @@ S02-T01、S02-T02、S02-T03 已完成、reviewed 并集成到 `main`。当前 Hu
 
 - Slice 1 Completion Evidence：Human accepted at HEAD `e1ca844554e3da0fd8d061dff55e149293a1dde3`。
 - Slice 2 Planning：Human Final Approval accepted by current user context on 2026-08-30，覆盖目标、Scope、Acceptance 和 T01～T07。
-- Slice 2 Implementation：当前 Human 上下文已授权并完成 `S02-T01`、`S02-T02`、`S02-T03` 与 `S02-T04`；`S02-T05`～`S02-T07` 仍未授权。
+- Slice 2 Implementation：当前 Human 上下文已授权并完成 `S02-T01`、`S02-T02`、`S02-T03`、`S02-T04` 与 `S02-T05`；`S02-T06`～`S02-T07` 仍未授权。
 - Workflow Simplification：已形成受保护主线 baseline `d23c988e6c523e879c718c51474ae13d348d5c14`，implementation gate satisfied。
-- Slice 2 Task Policy：已配置；S02-T01～S02-T04 scope/verification gate 通过。
+- Slice 2 Task Policy：已配置；S02-T01～S02-T05 scope/verification gate 通过。
 - Push：not authorized。
 - Real Shopify smoke：independent authorization required; non-blocking。
 - Human Final Approval of this plan/tasks：SATISFIED。
