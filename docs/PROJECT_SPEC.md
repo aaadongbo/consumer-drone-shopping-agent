@@ -74,7 +74,7 @@ V1 明确不做：
 
 ### 5.1 商品页事实问答
 
-用户在某个商品页询问“这款能飞多久”“是否支持某功能”或“包装里有什么”。系统识别当前商品或变体，基于结构化商品事实或官方资料回答，并给出证据。若问题中的具体配置不明确，系统说明所采用的变体或请求一次澄清。
+用户在某个商品页询问“这款能飞多久”“是否支持某功能”或“包装里有什么”。当前页面商品与已选套装是默认 Page Context，但不是永久锁定：用户显式询问其他商品时，本轮应以显式对象为准。系统基于结构化商品事实或官方资料回答，并给出证据。若问题中的商品或具体配置不明确，系统请求澄清，不默认选择第一个商品或变体。
 
 ### 5.2 单轮推荐
 
@@ -101,6 +101,13 @@ V1 明确不做：
 ### 6.1 对话与约束
 
 - 系统必须维护当前会话的有效需求状态，而不是只依赖最近一条消息。
+- 系统必须区分 Page Context、Turn Target 与 Conversation Context：页面提供默认对象，本轮解析结果决定实际回答对象，只有已确认的长期上下文可供后续代词继承。
+- 目标解析优先级为：用户显式指定的 Product / Variant > 已确认的 Conversation Context > 当前 Page Context > 请求澄清。
+- 用户显式指定其他商品时，Page Context 不得覆盖显式对象；单次临时跨产品提问不得静默修改 Conversation Context。
+- 只有用户明确要求切换，或确认待处理的切换后，后续代词才继承新的 Conversation Context。
+- 比较请求保留多个对象，不能被误处理为单商品切换；推荐请求面向商店候选，不能被当前商品页限制；全站支持意图应移交相应能力而不是伪装成当前商品事实问答。
+- Answer、Product Card、Evidence 与 claim bindings 必须统一指向本轮 Turn Target；跨产品查询不得混入 Page Context 商品的规格、价格或库存。
+- 用户可见结果应明确展示当前回答对象；商品或 Variant 不明确时必须澄清，不默认选择第一个。
 - 约束必须支持新增、更新、撤回、确认冲突和明确跳过。
 - 明确措辞“必须、不能、不超过、至少、只考虑、预算 X 以内”等默认解释为硬约束。
 - “最好、希望、偏向、尽量、轻一点”等默认解释为软偏好；上下文可改变判断，但必须可追踪。
@@ -165,6 +172,8 @@ V1 只有在以下行为可通过预定义案例独立验证时，才视为完�
 8. Shopify 依赖不可用、证据不足或请求越界时，系统返回可理解、可行动的 fallback，不伪造答案。
 9. 所有 Shopify 工具均为只读；测试和运行日志中不存在写调用。
 10. 关键回放信息完整：输入状态、状态变化、路由、工具结果、候选筛除、证据、回答和失败原因可关联到同一轮次。
+11. 商品页上的显式跨产品问题以显式对象作为 Turn Target，临时问答不污染 Conversation Context；明确切换后后续代词才继承新对象。
+12. 比较、推荐与全站支持请求按其自身目标类型路由；回答对象展示以及 Answer、Card、Evidence、bindings 的身份均与 Turn Target 一致，歧义时不默认选择商品或 Variant。
 
 ## 8. Provisional Quality Gates
 
@@ -217,13 +226,14 @@ V1 只有在以下行为可通过预定义案例独立验证时，才视为完�
 - **关键依赖**：ConstraintPatch、规范化 Catalog、eligibility 结果、Recommendation 与 Evidence Contract。
 - **主要 Open Decisions**：软偏好 Recommendation Ranking；缺失属性治理阈值。
 
-### Slice 3：多轮 State
+### Slice 3：Target Resolution 与最小上下文状态
 
-- **User Journey**：用户逐轮补充、修改、撤回或跳过约束，系统基于最新状态继续推荐。
-- **Goal**：形成可恢复、可审计、带 revision 的 Conversation State 闭环。
-- **Acceptance**：状态变更与用户表达一致；冲突不被静默覆盖；每轮最多一个澄清问题且连续不超过两轮；已跳过维度不被重复追问；过期 revision 有可恢复处理。
-- **关键依赖**：ConversationState、ConstraintPatch、消息幂等、revision 与状态 diff Contract。
-- **主要 Open Decisions**：Query Rewrite 是否只对特定承接/省略场景启用；状态持久化与缓存的实际部署配置。
+- **User Journey**：用户在商品页沿用“这款/它/这个套装”，临时询问其他商品，或明确切换回答对象；比较、推荐和全站支持意图被正确分类并移交。
+- **Goal**：建立 Page Context、Turn Target 与已确认 Conversation Context 的最小、可审计语义，避免页面默认对象覆盖显式目标或临时问题污染长期上下文。
+- **Acceptance**：显式 Product / Variant 优先于已确认 Conversation Context 和 Page Context；临时跨产品问答只改变本轮 Turn Target；明确切换或确认后才更新 Conversation Context；歧义时澄清且不默认选择；比较不变成单商品切换，推荐不被当前页面限制；Answer、Card、Evidence、bindings 与用户可见回答对象统一指向 Turn Target。
+- **关键依赖**：TurnRequest Page Context、最小 TargetResolution / TurnTarget、ConversationState revision 与幂等、Product / Variant identity、RouteDecision、Evidence 与 AnswerEnvelope identity gate。
+- **主要 Open Decisions**：Product / Variant alias 与歧义基线、最小 target display wire 形状、持久化 adapter 的接入时点；Query Rewrite 不得替代目标解析或直接修改 Conversation Context。
+- **边界**：本 Slice 只建立目标与切换所需的最小状态，不完成约束新增/修改/撤回/跳过的完整多轮闭环。该 V1 行为仍保留，须在 Slice 3 Completion Review 后通过后续 Slice planning reconciliation 明确承接位置，不能被视为已完成或删除。
 
 ### Slice 4：Variant 比较
 

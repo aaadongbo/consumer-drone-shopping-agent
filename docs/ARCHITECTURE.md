@@ -44,6 +44,7 @@
 - 展示、编辑和撤回当前约束 chips。
 - 渲染商品卡、变体说明、比较表、引用与 fallback 操作。
 - 传递当前商品页的 product/variant context。
+- 展示本轮实际回答对象，例如“正在回答：DJI Mini 4 Pro”，并区分页面对象与已确认的会话对象。
 - 在会话恢复或 revision 冲突时展示明确状态。
 - 提供重试、重置和联系人工支持等动作。
 
@@ -68,7 +69,7 @@
 - 将当前输入转换为 ConstraintPatch，并执行规范化、验证和冲突检查。
 - 维护约束生命周期：新增、更新、撤回、跳过、重新激活。
 - 维护 revision，拒绝或合并过期写入，支持回放与恢复。
-- 记录 pending clarification、当前商品上下文、候选和比较集合。
+- 记录 pending clarification、已确认的 Conversation Context、待确认切换、候选和比较集合；Page Context 仍是请求级输入，不因打开页面或临时提问自动写入长期状态。
 
 边界：该模块决定“状态如何变化”，不决定哪些商品满足条件，也不生成最终自然语言。
 
@@ -121,6 +122,9 @@ Chunking、Query Rewrite、Multi-product Retrieval 与 Reranker 的具体策略�
 职责：
 
 - 基于当前 Turn 与 ConversationState 选择下一步动作。
+- 通过有界 Target Resolver 将显式 Product / Variant、已确认 Conversation Context 与 Page Context 解析为本轮不可变 Turn Target；解析优先级为显式对象 > 已确认会话对象 > 页面对象 > 澄清。
+- 将单对象、比较集合、推荐任务与全站支持意图区分为不同目标类型；比较集合不得折叠成单对象切换，推荐不得被 Page Context 限定。
+- 仅在显式切换动作或切换确认后请求 State Manager 更新 Conversation Context；普通跨产品问答的目标只在本轮有效。
 - 在有界策略内请求 Constraint Manager、Catalog、Shopify Tool 或 RAG 能力。
 - 控制澄清次数、工具预算、超时和 fallback。
 - 输出可解释 RouteDecision。
@@ -135,7 +139,7 @@ V1 路由意图：
 - POLICY_QA
 - OUT_OF_SCOPE
 
-边界：Router 不直接选择最终商品，不自行进行数值判断，也不通过无限循环尝试工具。推荐候选由 Catalog/Constraint Engine 产生。
+边界：Router 不直接选择最终推荐商品，不自行进行数值判断，也不通过无限循环尝试工具。Target Resolver 只能解析已识别对象和目标类型；商品/Variant 歧义必须请求澄清，不能默认选择第一个。推荐候选由 Catalog/Constraint Engine 产生。
 
 ### 3.8 Evidence and Response Composer
 
@@ -163,10 +167,13 @@ V1 路由意图：
 ## 4. Core Data Flow
 
 ```text
-User Turn / Page Context
+User Turn / Page Context + confirmed Conversation Context
         |
         v
 Conversation API -- load revisioned state --> State Store
+        |
+        v
+Target Resolver --> immutable Turn Target --> optional confirmed-context patch
         |
         v
 Constraint extraction --> ConstraintPatch --> normalize / validate / conflict check
@@ -191,7 +198,7 @@ Evidence / Response Composer --> identity, freshness, constraint and citation va
 Structured / streamed AnswerEnvelope --> Storefront Widget
 ```
 
-单轮并非每次调用所有模块。事实问答可以直接从当前商品范围进入 Catalog/RAG；推荐先更新约束和确定 eligibility；比较先解析产品身份并锁定具体变体；任何路径都必须经过证据与边界验证。
+单轮并非每次调用所有模块。事实问答按 Turn Target 进入 Catalog/RAG；推荐先形成不受 Page Context 限制的推荐任务，再更新约束和确定 eligibility；比较先保留比较集合并解析产品身份，不能被当作单商品切换；任何路径都必须经过目标、证据与边界验证。
 
 ## 5. Conversation State
 
@@ -205,12 +212,14 @@ ConversationState 是会话当前派生状态的权威快照；原始消息历�
 - **candidate_variants**：当前候选变体身份，不复制不稳定的动态事实。
 - **recommendations**：最近一次正式或暂定推荐及其依据版本。
 - **comparison_set**：当前比较的具体变体集合。
-- **current_product_context / current_variant_context**：来自页面或对话解析的当前对象。
+- **confirmed_product_context / confirmed_variant_context**：用户明确切换或确认后可供后续代词继承的 Conversation Context。
+- **pending_target_switch**：等待用户确认的 Product / Variant 切换；确认前不覆盖已确认上下文。
 - **catalog_version**：产生候选时所使用的目录版本。
 
 设计约束：
 
 - 状态更新通过 ConstraintPatch 和显式 action 完成，不让生成模型直接覆盖整个状态。
+- Page Context 属于 TurnRequest；Turn Target 属于单轮解析结果。两者都不得仅因被观察或临时使用而静默覆盖已确认 Conversation Context。
 - 动态 commerce 数据不长期固化为当前事实；回答前按策略刷新。
 - MongoDB 保存 durable state 和历史 revision；Redis 只保存可重建缓存、锁和短期协调信息。
 - revision 冲突必须返回可恢复语义，不可静默覆盖并发更新。
@@ -226,12 +235,11 @@ ConversationState 是会话当前派生状态的权威快照；原始消息历�
 - store_id
 - conversation_id
 - message_id
-- state_revision
 - user_text
 - locale
 - optional page product/variant context
 
-要求：message_id 支持幂等；store_id 是所有后续读取与证据范围的强制边界。
+要求：message_id 支持幂等；store_id 是所有后续读取与证据范围的强制边界。当前公共 TurnRequest wire schema 不包含 state revision，PageContext 也不包含 store_id；若目标切换实现需要客户端提交 expected revision，必须先提出版本化 Contract change 并通过 Human checkpoint。
 
 ### 6.2 Constraint and ConstraintPatch
 
@@ -248,7 +256,22 @@ ConstraintPatch 表示本轮的增量动作：ADD、UPDATE、RETRACT、WAIVE 或
 
 ### 6.3 ConversationState
 
-包含第 5 节定义的 revision、goal、constraints、waived dimensions、pending clarification、candidate variants、recommendations、comparison set、current context 和 catalog version。状态必须可序列化、版本化和回放。
+包含第 5 节定义的 revision、goal、constraints、waived dimensions、pending clarification、candidate variants、recommendations、comparison set、confirmed context、pending target switch 和 catalog version。状态必须可序列化、版本化和回放。
+
+### 6.3.1 TargetResolution 与 TurnTarget
+
+TargetResolution 记录本轮目标解析的输入、来源、结果和是否允许状态更新：
+
+- `page_context`：请求携带的当前 Product 与 optional Variant；bundle 只能作为 Slice-local internal resolution detail 或未来版本化 public Contract proposal，当前 PageContext wire schema 不支持 bundle 字段。
+- `explicit_references`：用户本轮显式指定的 Product / Variant 或多个比较对象。
+- `confirmed_context`：ConversationState 中已确认、可被代词继承的对象。
+- `turn_target`：`SINGLE_OBJECT`、`COMPARISON_SET`、`RECOMMENDATION_TASK`、`STORE_SUPPORT` 或 `NEEDS_CLARIFICATION` 之一。
+- `resolution_source`：单对象目标使用 `EXPLICIT`、`CONFIRMED_CONTEXT`、`PAGE_CONTEXT` 或 `UNRESOLVED`；比较目标必须按 member 记录 provenance，不得用单值来源表达混合来源集合。
+- `context_action`：`KEEP`、`SWITCH_CONFIRMED` 或 `AWAIT_CONFIRMATION`；只有 `SWITCH_CONFIRMED` 可产生 Conversation Context patch。
+
+Turn Target 一经解析即作为本轮 RouteDecision、工具 scope、Answer、Product Card、Evidence、claim bindings 和 trace 的共同身份边界。Product / Variant 匹配必须限制在当前 `store_id`，零个或多于一个候选都进入澄清，不允许按目录顺序默认选择。
+
+pending target switch 至少记录目标 Product / optional Variant identity、`created_by_message_id`、`created_at_revision`、`expected_revision`、来源 turn / triggering utterance category，以及 expiration / replacement / cancellation rule。`AWAIT_CONFIRMATION` 创建或替换 pending switch 时必须产生可回放的状态 diff，并单调增加 revision；重复 `message_id` 返回原结果，不再次增加 revision；同一 `message_id` 携带不同 payload 必须 fail closed。用户肯定确认在 `expected_revision` 匹配时转为 `SWITCH_CONFIRMED` 并恰好再增加一次 revision；否定、过期或取消清除 pending switch 并产生明确 diff；无关回复保持 pending switch 或按过期规则处理；再次提出新的切换按 replacement rule 替换旧 pending switch。
 
 ### 6.4 ProductRecord, VariantRecord and AttributeValue
 
@@ -277,7 +300,7 @@ ConstraintPatch 表示本轮的增量动作：ADD、UPDATE、RETRACT、WAIVE 或
 - next action
 - reason
 - required capabilities
-- product/variant scope
+- Turn Target 与具体 product/variant scope 或 comparison set
 - expected state update
 - tool and time budget
 
@@ -309,7 +332,7 @@ ConstraintPatch 表示本轮的增量动作：ADD、UPDATE、RETRACT、WAIVE 或
 - freshness disclosure where relevant
 - trace correlation ID
 
-要求：组件可以渐进到达，但最终 Envelope 必须能被一致验证和回放。
+要求：组件可以渐进到达，但最终 Envelope 必须能被一致验证和回放。Answer、Card、Evidence 与 claim bindings 必须来自同一 Turn Target；Page Context 不能为跨产品回答补入规格、价格或库存。Client 应优先从既有 resolved object scope / Product Card 派生可见 target display；本规划不要求新增独立 public wire 字段。
 
 ## 7. Evidence and Fallback Semantics
 
@@ -333,11 +356,11 @@ Fallback 至少包含：稳定 reason code、用户可读说明、已知/未知�
 评估分为四层：
 
 - **Contract tests**：schema、商店隔离、revision、只读 allowlist、错误语义。
-- **Module evals**：约束 Patch、路由、硬过滤、变体选择、检索和证据绑定。
+- **Module evals**：目标解析、临时/确认切换、约束 Patch、路由、硬过滤、变体选择、检索和证据绑定。
 - **Journey evals**：用完整多轮脚本验证核心用户旅程和 fallback。
 - **Operational checks**：延迟、错误率、重试、缓存一致性、敏感信息和成本。
 
-Trace 的最小关联单位是一次 Turn。每次评估必须记录所用数据集、模型/提示、目录版本、索引版本和 Decision 配置。质量门槛只在 [PROJECT_SPEC.md](./PROJECT_SPEC.md) 维护，避免指标在多个文档漂移。
+Trace 的最小关联单位是一次 Turn。每次评估必须记录 Page Context、解析前 confirmed context、Turn Target、resolution source、context action 与状态 diff，以及所用数据集、模型/提示、目录版本、索引版本和 Decision 配置。质量门槛只在 [PROJECT_SPEC.md](./PROJECT_SPEC.md) 维护，避免指标在多个文档漂移。
 
 ## 9. Replaceable and Experimental Areas
 
