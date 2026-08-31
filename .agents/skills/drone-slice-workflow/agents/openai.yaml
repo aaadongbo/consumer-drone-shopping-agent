@@ -1,4 +1,4 @@
 interface:
   display_name: "Drone Slice Workflow"
-  short_description: "Run one authorized Slice task through isolated review gates"
-  default_prompt: "Use $drone-slice-workflow status to inspect the current Slice task state."
+  short_description: "Run risk-tiered Slice tasks through isolated review gates"
+  default_prompt: "Use $drone-slice-workflow status to inspect risk, authorization, and the current Slice task state."

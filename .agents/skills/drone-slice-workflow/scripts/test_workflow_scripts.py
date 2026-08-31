@@ -10,8 +10,9 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from check_scope import POLICY_PATH, check
+from check_scope import POLICY_PATH, check, check_slice_range
 from inspect_state import inspect
 from verify_commit_readiness import (
     checkpoint_readiness,
@@ -19,6 +20,7 @@ from verify_commit_readiness import (
     immutable_evidence,
     review_snapshot,
 )
+from verify_task import verify as verify_task_runner
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
 VERIFY_COMMIT_SCRIPT = Path(__file__).resolve().parent / "verify_commit_readiness.py"
@@ -149,7 +151,7 @@ class TemporaryRepository:
         smoke = root / "tests/unit/test_workflow_fixture.py"
         smoke.parent.mkdir(parents=True, exist_ok=True)
         smoke.write_text(
-            "import pytest\n\n@pytest.mark.unit\ndef test_fixture():\n"
+            "import pytest\n\n\n@pytest.mark.unit\ndef test_fixture():\n"
             "    assert True\n",
             encoding="utf-8",
         )
@@ -313,6 +315,134 @@ class WorkflowScriptTests(unittest.TestCase):
         )
         self.assertIn("FORBIDDEN_SLICE_PATH_CHANGED", evidence["blocking_reasons"])
 
+    def test_slice_review_verification_uses_union_scope(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        repo.write_tasks(status_map(list(repo.titles), "T07"))
+        for relative in (
+            "backend/catalog/change.py",
+            "backend/conversation/change.py",
+            "backend/evidence/change.py",
+        ):
+            path = repo.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("VALUE = 1\n", encoding="utf-8")
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S02): multi-task slice snapshot")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+
+        slice_scope = check_slice_range(
+            "S02-T07", repo.root, base_head=base, snapshot_head=snapshot
+        )
+        task_scope = check("S02-T07", repo.root, base_head=base, snapshot_head=snapshot)
+        self.assertTrue(slice_scope["ok"], slice_scope)
+        self.assertEqual(slice_scope["scope_kind"], "slice-range")
+        self.assertFalse(task_scope["ok"])
+        self.assertIn("PATH_OUTSIDE_TASK_SCOPE", task_scope["blocking_reasons"])
+
+        verification = verify_task_runner(
+            "S02-T07",
+            repo.root,
+            full=True,
+            base_head=base,
+            snapshot_head=snapshot,
+            slice_review=True,
+        )
+        self.assertTrue(verification["ok"], verification)
+        self.assertTrue(verification["slice_review"])
+        self.assertTrue(verification["verification_complete"])
+
+    def test_slice_review_verification_uses_union_dependency_policy(self) -> None:
+        holder, repo = self.repo(slice_name="slice-01-product-facts")
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        repo.write_tasks(status_map(list(repo.titles), "T09"))
+        pyproject = repo.root / "pyproject.toml"
+        pyproject.write_text(
+            pyproject.read_text(encoding="utf-8") + "\n# slice review fixture\n",
+            encoding="utf-8",
+        )
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S01): dependency-bearing slice")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+
+        slice_scope = check_slice_range(
+            "S01-T09", repo.root, base_head=base, snapshot_head=snapshot
+        )
+        task_scope = check("S01-T09", repo.root, base_head=base, snapshot_head=snapshot)
+        self.assertTrue(slice_scope["ok"], slice_scope)
+        self.assertEqual(
+            slice_scope["dependency_review"]["changed_paths"], ["pyproject.toml"]
+        )
+        self.assertTrue(slice_scope["dependency_review"]["allowed_by_task_policy"])
+        self.assertFalse(task_scope["ok"])
+        self.assertIn(
+            "DEPENDENCY_FILE_CHANGED_WITHOUT_TASK_POLICY",
+            task_scope["blocking_reasons"],
+        )
+
+        verification = verify_task_runner(
+            "S01-T09",
+            repo.root,
+            full=True,
+            base_head=base,
+            snapshot_head=snapshot,
+            slice_review=True,
+        )
+        self.assertTrue(verification["ok"], verification)
+        self.assertTrue(verification["slice_review"])
+        planned = "\n".join(verification["planned_commands"])
+        self.assertNotIn("-- .python-version pyproject.toml uv.lock", planned)
+
+    def test_slice_review_checkpoint_requests_slice_aware_verification(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        repo.write_tasks(status_map(list(repo.titles), "T07"))
+        for relative in (
+            "backend/catalog/change.py",
+            "backend/conversation/change.py",
+            "backend/evidence/change.py",
+        ):
+            path = repo.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("VALUE = 1\n", encoding="utf-8")
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S02): checkpoint snapshot")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+        evidence = immutable_evidence(
+            "S02-T07", base, snapshot, repo.root, mode="slice-review"
+        )
+        verification = {
+            "ok": True,
+            "verification_complete": True,
+            "task": "S02-T07",
+            "base_head": base,
+            "snapshot_head": snapshot,
+            "results": [{"command": "full", "exit_code": 0}],
+        }
+        with patch(
+            "verify_commit_readiness.verify_task", return_value=verification
+        ) as run:
+            result = checkpoint_readiness(
+                "S02-T07",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=evidence["digest"],
+                mode="slice-review",
+                ai_review_pass=True,
+                reviewed_risk_tier="HIGH",
+            )
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["human_approval_required"])
+        self.assertEqual(run.call_args.kwargs["full"], True)
+        self.assertEqual(run.call_args.kwargs["slice_review"], True)
+
     def test_slice_review_requires_every_task_done(self) -> None:
         holder, repo = self.repo()
         self.addCleanup(holder.cleanup)
@@ -399,19 +529,89 @@ class WorkflowScriptTests(unittest.TestCase):
             verification_pass=True,
             reviewed_risk_tier="LOW",
         )
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
-        self.assertEqual(result["reason"], "AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED")
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
+        self.assertEqual(result["reason"], "LOW_RISK_AI_REVIEW_ADVANCE_ALLOWED")
+        self.assertTrue(result["auto_advance"])
+        self.assertFalse(result["human_approval_required"])
+        self.assertFalse(result["checkpoint_accepted"])
         self.assertFalse(result["integration_authorized"])
         self.assertFalse(result["push_authorized"])
 
-    def test_low_medium_review_never_auto_accepted_and_high_needs_human(self) -> None:
+    def test_low_review_auto_advances_but_medium_and_high_need_human(self) -> None:
         holder, repo = self.repo()
         self.addCleanup(holder.cleanup)
         base, snapshot = repo.snapshot()
         git(repo.root, "switch", "--detach", snapshot)
         evidence = immutable_evidence("S02-T01", base, snapshot, repo.root)
-        for tier in ("LOW", "MEDIUM", "HIGH"):
+        low = checkpoint_readiness(
+            "S02-T01",
+            repo.root,
+            base_revision=base,
+            snapshot_revision=snapshot,
+            reviewed_digest=evidence["digest"],
+            ai_review_pass=True,
+            reviewed_risk_tier="LOW",
+        )
+        self.assertTrue(low["ok"])
+        self.assertEqual(low["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
+        self.assertFalse(low["human_approval_required"])
+
+        medium_base, medium_snapshot = repo.snapshot(
+            task_id="T02", changed_path="backend/conversation/change.py"
+        )
+        git(repo.root, "switch", "--detach", medium_snapshot)
+        medium_evidence = immutable_evidence(
+            "S02-T02", medium_base, medium_snapshot, repo.root
+        )
+        medium = checkpoint_readiness(
+            "S02-T02",
+            repo.root,
+            base_revision=medium_base,
+            snapshot_revision=medium_snapshot,
+            reviewed_digest=medium_evidence["digest"],
+            ai_review_pass=True,
+            reviewed_risk_tier="MEDIUM",
+        )
+        self.assertFalse(medium["ok"])
+        self.assertTrue(medium["human_approval_required"])
+
+        high_base, high_snapshot = repo.snapshot(
+            task_id="T05", changed_path="backend/evidence/change.py"
+        )
+        git(repo.root, "switch", "--detach", high_snapshot)
+        high_evidence = immutable_evidence(
+            "S02-T05", high_base, high_snapshot, repo.root
+        )
+        high = checkpoint_readiness(
+            "S02-T05",
+            repo.root,
+            base_revision=high_base,
+            snapshot_revision=high_snapshot,
+            reviewed_digest=high_evidence["digest"],
+            ai_review_pass=True,
+            reviewed_risk_tier="HIGH",
+        )
+        self.assertFalse(high["ok"])
+        self.assertTrue(high["human_approval_required"])
+
+    def test_reviewer_higher_tier_escalates_low_policy(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+        evidence = immutable_evidence("S02-T01", base, snapshot, repo.root)
+        verification = {
+            "ok": True,
+            "verification_complete": True,
+            "task": "S02-T01",
+            "base_head": base,
+            "snapshot_head": snapshot,
+            "results": [{"command": "targeted", "exit_code": 0}],
+        }
+        with patch(
+            "verify_commit_readiness.verify_task", return_value=verification
+        ) as run:
             result = checkpoint_readiness(
                 "S02-T01",
                 repo.root,
@@ -419,10 +619,85 @@ class WorkflowScriptTests(unittest.TestCase):
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
                 ai_review_pass=True,
-                reviewed_risk_tier=tier,
+                reviewed_risk_tier="HIGH",
             )
-            self.assertFalse(result["ok"])
-            self.assertTrue(result["human_approval_required"])
+        self.assertEqual(result["reviewed_effective_tier"], "HIGH")
+        self.assertEqual(result["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
+        self.assertFalse(result["auto_advance"])
+        run.assert_called_once()
+
+    def test_checkpoint_requires_successful_targeted_verification(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+        evidence = immutable_evidence("S02-T01", base, snapshot, repo.root)
+        failed_verification = {
+            "ok": False,
+            "verification_complete": True,
+            "results": [{"command": "targeted", "exit_code": 1}],
+        }
+        with patch(
+            "verify_commit_readiness.verify_task", return_value=failed_verification
+        ):
+            result = checkpoint_readiness(
+                "S02-T01",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=evidence["digest"],
+                ai_review_pass=True,
+                reviewed_risk_tier="LOW",
+            )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["workflow_stage"], "BLOCKED")
+        self.assertIn("TARGETED_VERIFICATION_FAILED", result["blocking_reasons"])
+
+    def test_plan_only_is_not_verification_evidence(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        result = verify_task_runner("S02-T01", repo.root, plan_only=True)
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["verification_complete"])
+        self.assertEqual(result["results"], [])
+
+    def test_slice_review_requires_immutable_range_for_verification(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        result = verify_task_runner(
+            "S02-T07", repo.root, plan_only=True, slice_review=True
+        )
+        self.assertFalse(result["ok"])
+        self.assertFalse(result["verification_complete"])
+        self.assertEqual(result["error"], "SLICE_REVIEW_IMMUTABLE_RANGE_REQUIRED")
+
+    def test_slice_authorization_only_unlocks_low_ordered_task(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root, implementation_authorized_slice="S02")
+        self.assertEqual(state["ordered_candidate"], "S02-T01")
+        self.assertEqual(state["executable_task"], "S02-T01")
+        self.assertEqual(
+            state["tasks"][0]["implementation_authorized_via"], "slice-low"
+        )
+
+        base, snapshot = repo.snapshot(task_id="T01")
+        git(repo.root, "switch", "--detach", snapshot)
+        state = inspect(repo.root, implementation_authorized_slice="S02")
+        self.assertEqual(state["ordered_candidate"], "S02-T02")
+        self.assertIsNone(state["executable_task"])
+        candidate = next(item for item in state["tasks"] if item["id"] == "T02")
+        self.assertIn(
+            "SLICE_AUTHORIZATION_REQUIRES_LOW_RISK_TASK",
+            candidate["execution_blockers"],
+        )
+
+    def test_slice_authorization_rejects_wrong_slice(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        with self.assertRaises(Exception):
+            inspect(repo.root, implementation_authorized_slice="S01")
 
     def test_high_risk_requires_explicit_human(self) -> None:
         holder, repo = self.repo()
@@ -686,12 +961,10 @@ class WorkflowScriptTests(unittest.TestCase):
             text=True,
         )
         ready_payload = json.loads(ready.stdout)
-        self.assertEqual(ready.returncode, 1)
-        self.assertEqual(ready_payload["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
-        self.assertEqual(
-            ready_payload["status"],
-            "CHECKPOINT_READY — Awaiting explicit Human approval",
-        )
+        self.assertEqual(ready.returncode, 0)
+        self.assertEqual(ready_payload["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
+        self.assertEqual(ready_payload["status"], "AUTO_ADVANCE_ELIGIBLE")
+        self.assertTrue(ready_payload["auto_advance"])
         self.assertFalse(ready_payload["checkpoint_accepted"])
 
     def test_policy_has_explicit_completion_task_and_no_auto_checkpoint_semantics(
@@ -702,8 +975,32 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertNotIn("policy-controlled", serialized)
         for slice_policy in policy["slices"].values():
             self.assertIn(slice_policy["completion_task"], slice_policy["tasks"])
+            execution_policy = slice_policy["execution_policy"]
+            self.assertEqual(execution_policy["implementation_session"], "slice")
+            self.assertTrue(execution_policy["targeted_verification_per_task"])
+            self.assertEqual(execution_policy["full_suite"], "slice-completion")
+            self.assertEqual(
+                execution_policy["human_gates"],
+                {
+                    "LOW": "slice-completion",
+                    "MEDIUM": "key-checkpoint",
+                    "HIGH": "task",
+                },
+            )
             for task_policy in slice_policy["tasks"].values():
                 self.assertEqual(task_policy["checkpoint_policy"], "human-decision")
+                automation = task_policy.get("automation")
+                if automation:
+                    self.assertTrue(automation["review_required"])
+                    self.assertIn(
+                        automation["human_gate"],
+                        {"slice-completion", "key-checkpoint", "task"},
+                    )
+                    if task_policy["risk_tier"] == "LOW":
+                        self.assertTrue(automation["auto_advance"])
+                        self.assertEqual(automation["human_gate"], "slice-completion")
+                    else:
+                        self.assertFalse(automation["auto_advance"])
 
 
 if __name__ == "__main__":

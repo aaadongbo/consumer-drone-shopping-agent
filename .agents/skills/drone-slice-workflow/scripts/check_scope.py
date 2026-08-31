@@ -18,6 +18,7 @@ from inspect_state import (
     inspect,
     normalize_task_ref,
     repository_root,
+    task_automation_policy,
 )
 
 POLICY_PATH = (
@@ -28,6 +29,7 @@ DEPENDENCY_PLAN_MINIMAL = "plan-authorized-minimal"
 DEPENDENCY_MODES = {DEPENDENCY_FORBIDDEN, DEPENDENCY_PLAN_MINIMAL}
 RISK_TIERS = {"LOW", "MEDIUM", "HIGH"}
 RISK_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
+HUMAN_GATES = {"slice-completion", "key-checkpoint", "task"}
 
 
 def load_policy(path: Path = POLICY_PATH) -> dict[str, Any]:
@@ -59,6 +61,22 @@ def resolve_task_policy(
         return slice_policy, None, "INVALID_RISK_TIER"
     if task_policy.get("checkpoint_policy") != "human-decision":
         return slice_policy, None, "INVALID_CHECKPOINT_POLICY"
+    automation = task_policy.get("automation", {})
+    if not isinstance(automation, dict):
+        return slice_policy, None, "INVALID_AUTOMATION_POLICY"
+    if not isinstance(automation.get("auto_advance", False), bool):
+        return slice_policy, None, "INVALID_AUTO_ADVANCE_POLICY"
+    if automation.get("human_gate", "task") not in HUMAN_GATES:
+        return slice_policy, None, "INVALID_HUMAN_GATE"
+    if not isinstance(automation.get("review_required", True), bool):
+        return slice_policy, None, "INVALID_REVIEW_POLICY"
+    if task_policy["risk_tier"] == "LOW":
+        if not automation.get("auto_advance", False):
+            return slice_policy, None, "LOW_TASK_AUTO_ADVANCE_REQUIRED"
+        if automation.get("human_gate", "task") != "slice-completion":
+            return slice_policy, None, "LOW_TASK_SLICE_GATE_REQUIRED"
+    elif automation.get("auto_advance", False):
+        return slice_policy, None, "NON_LOW_TASK_AUTO_ADVANCE_FORBIDDEN"
     return slice_policy, task_policy, None
 
 
@@ -189,6 +207,19 @@ def check(
         if path_allowed(path, list(slice_policy.get("risk_escalation_paths", [])))
     )
     effective_tier = "HIGH" if risk_escalation_paths else task_policy["risk_tier"]
+    configured_automation = task_automation_policy(slice_policy, task_id)
+    automation = {
+        "auto_advance": bool(
+            effective_tier == "LOW" and configured_automation["auto_advance"]
+        ),
+        "human_gate": (
+            "slice-completion"
+            if effective_tier == "LOW" and configured_automation["auto_advance"]
+            else configured_automation["human_gate"]
+        ),
+        "review_required": configured_automation["review_required"],
+        "verification_mode": configured_automation["verification_mode"],
+    }
     other_dirty = [
         {"path": item["path"], "dirty_paths": item["dirty_paths"]}
         for item in state["worktrees"]
@@ -252,6 +283,7 @@ def check(
             "minimum_tier": task_policy["risk_tier"],
             "effective_tier": effective_tier,
             "checkpoint_policy": task_policy["checkpoint_policy"],
+            "automation": automation,
             "deterministic_escalation_paths": risk_escalation_paths,
             "semantic_review_required": True,
         },
@@ -351,6 +383,12 @@ def check_slice_range(
         key=RISK_RANK.__getitem__,
     )
     effective_tier = "HIGH" if risk_escalation_paths else aggregate_tier
+    slice_execution_policy = slice_policy.get("execution_policy", {})
+    full_suite_at = (
+        slice_execution_policy.get("full_suite", "slice-completion")
+        if isinstance(slice_execution_policy, dict)
+        else "slice-completion"
+    )
 
     reasons: list[str] = []
     if any(item["status"] != "DONE" for item in state["tasks"]):
@@ -414,6 +452,13 @@ def check_slice_range(
             "minimum_tier": aggregate_tier,
             "effective_tier": effective_tier,
             "checkpoint_policy": "human-decision",
+            "automation": {
+                "auto_advance": False,
+                "human_gate": "slice-completion",
+                "review_required": True,
+                "verification_mode": "full-suite",
+            },
+            "full_suite_at": full_suite_at,
             "deterministic_escalation_paths": risk_escalation_paths,
             "semantic_review_required": True,
             "human_decision_required": effective_tier == "HIGH",

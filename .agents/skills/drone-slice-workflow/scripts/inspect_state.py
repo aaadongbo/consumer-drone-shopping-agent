@@ -24,6 +24,8 @@ POLICY_RELATIVE_PATH = Path(
 )
 EXPECTED_WORKFLOW_SCHEMA_VERSION = 3
 EXPECTED_WORKFLOW_BASELINE_MARKER = "workflow-simplification-v2"
+RISK_TIERS = {"LOW", "MEDIUM", "HIGH"}
+HUMAN_GATES = {"slice-completion", "key-checkpoint", "task"}
 DEFAULT_PROTECTED_REFS = {
     "refs/heads/main",
     "refs/heads/master",
@@ -229,6 +231,37 @@ def fixed_policy_valid(policy: dict[str, Any] | None, tasks_file: str) -> bool:
     )
 
 
+def task_automation_policy(
+    slice_policy: dict[str, Any] | None, task_id: str
+) -> dict[str, Any]:
+    """Return task automation settings, defaulting old policies to Human gates."""
+    if not isinstance(slice_policy, dict):
+        return {
+            "auto_advance": False,
+            "human_gate": "task",
+            "review_required": True,
+            "verification_mode": "targeted",
+        }
+    task_policy = slice_policy.get("tasks", {}).get(task_id, {})
+    automation = task_policy.get("automation")
+    if not isinstance(automation, dict):
+        return {
+            "auto_advance": False,
+            "human_gate": "task",
+            "review_required": True,
+            "verification_mode": "targeted",
+        }
+    human_gate = automation.get("human_gate", "task")
+    if human_gate not in HUMAN_GATES:
+        human_gate = "task"
+    return {
+        "auto_advance": bool(automation.get("auto_advance", False)),
+        "human_gate": human_gate,
+        "review_required": bool(automation.get("review_required", True)),
+        "verification_mode": automation.get("verification_mode", "targeted"),
+    }
+
+
 def implementation_gate(
     repo: Path,
     tasks_file: str,
@@ -388,6 +421,7 @@ def inspect(
     repo_arg: str | Path = ".",
     *,
     implementation_authorized_task: str | None = None,
+    implementation_authorized_slice: str | None = None,
     approved_workflow_oid: str | None = None,
     policy_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -409,6 +443,14 @@ def inspect(
         _, authorized_canonical = normalize_task_ref(
             implementation_authorized_task, slice_id
         )
+    authorized_slice: str | None = None
+    if implementation_authorized_slice:
+        normalized_slice = implementation_authorized_slice.strip().upper()
+        if normalized_slice != slice_id:
+            raise InspectionError(
+                f"Slice mismatch: active {slice_id}, requested {normalized_slice}"
+            )
+        authorized_slice = normalized_slice
 
     for task in tasks:
         missing = [dep for dep in task["dependencies"] if dep not in status_by_id]
@@ -425,6 +467,7 @@ def inspect(
                 "unsatisfied_dependencies": unsatisfied,
                 "implementation_gate": gate,
                 "implementation_authorized": canonical == authorized_canonical,
+                "automation_policy": task_automation_policy(slice_policy, task["id"]),
             }
         )
 
@@ -461,8 +504,19 @@ def inspect(
         blockers: list[str] = []
         if task["canonical_id"] == ordered_candidate:
             blockers.extend(gate["blocking_reasons"])
-            if not task["implementation_authorized"]:
+            slice_auto_authorized = bool(
+                authorized_slice
+                and task["automation_policy"]["auto_advance"]
+                and task["automation_policy"]["human_gate"] == "slice-completion"
+            )
+            if not task["implementation_authorized"] and not slice_auto_authorized:
                 blockers.append("CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED")
+            if (
+                authorized_slice
+                and not slice_auto_authorized
+                and not task["implementation_authorized"]
+            ):
+                blockers.append("SLICE_AUTHORIZATION_REQUIRES_LOW_RISK_TASK")
             if dirty_paths:
                 blockers.append("CURRENT_WORKTREE_DIRTY")
             if active_tasks:
@@ -470,12 +524,20 @@ def inspect(
             if same_slice_active_elsewhere:
                 blockers.append("SAME_SLICE_ACTIVE_IN_OTHER_WORKTREE")
             task["ordered_candidate"] = True
+            task["implementation_authorized_via"] = (
+                "task"
+                if task["implementation_authorized"]
+                else "slice-low"
+                if slice_auto_authorized
+                else None
+            )
             task["executable"] = not blockers
             if task["executable"]:
                 executable_candidates.append(task["canonical_id"])
         else:
             task["ordered_candidate"] = False
             task["executable"] = False
+            task["implementation_authorized_via"] = None
         task["execution_blockers"] = blockers
 
     blocking_reasons: list[str] = []
@@ -521,6 +583,7 @@ def inspect(
         ),
         "legal_next_candidates": executable_candidates,
         "implementation_authority_asserted_for": authorized_canonical,
+        "slice_implementation_authority_asserted_for": authorized_slice,
         "human_approved_workflow_oid_asserted": approved_workflow_oid,
         "worktrees": worktrees,
         "other_dirty_worktrees": [
@@ -542,6 +605,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="assert current-context implementation authority for one canonical Task",
     )
     parser.add_argument(
+        "--authorize-slice",
+        help="assert current-context Slice authority for LOW auto-advance Tasks",
+    )
+    parser.add_argument(
         "--approved-workflow-oid",
         help="assert current-context Human approval for one exact baseline commit",
     )
@@ -555,6 +622,7 @@ def main() -> int:
         payload = inspect(
             args.repo,
             implementation_authorized_task=args.authorize_task,
+            implementation_authorized_slice=args.authorize_slice,
             approved_workflow_oid=args.approved_workflow_oid,
         )
     except (InspectionError, OSError, UnicodeError) as exc:

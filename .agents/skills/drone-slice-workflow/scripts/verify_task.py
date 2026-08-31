@@ -14,6 +14,7 @@ from typing import Any
 from check_scope import (
     DEPENDENCY_FORBIDDEN,
     check,
+    check_slice_range,
     load_policy,
     resolve_task_policy,
 )
@@ -57,6 +58,7 @@ def execute(repo: Path, command: list[str]) -> dict[str, Any]:
 def command_plan(
     task_policy: dict[str, Any],
     slice_policy: dict[str, Any],
+    scope: dict[str, Any],
     full: bool,
     base_head: str | None,
     snapshot_head: str | None,
@@ -104,7 +106,14 @@ def command_plan(
                 ],
             ]
         )
-        if task_policy["dependency_policy"] == DEPENDENCY_FORBIDDEN:
+        dependency_review = scope.get("dependency_review", {})
+        dependency_allowed_by_scope = bool(
+            dependency_review.get("allowed_by_task_policy")
+        )
+        if (
+            task_policy["dependency_policy"] == DEPENDENCY_FORBIDDEN
+            and not dependency_allowed_by_scope
+        ):
             commands.append(
                 [
                     "git",
@@ -154,6 +163,7 @@ def verify(
     policy_path: Path | None = None,
     base_head: str | None = None,
     snapshot_head: str | None = None,
+    slice_review: bool = False,
 ) -> dict[str, Any]:
     if bool(base_head) != bool(snapshot_head):
         raise InspectionError("base_head and snapshot_head must be supplied together")
@@ -161,6 +171,20 @@ def verify(
     effective_policy_path = policy_path or repo / POLICY_RELATIVE_PATH
     state = inspect(repo, policy_path=effective_policy_path)
     task_id, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
+    if slice_review and not (base_head and snapshot_head):
+        return {
+            "ok": False,
+            "repository_root": str(repo),
+            "active_slice_tasks_file": state["tasks_file"],
+            "task": canonical_task,
+            "base_head": base_head,
+            "snapshot_head": snapshot_head,
+            "plan_only": plan_only,
+            "slice_review": slice_review,
+            "verification_complete": False,
+            "results": [],
+            "error": "SLICE_REVIEW_IMMUTABLE_RANGE_REQUIRED",
+        }
     policy = load_policy(effective_policy_path)
     slice_policy, task_policy, policy_reason = resolve_task_policy(
         state, policy, task_id
@@ -174,23 +198,34 @@ def verify(
             "error": policy_reason or "INVALID_SCOPE_POLICY",
         }
 
-    scope = check(
-        canonical_task,
-        repo,
-        policy_path=effective_policy_path,
-        base_head=base_head,
-        snapshot_head=snapshot_head,
+    scope = (
+        check_slice_range(
+            canonical_task,
+            repo,
+            policy_path=effective_policy_path,
+            base_head=base_head,
+            snapshot_head=snapshot_head,
+        )
+        if slice_review
+        else check(
+            canonical_task,
+            repo,
+            policy_path=effective_policy_path,
+            base_head=base_head,
+            snapshot_head=snapshot_head,
+        )
     )
     commands, rationale = command_plan(
         task_policy,
         slice_policy,
-        full,
+        scope,
+        full or slice_review,
         base_head,
         snapshot_head,
         scope.get("changed_paths", []),
     )
     results = [] if plan_only else [execute(repo, command) for command in commands]
-    commands_ok = plan_only or all(item["exit_code"] == 0 for item in results)
+    commands_ok = not plan_only and all(item["exit_code"] == 0 for item in results)
     return {
         "ok": bool(scope.get("ok")) and commands_ok,
         "repository_root": str(repo),
@@ -208,6 +243,8 @@ def verify(
         "dependency_gate_mode": task_policy["dependency_policy"],
         "risk_policy": scope.get("risk_policy"),
         "plan_only": plan_only,
+        "slice_review": slice_review,
+        "verification_complete": not plan_only,
         "planned_commands": [command_text(command) for command in commands],
         "results": results,
         "scope": scope,
@@ -221,6 +258,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--base-head", help="immutable range base commit")
     parser.add_argument("--snapshot-head", help="immutable range snapshot commit")
     parser.add_argument("--full", action="store_true", help="run full pytest suite")
+    parser.add_argument(
+        "--slice-review",
+        action="store_true",
+        help="verify the completion Task against the complete Slice scope",
+    )
     parser.add_argument("--plan-only", action="store_true", help="show gates only")
     parser.add_argument("--pretty", action="store_true", help="pretty-print JSON")
     return parser
@@ -236,6 +278,7 @@ def main() -> int:
             plan_only=args.plan_only,
             base_head=args.base_head,
             snapshot_head=args.snapshot_head,
+            slice_review=args.slice_review,
         )
     except (InspectionError, OSError, UnicodeError) as exc:
         payload = {"ok": False, "task": args.task.upper(), "error": str(exc)}

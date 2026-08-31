@@ -10,6 +10,17 @@
   "slices": {
     "changes/slice-01-product-facts/tasks.md": {
       "completion_task": "T09",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "independent-per-task",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "human_gates": {
+          "LOW": "slice-completion",
+          "MEDIUM": "key-checkpoint",
+          "HIGH": "task"
+        }
+      },
       "core_artifacts": [
         "changes/slice-01-product-facts/plan.md",
         "docs/ARCHITECTURE.md",
@@ -109,6 +120,17 @@
     },
     "changes/slice-02-single-turn-recommendation/tasks.md": {
       "completion_task": "T07",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "independent-per-task",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "human_gates": {
+          "LOW": "slice-completion",
+          "MEDIUM": "key-checkpoint",
+          "HIGH": "task"
+        }
+      },
       "implementation_gate": {
         "type": "protected-workflow-baseline"
       },
@@ -144,7 +166,13 @@
           "verification_marker": "unit",
           "verification_rationale": "minimal synthetic catalog and commerce fixture validation",
           "risk_tier": "LOW",
-          "checkpoint_policy": "human-decision"
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": true,
+            "human_gate": "slice-completion",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
         },
         "T02": {
           "allowed_paths": ["backend/conversation/", "tests/unit/", "tests/contract/", "changes/slice-02-single-turn-recommendation/tasks.md"],
@@ -152,7 +180,13 @@
           "verification_marker": "unit or contract",
           "verification_rationale": "single-turn ConstraintPatch contract and normalization boundary",
           "risk_tier": "MEDIUM",
-          "checkpoint_policy": "human-decision"
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
         },
         "T03": {
           "allowed_paths": ["backend/catalog/", "tests/unit/", "tests/integration/", "changes/slice-02-single-turn-recommendation/tasks.md"],
@@ -160,7 +194,13 @@
           "verification_marker": "unit or integration",
           "verification_rationale": "Variant-level HARD eligibility and fail-closed integration",
           "risk_tier": "MEDIUM",
-          "checkpoint_policy": "human-decision"
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
         },
         "T04": {
           "allowed_paths": ["backend/catalog/", "tests/unit/", "changes/slice-02-single-turn-recommendation/tasks.md"],
@@ -168,7 +208,13 @@
           "verification_marker": "unit",
           "verification_rationale": "deterministic SOFT signals, ordering, ties, and replay",
           "risk_tier": "MEDIUM",
-          "checkpoint_policy": "human-decision"
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
         },
         "T05": {
           "allowed_paths": ["backend/evidence/", "backend/common/contracts.py", "tests/unit/", "tests/contract/", "changes/slice-02-single-turn-recommendation/tasks.md"],
@@ -176,7 +222,13 @@
           "verification_marker": "unit or contract",
           "verification_rationale": "Product grouping, Variant disclosure, response Contract, and Evidence binding",
           "risk_tier": "HIGH",
-          "checkpoint_policy": "human-decision"
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
         },
         "T06": {
           "allowed_paths": ["backend/api/", "backend/agent/", "backend/application/", "backend/catalog/", "backend/conversation/", "backend/evidence/", "tests/unit/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-02-single-turn-recommendation/tasks.md"],
@@ -184,7 +236,13 @@
           "verification_marker": "integration or e2e",
           "verification_rationale": "deterministic single-turn recommendation walking skeleton and fallbacks",
           "risk_tier": "MEDIUM",
-          "checkpoint_policy": "human-decision"
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
         },
         "T07": {
           "allowed_paths": ["tests/", "eval/datasets/", "changes/slice-02-single-turn-recommendation/tasks.md"],
@@ -192,7 +250,13 @@
           "verification_marker": null,
           "verification_rationale": "Slice Acceptance and completion evidence require the full suite",
           "risk_tier": "HIGH",
-          "checkpoint_policy": "human-decision"
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
         }
       }
     }

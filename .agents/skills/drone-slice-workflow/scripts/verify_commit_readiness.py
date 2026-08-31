@@ -25,6 +25,7 @@ from inspect_state import (
     repository_root,
     run_git,
 )
+from verify_task import verify as verify_task
 
 
 def _frame(hasher: hashlib._Hash, label: str, value: str | bytes) -> None:
@@ -376,21 +377,73 @@ def checkpoint_readiness(
     ):
         readiness_blockers.append("DEPENDENCY_MANUAL_CONFIRMATION_REQUIRED")
 
-    ready_for_human = not readiness_blockers
-    workflow_stage = "HUMAN_APPROVAL_REQUIRED" if ready_for_human else "BLOCKED"
+    verification: dict[str, Any] | None = None
+    if evidence and digest_matches and ai_review_pass and not readiness_blockers:
+        verification = verify_task(
+            task_ref,
+            repo_arg,
+            full=mode == "slice-review",
+            base_head=evidence["base_head"],
+            snapshot_head=evidence["snapshot_head"],
+            slice_review=mode == "slice-review",
+        )
+        verification_results = verification.get("results") or []
+        verification_bound = (
+            verification.get("task") == evidence["task"]
+            and verification.get("base_head") == evidence["base_head"]
+            and verification.get("snapshot_head") == evidence["snapshot_head"]
+            and verification.get("verification_complete") is True
+            and bool(verification_results)
+            and all(item.get("exit_code") == 0 for item in verification_results)
+        )
+        if not verification.get("ok") or not verification_bound:
+            readiness_blockers.append("TARGETED_VERIFICATION_FAILED")
+    elif evidence and digest_matches:
+        readiness_blockers.append("TARGETED_VERIFICATION_EVIDENCE_REQUIRED")
+
+    risk_policy = (evidence or {}).get("risk_policy") or {}
+    automation = risk_policy.get("automation") or {}
+    policy_tier = risk_policy.get("effective_tier") or risk_policy.get("minimum_tier")
+    reviewed_effective_tier = max(
+        (tier for tier in (policy_tier, reviewed_risk_tier) if tier in RISK_RANK),
+        key=RISK_RANK.__getitem__,
+        default=None,
+    )
+    low_auto_advance = bool(
+        not readiness_blockers
+        and reviewed_effective_tier == "LOW"
+        and automation.get("auto_advance") is True
+        and automation.get("human_gate") == "slice-completion"
+    )
+    ready_for_human = bool(not readiness_blockers and not low_auto_advance)
+    workflow_stage = (
+        "AUTO_ADVANCE_ELIGIBLE"
+        if low_auto_advance
+        else "HUMAN_APPROVAL_REQUIRED"
+        if ready_for_human
+        else "BLOCKED"
+    )
     status = (
-        "CHECKPOINT_READY — Awaiting explicit Human approval"
+        "AUTO_ADVANCE_ELIGIBLE"
+        if low_auto_advance
+        else "CHECKPOINT_READY — Awaiting explicit Human approval"
         if ready_for_human
         else "CHECKPOINT_NOT_READY"
     )
     reason = (
-        "AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED"
+        "LOW_RISK_AI_REVIEW_ADVANCE_ALLOWED"
+        if low_auto_advance
+        else "AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED"
         if ready_for_human
         else "CHECKPOINT_EVIDENCE_INVALID"
     )
-    blockers = [*readiness_blockers, "AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED"]
+    blockers = list(readiness_blockers)
+    if ready_for_human:
+        blockers.append("AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED")
     return {
-        "ok": False,
+        # LOW auto-advance is a successful eligibility decision, not checkpoint
+        # acceptance. MEDIUM/HIGH remain Human-required and therefore non-ok.
+        "ok": low_auto_advance,
         "workflow_stage": workflow_stage,
         "reason": reason,
         "status": status,
@@ -403,14 +456,17 @@ def checkpoint_readiness(
         "caller_verification_pass_claim_ignored": verification_pass,
         "dependency_review_confirmed": dependency_review_confirmed,
         "reviewed_risk_tier": reviewed_risk_tier,
+        "reviewed_effective_tier": reviewed_effective_tier,
         "reviewed_digest": reviewed_digest,
         "digest_matches": digest_matches,
         "ready_for_human_approval": ready_for_human,
+        "auto_advance": low_auto_advance,
         "checkpoint_accepted": False,
         "human_approval": False,
         "integration_authorized": False,
         "push_authorized": False,
         "evidence": evidence,
+        "verification": verification,
         "blocking_reasons": list(dict.fromkeys(blockers)),
     }
 

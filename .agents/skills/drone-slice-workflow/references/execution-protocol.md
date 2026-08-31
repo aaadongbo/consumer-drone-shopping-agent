@@ -10,7 +10,7 @@
 
 ## `run-next`
 
-Run exactly one uniquely executable Task. Read its Goal, Contract, Acceptance, Verification, Dependencies, Out of Scope, policy, and Human escalation conditions. Mark it `IN_PROGRESS` in its existing record, implement only the bounded change, run targeted checks and `verify_task.py`, run `check_scope.py` and diff/path checks, record real commands and exit codes, and mark `DONE` only when Acceptance and verification pass. Stop before another Task.
+Run the unique ordered candidate without crossing its risk gate. A LOW Task may use one explicit Slice authorization (`inspect_state.py --authorize-slice S02`) and, after its targeted gates, immutable snapshot, and independent `AI_REVIEW_PASS`, may continue to the next ordered LOW Task in the same Slice Implementation Session. MEDIUM requires a Human key-checkpoint after its independent review; HIGH requires the existing per-Task Human gate. Always mark only the current Task `IN_PROGRESS`/`DONE`, keep one Task active at a time, record real commands and exit codes, and stop on any review finding, dependency change, scope mismatch, or risk escalation.
 
 ## `snapshot`
 
@@ -28,8 +28,12 @@ The reviewer uses a separate clean Session/Worktree at the exact `snapshot_head`
 
 ## `checkpoint`
 
-`verify_commit_readiness.py --checkpoint` is a Human-approval handoff, not an acceptance operation. It validates immutable identity/scope/digest and ignores caller `--verification-pass`. Missing, invalid, or mismatched evidence reports `BLOCKED / CHECKPOINT_NOT_READY`. Only complete matching evidence with `AI_REVIEW_PASS` and a sufficient reviewed risk tier may report `HUMAN_APPROVAL_REQUIRED / CHECKPOINT_READY — Awaiting explicit Human approval`. Every Task policy is `human-decision`; no checkpoint is accepted automatically. Integration and push remain false. No transaction-level ref audit or temporary verification artifact is used.
+`verify_commit_readiness.py --checkpoint` is a routing handoff, never an acceptance operation. It validates immutable identity/scope/digest, runs the policy-selected targeted verification against that exact snapshot (full suite for `slice-review`), and ignores caller `--verification-pass`. Missing, invalid, mismatched, or plan-only verification reports `BLOCKED / CHECKPOINT_NOT_READY`. Complete matching LOW evidence with `AI_REVIEW_PASS` may report `AUTO_ADVANCE_ELIGIBLE`; this only permits the next ordered LOW implementation Task and leaves `checkpoint_accepted`, integration, and push false. A Reviewer-reported tier above policy always routes to the higher Human gate. MEDIUM/HIGH evidence reports `HUMAN_APPROVAL_REQUIRED / CHECKPOINT_READY — Awaiting explicit Human approval`. Every Task still uses `checkpoint_policy: human-decision`; the risk-tier automation field controls only advancement routing.
 
 ## `slice-review` and `integrate-approved`
 
-After every configured Slice Task is `DONE`, independently review the complete Slice range using the union of all configured Task scopes. The supplied Task must exactly match the policy's explicit `completion_task`; any other Task identity fails closed. Continue to reject core Artifact changes, unauthorized dependencies, forbidden paths, identity mismatches, and aggregate HIGH-risk conditions. Stop for the Human merge/push decision. Integration or a local integration commit requires explicit current-context Human authorization for the exact range and target. Push is a separate explicit authorization and is prohibited by default.
+After every configured Slice Task is `DONE`, run the full suite and independently review the complete Slice range using the union of all configured Task scopes. The supplied Task must exactly match the policy's explicit `completion_task`; any other Task identity fails closed. Continue to reject core Artifact changes, unauthorized dependencies, forbidden paths, identity mismatches, and aggregate HIGH-risk conditions. Stop for the Human merge/push decision. Integration or a local integration commit requires explicit current-context Human authorization for the exact range and target. Push is a separate explicit authorization and is prohibited by default.
+
+## Verification and human summary
+
+Each Task runs targeted verification selected by policy. Full-suite verification is reserved for Slice completion, unless a shared Contract, dependency, or cross-Task regression requires an earlier escalation. Human-facing output is a compact digest: Task/Slice, risk and human gate, changed paths, Acceptance result, targeted/full test counts, first failures and fixes, AI verdict, immutable digest, and next action. Do not repeat raw command logs unless a failure or escalation needs them.
