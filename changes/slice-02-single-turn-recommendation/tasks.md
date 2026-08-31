@@ -2,7 +2,7 @@
 
 > 状态：APPROVED / Implementation gated by Workflow Simplification
 > 执行设计：[plan.md](./plan.md)
-> 本文件定义的目标、Scope、Acceptance 和 T01～T07 已获 Human Final Approval；当前仍不授权实现。
+> 本文件定义的目标、Scope、Acceptance 和 T01～T07 已获 Human Final Approval；具体实现授权以当前 Human 上下文和 Execution Record 为准。
 
 ## 1. Naming and Status
 
@@ -12,7 +12,7 @@ Slice 2 的文件路径已经包含 `slice-02`；任务在本文件内使用 `T0
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | S02 数据/目录最小映射 | NOT_STARTED | Slice 1 closed; Slice 2 plan approved; Workflow Simplification baseline |
+| T01 | S02 数据/目录最小映射 | DONE | Slice 1 closed; Slice 2 plan approved; Workflow Simplification baseline |
 | T02 | S02 单轮 ConstraintPatch 与规范化 | NOT_STARTED | T01 |
 | T03 | S02 Variant-level HARD eligibility | NOT_STARTED | T02 |
 | T04 | S02 SOFT preference baseline | NOT_STARTED | T03 |
@@ -20,7 +20,7 @@ Slice 2 的文件路径已经包含 `slice-02`；任务在本文件内使用 `T0
 | T06 | S02 单轮推荐 Walking Skeleton | NOT_STARTED | T05 |
 | T07 | S02 Verification Matrix 与 Completion Evidence | NOT_STARTED | T06 |
 
-当前没有获授权的 Coding Task。Human 已批准 Slice 2 Planning，但 Implementation 必须等待 Workflow Simplification 通过独立 AI Review、Human 批准并形成干净基线，同时完成 Slice 2 Task Policy；不得因为 T01 的产品依赖已满足而自动执行。
+S02-T01 已在当前 Human 上下文的单 Task 授权下完成实现与验证。S02-T02～S02-T07 未获实现授权；不得因为 T01 已完成而自动执行下一 Task。
 
 ## 2. Task Details
 
@@ -103,7 +103,25 @@ Slice 2 的文件路径已经包含 `slice-02`；任务在本文件内使用 `T0
 
 ## 3. Execution Record
 
-各 Task 开始后才填写真实的 start commit、changed paths、命令/exit code、结果位置、修正、发现和限制。当前没有执行记录；Workflow Simplification 和 Slice 2 Task Policy 落地前，没有任何 Task 被授权开始。
+### T01 — S02 数据/目录最小映射
+
+- **Status**：`DONE`
+- **Start commit**：`d23c988e6c523e879c718c51474ae13d348d5c14`
+- **Start state**：当前 detached worktree 无 tracked/untracked/staged 修改；`main` 与当前 HEAD 均指向 workflow simplification baseline。
+- **Authority/readiness**：当前 Human 上下文仅授权 `S02-T01`；`inspect_state.py --authorize-task S02-T01` 报告唯一 `executable_task` 为 `S02-T01`，Slice 1 closed、Slice 2 Planning approved、implementation gate satisfied。
+- **Other worktrees**：`/Users/russeell/.codex/worktrees/6408/消费级无人机智能导购Agent` 存在与本 Task 无关的 workflow dirty paths；无 active Task，本轮只报告与隔离，不修改该 worktree。
+- **Initial verification**：`uv lock --check` exit 0；`uv run ruff check .` exit 0；`uv run ruff format --check .` exit 0；`uv run pytest -q` exit 0（207 passed）。
+- **Implementation**：新增 store-scoped 匿名 synthetic catalog/commerce fixture，直接复用 `ProductRecord`、`VariantRecord`、`AttributeValue` 和 `ToolResult`；静态目录与动态价格/库存/可售性分层，支持可注入 `observed_at`、稳定排序、明确单位、完整 store/product/variant 归属和加载时数据校验。主商店样本包含 3 Product / 4 Variant，覆盖可推荐、不可售、UNKNOWN HARD 字段、`NOT_APPLICABLE`、不同 Product 分组和跨 Variant 差异；隔离商店使用同 product/variant ID 但不同数值，用于暴露遗漏 `store_id` 的混用。
+- **Changed paths**：`backend/catalog/__init__.py`；`backend/catalog/fixture.py`；`tests/unit/test_s02_t01_catalog_fixture.py`；`changes/slice-02-single-turn-recommendation/tasks.md`。无 staged paths。
+- **Targeted/import verification**：`uv run python -c 'from backend.catalog ...'` exit 0；`uv run pytest tests/unit/test_s02_t01_catalog_fixture.py -q` exit 0（10 passed）。
+- **Final static/lock verification**：`uv lock --check` exit 0；`uv run ruff check .` exit 0；`uv run ruff format --check .` exit 0；`git diff --check` exit 0。
+- **Final test verification**：`uv run pytest -m unit -q` exit 0（69 passed, 148 deselected）；`uv run pytest -m contract -q` exit 0（110 passed, 107 deselected）；`uv run pytest -q` exit 0（217 passed）。
+- **Workflow verification**：`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S02-T01` exit 0（`ok: true`，LOW，无 disallowed/core/dependency/forbidden path）；`python .agents/skills/drone-slice-workflow/scripts/verify_task.py S02-T01` exit 0（`ok: true`）。
+- **Post-completion state inspection**：`python .agents/skills/drone-slice-workflow/scripts/inspect_state.py` exit 1（`ok: false`），唯一 blocker 为未 commit 的 Task 完成产物导致的预期 `CURRENT_WORKTREE_DIRTY`；同一输出确认 T01=`DONE`、T02=`NOT_STARTED`、`executable_task=null`，未执行下一 Task。
+- **Artifact/dependency/diff review**：`git diff --quiet HEAD -- docs/PROJECT_SPEC.md docs/ARCHITECTURE.md docs/REFERENCE_ANALYSIS.md docs/DECISIONS.md` exit 0；`git diff --quiet HEAD -- pyproject.toml uv.lock` exit 0；complete changed-path/untracked/staged review 和 `git status --short --untracked-files=all` exit 0，只包含上述四个 Task-scoped paths。
+- **First failure and fix**：首次 `uv run ruff check backend/catalog tests/unit/test_s02_t01_catalog_fixture.py` exit 1（3 处 E501），首次 targeted `ruff format --check` exit 1（2 个新文件需格式化）；执行 `uv run ruff format backend/catalog tests/unit/test_s02_t01_catalog_fixture.py` 后，同范围 lint/format/targeted tests 全部 exit 0。未隐藏首次失败。
+- **Limitations**：仅为受控 synthetic fixture/data validation baseline；未连接真实 Shopify，未创建训练数据，未实现 ConstraintPatch、eligibility、ranking、recommendation response、API 或 E2E。未 commit、未 push，也未创建 snapshot/checkpoint。
+- **Recommended Next Task**：先完成 `S02-T01` independent AI Review / snapshot / checkpoint，经 Human 决策后才进入 `S02-T02`。
 
 ## 4. Human Escalation
 
@@ -113,9 +131,9 @@ Slice 2 的文件路径已经包含 `slice-02`；任务在本文件内使用 `T0
 
 - Slice 1 Completion Evidence：Human accepted at HEAD `e1ca844554e3da0fd8d061dff55e149293a1dde3`。
 - Slice 2 Planning：Human Final Approval accepted by current user context on 2026-08-30，覆盖目标、Scope、Acceptance 和 T01～T07。
-- Slice 2 Implementation：not authorized。
-- Workflow Simplification：required before Implementation；尚未独立 AI Review、Human 批准或提交。
-- Slice 2 Task Policy：required before Implementation；尚未配置。
+- Slice 2 Implementation：当前 Human 上下文仅授权并已完成 `S02-T01`；`S02-T02`～`S02-T07` 仍未授权。
+- Workflow Simplification：已形成受保护主线 baseline `d23c988e6c523e879c718c51474ae13d348d5c14`，implementation gate satisfied。
+- Slice 2 Task Policy：已配置；S02-T01 scope/verification gate 通过。
 - Push：not authorized。
 - Real Shopify smoke：independent authorization required; non-blocking。
 - Human Final Approval of this plan/tasks：SATISFIED。
