@@ -1,6 +1,6 @@
 # Review Checklist
 
-Review behavior before source shape. Read the Task, plan rows, policy, immutable handoff, and existing verification record; inspect only the exact `base_head..snapshot_head` range.
+Review behavior before source shape. For a MEDIUM boundary, read the Task, relevant plan rows, policy, immutable handoff, and existing verification record; inspect only the exact `base_head..snapshot_head` range. For Slice completion, review the complete Slice range.
 
 ## Evidence identity
 
@@ -9,7 +9,7 @@ Review behavior before source shape. Read the Task, plan rows, policy, immutable
 - No staging, working-tree, extra-path, amended/rebased-snapshot, or different-mode residue is present.
 - The snapshot is not directly on a protected ref. `main` and `master` remain protected even when policy omits them.
 - Scope and deterministic verification output refer to the same immutable range; caller pass claims are not evidence.
-- Task review requires the selected Task to be `DONE`. Slice review requires every Task to be `DONE`, the Task identity to equal the explicit policy `completion_task`, and the complete range to pass the union of configured Task scopes plus core Artifact, dependency, forbidden-path, identity, and aggregate HIGH-risk gates.
+- Task review requires the selected MEDIUM Task to be `DONE`. Slice review requires every Task to be `DONE`, the Task identity to equal the explicit policy `completion_task`, and the complete range to pass the union of configured Task scopes plus core Artifact, dependency, forbidden-path, identity, and aggregate HIGH-risk gates.
 - The reviewer did not modify or implement the snapshot and remains independent.
 
 ## Required findings
@@ -24,7 +24,7 @@ Review behavior before source shape. Read the Task, plan rows, policy, immutable
 - No later Task/Slice behavior, generated residue, secret, raw header, or sensitive trace data appears.
 - The Execution Record contains real commands, failures, corrections, exit codes, evidence, and limitations.
 - AI verdict, Human approval, WIP snapshot, checkpoint handoff, integration/merge, and push remain distinct.
-- Risk routing is respected: planned LOW/MEDIUM/HIGH Tasks may become `AUTO_ADVANCE_ELIGIBLE` only after policy-selected verification and independent review under a valid Slice authorization. Unplanned scope, safety, Contract, Architecture, evidence, or budget escalation requires Human intervention. No route authorizes checkpoint acceptance, integration, merge, or push.
+- Risk routing is respected: LOW batches need targeted checks; MEDIUM boundaries need independent review; HIGH and unplanned scope, safety, Product Behavior, Contract, Architecture, major dependency, external-service, or Shopify-write changes require Human intervention. Slice completion needs the full suite and independent Slice review. No route authorizes checkpoint acceptance, integration, merge, or push.
 - If feature-branch delivery is claimed, first verify that the repository contains an implemented and approved operational protocol. Current `feature-delivery` planning text is proposed/non-operational and cannot be treated as enforcement. If a future operational protocol exists, verify that it is not a protected-branch push, the PR branch/range matches the reviewed Slice, required CI checks are present and passing, auto-merge is repository-managed, and no unplanned escalation condition is present.
 
 ## Verdicts

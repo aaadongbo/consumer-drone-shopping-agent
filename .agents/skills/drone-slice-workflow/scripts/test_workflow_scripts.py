@@ -20,6 +20,7 @@ from verify_commit_readiness import (
     immutable_evidence,
     review_snapshot,
 )
+from verify_task import command_plan
 from verify_task import verify as verify_task_runner
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
@@ -288,6 +289,61 @@ class WorkflowScriptTests(unittest.TestCase):
     ) -> tuple[tempfile.TemporaryDirectory[str], TemporaryRepository]:
         holder = tempfile.TemporaryDirectory()
         return holder, TemporaryRepository(Path(holder.name), **kwargs)
+
+    def test_task_validation_is_changed_path_targeted_and_boundary_full(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"][
+            "changes/slice-02-single-turn-recommendation/tasks.md"
+        ]
+        task_policy = slice_policy["tasks"]["T02"]
+        targeted, _ = command_plan(
+            task_policy,
+            slice_policy,
+            {"dependency_review": {"changed_paths": []}},
+            False,
+            None,
+            None,
+            ["backend/conversation/reducer.py", "tests/unit/test_reducer.py"],
+        )
+        self.assertIn(
+            [
+                "uv",
+                "run",
+                "ruff",
+                "check",
+                "backend/conversation/reducer.py",
+                "tests/unit/test_reducer.py",
+            ],
+            targeted,
+        )
+        self.assertNotIn(["uv", "lock", "--check"], targeted)
+        self.assertNotIn(["uv", "run", "ruff", "check", "."], targeted)
+        self.assertIn(
+            [
+                "uv",
+                "run",
+                "pytest",
+                "-m",
+                "unit or contract",
+                "tests/unit/test_reducer.py",
+                "-q",
+            ],
+            targeted,
+        )
+
+        boundary, _ = command_plan(
+            task_policy,
+            slice_policy,
+            {"dependency_review": {"changed_paths": ["uv.lock"]}},
+            False,
+            None,
+            None,
+            ["backend/conversation/reducer.py", "uv.lock"],
+        )
+        self.assertIn(["uv", "lock", "--check"], boundary)
+        self.assertIn(["uv", "run", "ruff", "check", "."], boundary)
 
     def test_main_snapshot_is_rejected(self) -> None:
         holder, repo = self.repo()
@@ -653,7 +709,7 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertFalse(result["integration_authorized"])
         self.assertFalse(result["push_authorized"])
 
-    def test_planned_risk_tiers_auto_advance_after_independent_review(self) -> None:
+    def test_medium_auto_advances_but_high_requires_human_decision(self) -> None:
         holder, repo = self.repo()
         self.addCleanup(holder.cleanup)
         base, snapshot = repo.snapshot()
@@ -721,8 +777,9 @@ class WorkflowScriptTests(unittest.TestCase):
                 ai_review_pass=True,
                 reviewed_risk_tier="HIGH",
             )
-        self.assertTrue(high["ok"])
-        self.assertFalse(high["human_approval_required"])
+        self.assertFalse(high["ok"])
+        self.assertTrue(high["human_approval_required"])
+        self.assertIn("HIGH_RISK_HUMAN_DECISION_REQUIRED", high["blocking_reasons"])
 
     def test_reviewer_higher_tier_escalates_low_policy(self) -> None:
         holder, repo = self.repo()
@@ -850,14 +907,19 @@ class WorkflowScriptTests(unittest.TestCase):
         )
         self.assertEqual(t01["automation_policy"]["human_gate"], "unplanned-exception")
         self.assertTrue(t01["automation_policy"]["auto_advance"])
+        self.assertEqual(t01["automation_policy"]["review_cadence"], "human-decision")
 
         slice_authorized = inspect(repo.root, implementation_authorized_slice="S03")
-        self.assertEqual(slice_authorized["executable_task"], "S03-T01")
+        self.assertIsNone(slice_authorized["executable_task"])
+        self.assertIn(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED",
+            slice_authorized["tasks"][0]["execution_blockers"],
+        )
 
         task_authorized = inspect(repo.root, implementation_authorized_task="S03-T01")
         self.assertEqual(task_authorized["executable_task"], "S03-T01")
 
-    def test_s03_t01_planned_high_risk_can_auto_advance_after_review(self) -> None:
+    def test_s03_t01_public_contract_change_requires_human_escalation(self) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")
         self.addCleanup(holder.cleanup)
         base, snapshot = repo.snapshot(
@@ -874,7 +936,9 @@ class WorkflowScriptTests(unittest.TestCase):
             "snapshot_head": snapshot,
             "results": [{"command": "targeted", "exit_code": 0}],
         }
-        with patch("verify_commit_readiness.verify_task", return_value=verification):
+        with patch(
+            "verify_commit_readiness.verify_task", return_value=verification
+        ) as run:
             result = checkpoint_readiness(
                 "S03-T01",
                 repo.root,
@@ -887,9 +951,14 @@ class WorkflowScriptTests(unittest.TestCase):
 
         self.assertEqual(evidence["risk_policy"]["minimum_tier"], "HIGH")
         self.assertTrue(evidence["risk_policy"]["automation"]["auto_advance"])
-        self.assertTrue(result["ok"])
-        self.assertEqual(result["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
-        self.assertFalse(result["human_approval_required"])
+        self.assertIn(
+            "backend/common/contracts.py",
+            evidence["risk_policy"]["deterministic_escalation_paths"],
+        )
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
+        self.assertTrue(result["human_approval_required"])
+        self.assertTrue(run.call_args.kwargs["full"])
 
     def test_s03_scope_accepts_task_paths_and_rejects_forbidden_paths(self) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")
@@ -952,7 +1021,7 @@ class WorkflowScriptTests(unittest.TestCase):
     ) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")
         self.addCleanup(holder.cleanup)
-        base, snapshot = repo.workflow_policy_snapshot(extra_path="AGENTS.md")
+        base, snapshot = repo.workflow_policy_snapshot(extra_path="README.md")
         git(repo.root, "switch", "--detach", snapshot)
 
         evidence = immutable_evidence("WORKFLOW-S03-POLICY", base, snapshot, repo.root)
@@ -1095,7 +1164,7 @@ class WorkflowScriptTests(unittest.TestCase):
             wrong_task["blocking_reasons"],
         )
 
-    def test_planned_high_risk_advances_after_independent_review(self) -> None:
+    def test_planned_high_risk_requires_human_decision(self) -> None:
         holder, repo = self.repo()
         self.addCleanup(holder.cleanup)
         base, snapshot = repo.snapshot(
@@ -1114,8 +1183,9 @@ class WorkflowScriptTests(unittest.TestCase):
                 ai_review_pass=True,
                 reviewed_risk_tier="HIGH",
             )
-        self.assertTrue(result["ok"])
-        self.assertFalse(result["human_approval_required"])
+        self.assertFalse(result["ok"])
+        self.assertTrue(result["human_approval_required"])
+        self.assertIn("HIGH_RISK_HUMAN_DECISION_REQUIRED", result["blocking_reasons"])
         self.assertFalse(result["human_approval_supplied"])
 
     def test_task_range_escalation_requires_high_reviewed_tier(self) -> None:
@@ -1161,7 +1231,7 @@ class WorkflowScriptTests(unittest.TestCase):
             )
         self.assertEqual(high["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
         self.assertEqual(high["status"], "HUMAN_DECISION_REQUIRED")
-        self.assertIn("UNPLANNED_ESCALATION_OR_EXCEPTION", high["blocking_reasons"])
+        self.assertIn("HIGH_RISK_HUMAN_DECISION_REQUIRED", high["blocking_reasons"])
         self.assertFalse(high["checkpoint_accepted"])
 
     def test_baseline_requires_fixed_integrated_or_exact_human_oid(self) -> None:
@@ -1388,6 +1458,25 @@ class WorkflowScriptTests(unittest.TestCase):
             self.assertEqual(execution_policy["implementation_session"], "slice")
             self.assertTrue(execution_policy["targeted_verification_per_task"])
             self.assertEqual(execution_policy["full_suite"], "slice-completion")
+            self.assertEqual(execution_policy["review"], "boundary-and-slice")
+            self.assertEqual(
+                execution_policy["review_cadence"],
+                {
+                    "LOW": {
+                        "review": "batch-or-slice-completion",
+                        "max_consecutive_tasks": 3,
+                    },
+                    "MEDIUM": {"review": "task"},
+                    "HIGH": {"review": "human-decision"},
+                },
+            )
+            self.assertEqual(
+                execution_policy["task_validation"],
+                {
+                    "lint": "changed-python-files",
+                    "lock_check": "slice-completion-or-dependency-change",
+                },
+            )
             if "delivery" in execution_policy:
                 self.assertEqual(
                     execution_policy["delivery"],
@@ -1420,7 +1509,13 @@ class WorkflowScriptTests(unittest.TestCase):
 
         authorised = inspect(repo.root, implementation_authorized_slice="S03")
         self.assertEqual(authorised["selected_task"], "S03-T02")
-        self.assertEqual(authorised["executable_task"], "S03-T02")
+        self.assertIsNone(authorised["executable_task"])
+        self.assertIn(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED",
+            next(item for item in authorised["tasks"] if item["id"] == "T02")[
+                "execution_blockers"
+            ],
+        )
         self.assertFalse(
             next(item for item in authorised["tasks"] if item["id"] == "T03")[
                 "executable"

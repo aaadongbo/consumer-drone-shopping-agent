@@ -13,7 +13,7 @@
       "completion_task": "T09",
       "execution_policy": {
         "implementation_session": "slice",
-        "review": "independent-per-task",
+        "review": "boundary-and-slice",
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
         "automation": {
@@ -21,6 +21,15 @@
           "human_gate": "unplanned-exception",
           "review_required": true,
           "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
         }
       },
       "core_artifacts": [
@@ -115,7 +124,7 @@
       "completion_task": "T07",
       "execution_policy": {
         "implementation_session": "slice",
-        "review": "independent-per-task",
+        "review": "boundary-and-slice",
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
         "automation": {
@@ -123,6 +132,15 @@
           "human_gate": "unplanned-exception",
           "review_required": true,
           "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
         }
       },
       "implementation_gate": {
@@ -209,7 +227,7 @@
       "completion_task": "T07",
       "execution_policy": {
         "implementation_session": "slice",
-        "review": "independent-per-task",
+        "review": "boundary-and-slice",
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
         "automation": {
@@ -217,6 +235,15 @@
           "human_gate": "unplanned-exception",
           "review_required": true,
           "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
         }
       },
       "implementation_gate": {
@@ -304,7 +331,7 @@
       "completion_task": "T07",
       "execution_policy": {
         "implementation_session": "slice",
-        "review": "independent-per-task",
+        "review": "boundary-and-slice",
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
         "delivery": "feature-delivery-proposed-non-operational",
@@ -313,6 +340,15 @@
           "human_gate": "unplanned-exception",
           "review_required": true,
           "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
         }
       },
       "implementation_gate": {
@@ -400,7 +436,7 @@
       "completion_task": "T07",
       "execution_policy": {
         "implementation_session": "slice",
-        "review": "independent-per-task",
+        "review": "boundary-and-slice",
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
         "delivery": "feature-delivery-proposed-non-operational",
@@ -409,6 +445,15 @@
           "human_gate": "unplanned-exception",
           "review_required": true,
           "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
         }
       },
       "implementation_gate": {

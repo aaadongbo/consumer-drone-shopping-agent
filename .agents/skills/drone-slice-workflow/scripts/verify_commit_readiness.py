@@ -30,6 +30,7 @@ from verify_task import verify as verify_task
 WORKFLOW_POLICY_REPAIR_IDENTITY = "WORKFLOW-S03-POLICY"
 WORKFLOW_POLICY_REPAIR_TASKS_FILE = "changes/slice-03-target-resolution/tasks.md"
 WORKFLOW_POLICY_REPAIR_PATHS = {
+    "AGENTS.md",
     ".agents/skills/drone-slice-workflow/SKILL.md",
     ".agents/skills/drone-slice-workflow/references/review-checklist.md",
     ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
@@ -478,10 +479,16 @@ def checkpoint_readiness(
 
     verification: dict[str, Any] | None = None
     if evidence and digest_matches and ai_review_pass and not readiness_blockers:
+        risk_policy = evidence.get("risk_policy") or {}
+        boundary_full_verification = bool(
+            mode == "slice-review"
+            or risk_policy.get("deterministic_escalation_paths")
+            or dependency_review.get("changed_paths")
+        )
         verification = verify_task(
             task_ref,
             repo_arg,
-            full=mode == "slice-review",
+            full=boundary_full_verification,
             base_head=evidence["base_head"],
             snapshot_head=evidence["snapshot_head"],
             slice_review=mode == "slice-review",
@@ -514,6 +521,7 @@ def checkpoint_readiness(
         and automation.get("human_gate") == "unplanned-exception"
         and reviewed_effective_tier == policy_tier
         and not risk_policy.get("deterministic_escalation_paths")
+        and policy_tier != "HIGH"
     )
     ready_for_human = bool(not readiness_blockers and not auto_advance)
     workflow_stage = (
@@ -533,13 +541,17 @@ def checkpoint_readiness(
     reason = (
         "PLANNED_TASK_AI_REVIEW_ADVANCE_ALLOWED"
         if auto_advance
-        else "UNPLANNED_ESCALATION_OR_EXCEPTION"
+        else "HIGH_RISK_OR_UNPLANNED_ESCALATION"
         if ready_for_human
         else "CHECKPOINT_EVIDENCE_INVALID"
     )
     blockers = list(readiness_blockers)
     if ready_for_human:
-        blockers.append("UNPLANNED_ESCALATION_OR_EXCEPTION")
+        blockers.append(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED"
+            if policy_tier == "HIGH"
+            else "UNPLANNED_ESCALATION_OR_EXCEPTION"
+        )
     return {
         # Routing eligibility never accepts a checkpoint or authorizes delivery.
         "ok": auto_advance,

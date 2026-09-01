@@ -246,24 +246,36 @@ def fixed_policy_valid(policy: dict[str, Any] | None, tasks_file: str) -> bool:
 
 
 def task_automation_policy(
-    slice_policy: dict[str, Any] | None, task_id: str
+    slice_policy: dict[str, Any] | None,
+    task_id: str,
+    risk_tier: str | None = None,
 ) -> dict[str, Any]:
-    """Return the Slice-wide review-gated automation profile for planned Tasks."""
-    automation = (slice_policy or {}).get("execution_policy", {}).get("automation")
+    """Return the Slice-wide automation and review cadence for one planned Task."""
+    execution_policy = (slice_policy or {}).get("execution_policy", {})
+    automation = execution_policy.get("automation")
     if not isinstance(automation, dict):
         return {
             "auto_advance": False,
             "human_gate": "unplanned-exception",
             "review_required": True,
             "verification_mode": "targeted",
+            "review_cadence": "task",
         }
+    cadence = execution_policy.get("review_cadence", {})
+    cadence_profile = cadence.get(risk_tier or "MEDIUM", {})
+    review_cadence = (
+        cadence_profile.get("review", "task")
+        if isinstance(cadence_profile, dict)
+        else "task"
+    )
     return {
         "auto_advance": bool(automation.get("auto_advance", False)),
         "human_gate": automation.get("human_gate")
         if automation.get("human_gate") in HUMAN_GATES
         else "unplanned-exception",
-        "review_required": bool(automation.get("review_required", True)),
+        "review_required": review_cadence == "task",
         "verification_mode": automation.get("verification_mode", "targeted"),
+        "review_cadence": review_cadence,
     }
 
 
@@ -482,6 +494,11 @@ def inspect(
         authorized_slice = normalized_slice
 
     for task in tasks:
+        task_policy = (
+            (slice_policy or {}).get("tasks", {}).get(task["id"], {})
+            if isinstance(slice_policy, dict)
+            else {}
+        )
         missing = [dep for dep in task["dependencies"] if dep not in status_by_id]
         unsatisfied = [
             dep for dep in task["dependencies"] if status_by_id.get(dep) != "DONE"
@@ -496,7 +513,9 @@ def inspect(
                 "unsatisfied_dependencies": unsatisfied,
                 "implementation_gate": gate,
                 "implementation_authorized": canonical == authorized_canonical,
-                "automation_policy": task_automation_policy(slice_policy, task["id"]),
+                "automation_policy": task_automation_policy(
+                    slice_policy, task["id"], task_policy.get("risk_tier")
+                ),
             }
         )
 
@@ -537,9 +556,16 @@ def inspect(
         blockers: list[str] = []
         if task["canonical_id"] == selected_task:
             blockers.extend(gate["blocking_reasons"])
-            slice_auto_authorized = bool(
-                authorized_slice and task["automation_policy"]["auto_advance"]
+            high_risk = (
+                task["automation_policy"].get("review_cadence") == "human-decision"
             )
+            slice_auto_authorized = bool(
+                authorized_slice
+                and task["automation_policy"]["auto_advance"]
+                and not high_risk
+            )
+            if high_risk and not task["implementation_authorized"]:
+                blockers.append("HIGH_RISK_HUMAN_DECISION_REQUIRED")
             if not task["implementation_authorized"] and not slice_auto_authorized:
                 blockers.append("CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED")
             if (

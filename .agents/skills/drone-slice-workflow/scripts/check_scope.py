@@ -63,7 +63,8 @@ def resolve_task_policy(
         return slice_policy, None, "CONFLICTING_TASK_CHECKPOINT_AUTHORITY"
     if "automation" in task_policy:
         return slice_policy, None, "CONFLICTING_TASK_AUTOMATION_AUTHORITY"
-    automation = slice_policy.get("execution_policy", {}).get("automation", {})
+    execution_policy = slice_policy.get("execution_policy", {})
+    automation = execution_policy.get("automation", {})
     if not isinstance(automation, dict):
         return slice_policy, None, "INVALID_AUTOMATION_POLICY"
     if not isinstance(automation.get("auto_advance", False), bool):
@@ -74,6 +75,27 @@ def resolve_task_policy(
         return slice_policy, None, "INVALID_REVIEW_POLICY"
     if not automation.get("auto_advance", False):
         return slice_policy, None, "SLICE_AUTO_ADVANCE_REQUIRED"
+    cadence = execution_policy.get("review_cadence", {})
+    if not isinstance(cadence, dict):
+        return slice_policy, None, "INVALID_REVIEW_CADENCE_POLICY"
+    required_cadence = {
+        "LOW": "batch-or-slice-completion",
+        "MEDIUM": "task",
+        "HIGH": "human-decision",
+    }
+    for tier, expected_review in required_cadence.items():
+        profile = cadence.get(tier)
+        if not isinstance(profile, dict) or profile.get("review") != expected_review:
+            return slice_policy, None, "INVALID_REVIEW_CADENCE_POLICY"
+    if cadence["LOW"].get("max_consecutive_tasks") != 3:
+        return slice_policy, None, "INVALID_REVIEW_CADENCE_POLICY"
+    task_validation = execution_policy.get("task_validation", {})
+    if not isinstance(task_validation, dict):
+        return slice_policy, None, "INVALID_TASK_VALIDATION_POLICY"
+    if task_validation.get("lint") != "changed-python-files":
+        return slice_policy, None, "INVALID_TASK_VALIDATION_POLICY"
+    if task_validation.get("lock_check") != "slice-completion-or-dependency-change":
+        return slice_policy, None, "INVALID_TASK_VALIDATION_POLICY"
     return slice_policy, task_policy, None
 
 
@@ -201,15 +223,17 @@ def check(
     risk_escalation_paths = sorted(
         path
         for path in paths["all"]
-        if task_policy["risk_tier"] != "HIGH"
-        and path_allowed(path, list(slice_policy.get("risk_escalation_paths", [])))
+        if path_allowed(path, list(slice_policy.get("risk_escalation_paths", [])))
     )
     effective_tier = "HIGH" if risk_escalation_paths else task_policy["risk_tier"]
-    configured_automation = task_automation_policy(slice_policy, task_id)
+    configured_automation = task_automation_policy(
+        slice_policy, task_id, task_policy["risk_tier"]
+    )
     automation = {
         "auto_advance": bool(configured_automation["auto_advance"]),
         "human_gate": configured_automation["human_gate"],
         "review_required": configured_automation["review_required"],
+        "review_cadence": configured_automation["review_cadence"],
         "verification_mode": configured_automation["verification_mode"],
     }
     other_dirty = [

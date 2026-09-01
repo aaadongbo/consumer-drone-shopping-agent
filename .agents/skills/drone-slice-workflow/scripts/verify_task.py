@@ -78,12 +78,24 @@ def command_plan(
 ) -> tuple[list[list[str]], str]:
     marker = task_policy["verification_marker"]
     rationale = task_policy["verification_rationale"]
-    if full:
+    dependency_changes = scope.get("dependency_review", {}).get("changed_paths", [])
+    full_boundary = full or marker is None or bool(dependency_changes)
+    if full_boundary:
         marker = None
-        rationale = "--full requested; running the complete pytest suite"
+        rationale = (
+            "Slice completion, dependency change, or --full requested; "
+            "running complete verification"
+        )
+    test_paths = sorted(
+        path
+        for path in changed_paths
+        if path.startswith("tests/") and path.endswith(".py")
+    )
     pytest_command = ["uv", "run", "pytest"]
     if marker:
         pytest_command.extend(["-m", marker])
+    if not full_boundary and test_paths:
+        pytest_command.extend(test_paths)
     pytest_command.append("-q")
     python_paths = sorted(path for path in changed_paths if path.endswith(".py"))
     syntax_command = [
@@ -96,13 +108,23 @@ def command_plan(
         ),
         *python_paths,
     ]
-    commands = [
-        syntax_command,
-        ["uv", "lock", "--check"],
-        ["uv", "run", "ruff", "check", "."],
-        ["uv", "run", "ruff", "format", "--check", "."],
-        pytest_command,
-    ]
+    commands = [syntax_command]
+    if full_boundary:
+        commands.extend(
+            [
+                ["uv", "lock", "--check"],
+                ["uv", "run", "ruff", "check", "."],
+                ["uv", "run", "ruff", "format", "--check", "."],
+            ]
+        )
+    elif python_paths:
+        commands.extend(
+            [
+                ["uv", "run", "ruff", "check", *python_paths],
+                ["uv", "run", "ruff", "format", "--check", *python_paths],
+            ]
+        )
+    commands.append(pytest_command)
     if base_head and snapshot_head:
         commands.extend(
             [

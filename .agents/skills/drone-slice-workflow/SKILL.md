@@ -1,6 +1,6 @@
 ---
 name: drone-slice-workflow
-description: "Manage the risk-tiered Slice task workflow for this consumer-drone shopping-agent repository: inspect status, run a Slice-authorized low-risk Task or one explicitly authorized Task, create a local snapshot, independently review it, prepare checkpoint evidence, review Slice completion, or perform Human-approved integration. Use only for this repository's Slice workflow."
+description: "Manage the lightweight Slice task workflow for this consumer-drone shopping-agent repository: inspect status, run one authorized Task at a time, apply targeted or Slice-completion verification, review immutable boundaries, and perform Human-approved integration. Use only for this repository's Slice workflow."
 ---
 
 # Drone Slice Workflow
@@ -11,15 +11,17 @@ Use one mode: `status`, `run-next`, `snapshot`, `review`, `checkpoint`, `slice-r
 
 Treat `docs/PROJECT_SPEC.md`, `docs/ARCHITECTURE.md`, `docs/DECISIONS.md`, the active Slice `plan.md`, and `tasks.md` as the sources of truth. Git/worktrees, the current diff, the Task status table, and each existing Execution Record jointly express state; do not create another status file.
 
+Freeze this Skill during an active Slice. A workflow change needs a separately authorized governance session and a demonstrated blocker; it never rides along with business work.
+
 Formal Task states are `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, and `DONE`. Derived stages are reported from Git, policy, and current-context evidence and are not persisted. A WIP snapshot is immutable local review input. An AI verdict, Human approval, checkpoint readiness, integration/merge, and push are distinct authorities.
 
 ## Mode routing
 
 - `status`: run `scripts/inspect_state.py` and report `ready_tasks`, the stable table-order `selected_task`, current-context authority, executable Task, dependencies, worktrees, and blockers. Multiple ready DAG Tasks are valid; only the selected Task can become executable.
-- `run-next`: read [references/execution-protocol.md](references/execution-protocol.md). A valid Slice authorization covers only its approved planned Task set. After policy-selected gates, an immutable snapshot, and independent AI Review PASS, select the next ready Task by task-table order regardless of planned LOW/MEDIUM/HIGH tier. Never run two Tasks concurrently; stop for unplanned escalation, invalid evidence, scope mismatch, or exhausted repair budget.
-- `snapshot`: after the Task is `DONE` and deterministic gates pass, create exactly one Task-scoped local WIP commit. It must be detached or on a task branch, never on a protected integration branch; stop after immutable evidence. A `SNAPSHOT_CREATED` result must carry `integration_authorized: false`, `push_authorized: false`, and `human_approval: false`. A snapshot is not acceptance, integration, merge, Human approval, or push.
-- `review`: in an independent clean Session/Worktree, inspect only `base_head..snapshot_head`, recompute the digest, and output one leading verdict: `AI_REVIEW_PASS`, `AI_REVIEW_NEEDS_CHANGES`, or `BLOCKED`. Task review evidence requires that exact Task to be `DONE`; `IN_PROGRESS` fails closed. A pass wording is `AI_REVIEW_PASS — Ready for policy checkpoint evaluation`.
-- `checkpoint`: planned LOW/MEDIUM/HIGH evidence with real verification, scope/digest identity, and `AI_REVIEW_PASS` may report `AUTO_ADVANCE_ELIGIBLE`; this never accepts, integrates, or pushes. Missing, invalid, mismatched, plan-only evidence, or an unplanned escalation blocks advancement. Caller `--verification-pass` claims are ignored.
+- `run-next`: read [references/execution-protocol.md](references/execution-protocol.md). A valid Slice authorization covers only its approved planned Task set. LOW Tasks run targeted gates and may continue for at most three adjacent ready Tasks before a handoff or Slice boundary; MEDIUM Tasks add an immutable snapshot and independent AI Review. HIGH Tasks stop for Human. Select the next ready Task by table order. Never run two Tasks concurrently; stop for an escalation, invalid evidence, scope mismatch, or exhausted repair budget.
+- `snapshot`: create an immutable WIP commit only at a MEDIUM/risk boundary, a LOW handoff, or Slice completion. It must be detached or on a task branch, never on a protected integration branch. A snapshot is not acceptance, integration, merge, Human approval, or push.
+- `review`: in an independent clean Session/Worktree, inspect the exact immutable boundary range, recompute the digest, and output one leading verdict: `AI_REVIEW_PASS`, `AI_REVIEW_NEEDS_CHANGES`, or `BLOCKED`. Task review requires that MEDIUM Task to be `DONE`; Slice review requires the completion Task and full Slice range. A pass does not authorize integration or push.
+- `checkpoint`: applies to an immutable MEDIUM/risk/Slice boundary. Complete matching evidence with real verification and `AI_REVIEW_PASS` may report `AUTO_ADVANCE_ELIGIBLE` only for MEDIUM; this never accepts, integrates, or pushes. Missing, invalid, mismatched, plan-only evidence, or an escalation blocks advancement. Caller `--verification-pass` claims are ignored.
 - `slice-review`: after every Slice Task is `DONE`, independently review the complete Slice range against the union of every configured Task scope. The Task identity must equal the policy's explicit `completion_task`. Core Artifact, dependency, forbidden-path, identity, and aggregate HIGH-risk gates still apply. Stop for the Human merge/push decision.
 - `integrate-approved`: proceed only when the current user explicitly authorizes the exact integration/merge or local integration commit. Direct protected-branch push remains forbidden.
 - `feature-delivery` proposal: planned/non-operational protocol for future Slice automation. It is not callable through this Skill and must not be treated as active enforcement. A separate Workflow Implementation Planning and Human approval must define and test feature branch push, PR creation, required CI, force-push prevention, auto-merge authorization, and Slice completion evidence before any operation can rely on it. Even then, it may automate only post-Slice PR/CI/merge mechanics and must not weaken LOW/MEDIUM/HIGH Task gates.
@@ -43,11 +45,11 @@ The fixed schema/marker and baseline gate prevent a detached or self-reported Wo
 
 Risk tiers are `LOW`, `MEDIUM`, and `HIGH`:
 
-- LOW: one Slice-level implementation authorization; targeted verification and independent AI Review per Task; Human intervenes at Slice completion.
-- MEDIUM: independent AI Review per Task; Human intervenes at key checkpoints.
-- HIGH: independent AI Review per Task and explicit per-Task Human decision.
+- LOW: targeted verification only; batch up to three adjacent Tasks in one Slice Session. Review is deferred to the next MEDIUM/handoff boundary or Slice completion.
+- MEDIUM: targeted verification, immutable Task snapshot, and independent AI Review; a pass continues the approved Slice automatically.
+- HIGH: immediately stop for a current-context Human decision before implementation or any review handoff.
 
-All tiers retain immutable snapshots, independent review, fail-closed errors, and no direct protected-branch integration. Public Contract, Product Behavior, Architecture, Acceptance, Accepted Decision, major/cross-Slice dependency, external service behavior, Shopify writes, or safety-gate weakening are HIGH or escalation regardless of configured path.
+Full-suite checks, independent Slice review, and delivery CI belong at Slice completion or PR time. All tiers retain scope checks, fail-closed errors, and no direct protected-branch integration. Public Contract, Product Behavior, Architecture, Acceptance, Accepted Decision, major/cross-Slice dependency, external service behavior, Shopify writes, or safety-gate weakening are immediate Human escalation regardless of configured path.
 
 ## Minimal safety boundary
 
