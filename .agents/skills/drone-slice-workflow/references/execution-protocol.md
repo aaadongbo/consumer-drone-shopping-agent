@@ -4,13 +4,13 @@
 
 1. Resolve repository root, HEAD, branch/detached state, current `git status --short`, `git worktree list --porcelain`, and other worktree dirtiness.
 2. Read `AGENTS.md`, the source-of-truth docs, active Slice plan/tasks, the Task record, dependency files, and the complete current diff including untracked paths.
-3. Run `inspect_state.py`. It reports `ordered_candidate` separately from `executable_task`; only current-context Task authority plus the fixed baseline gate can make a Task executable.
+3. Run `inspect_state.py`. It reports all dependency-ready `ready_tasks` and a single stable task-table-order `selected_task`. Only a valid Slice authorization plus the fixed baseline gate can make that selected Task executable.
 4. Stop for pre-existing unrelated changes, multiple active Tasks, unmet dependencies/entry gates, an unconfigured policy, or same-Slice activity in another worktree. Never mutate another worktree.
 5. Record the implementation base and pre-existing diff before any authorized write.
 
 ## `run-next`
 
-Run the unique ordered candidate without crossing its risk gate. A LOW Task may use one explicit Slice authorization (`inspect_state.py --authorize-slice S02`) and, after its targeted gates, immutable snapshot, and independent `AI_REVIEW_PASS`, may continue to the next ordered LOW Task in the same Slice Implementation Session. MEDIUM requires a Human key-checkpoint after its independent review; HIGH requires the existing per-Task Human gate. Always mark only the current Task `IN_PROGRESS`/`DONE`, keep one Task active at a time, record real commands and exit codes, and stop on any review finding, dependency change, scope mismatch, or risk escalation.
+Run the selected Task without crossing a scope or safety gate. A valid Slice authorization (`inspect_state.py --authorize-slice S02`) covers the approved planned LOW/MEDIUM/HIGH Task set. After policy-selected verification, immutable snapshot, and independent `AI_REVIEW_PASS`, select the next ready Task by task-table order in the same Slice Implementation Session. Risk tier determines verification and review depth, not a per-Task Human gate. Always mark only the current Task `IN_PROGRESS`/`DONE`, keep one Task active at a time, record real commands and exit codes, and stop on an unplanned escalation, dependency change, scope mismatch, or review/evidence failure.
 
 ## `snapshot`
 
@@ -28,7 +28,7 @@ The reviewer uses a separate clean Session/Worktree at the exact `snapshot_head`
 
 ## `checkpoint`
 
-`verify_commit_readiness.py --checkpoint` is a routing handoff, never a direct protected-branch acceptance operation. It validates immutable identity/scope/digest, runs the policy-selected targeted verification against that exact snapshot (full suite for `slice-review`), and ignores caller `--verification-pass`. Missing, invalid, mismatched, or plan-only verification reports `BLOCKED / CHECKPOINT_NOT_READY`. Complete matching LOW evidence with `AI_REVIEW_PASS` may report `AUTO_ADVANCE_ELIGIBLE`; this only permits the next ordered LOW implementation Task under the active Slice authorization. A Reviewer-reported tier above policy always routes to the higher gate. MEDIUM/HIGH evidence reports `HUMAN_APPROVAL_REQUIRED / CHECKPOINT_READY — Awaiting explicit Human approval`. Every Task still uses `checkpoint_policy: human-decision`; the risk-tier automation field controls advancement routing, not direct main integration.
+`verify_commit_readiness.py --checkpoint` is a routing handoff, never a direct protected-branch acceptance operation. It validates immutable identity/scope/digest, runs policy-selected verification against that exact snapshot, and ignores caller `--verification-pass`. Missing, invalid, mismatched, or plan-only verification reports `BLOCKED / CHECKPOINT_NOT_READY`. Complete matching evidence with `AI_REVIEW_PASS` may report `AUTO_ADVANCE_ELIGIBLE`; this only permits the next selected planned implementation Task under a valid Slice authorization. A Reviewer-reported escalation or unplanned scope/safety change routes to `HUMAN_DECISION_REQUIRED`; no route authorizes direct main integration.
 
 ## `slice-review` and `integrate-approved`
 

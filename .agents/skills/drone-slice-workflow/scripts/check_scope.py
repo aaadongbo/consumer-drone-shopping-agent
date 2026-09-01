@@ -29,7 +29,7 @@ DEPENDENCY_PLAN_MINIMAL = "plan-authorized-minimal"
 DEPENDENCY_MODES = {DEPENDENCY_FORBIDDEN, DEPENDENCY_PLAN_MINIMAL}
 RISK_TIERS = {"LOW", "MEDIUM", "HIGH"}
 RISK_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
-HUMAN_GATES = {"slice-completion", "key-checkpoint", "task"}
+HUMAN_GATES = {"unplanned-exception"}
 
 
 def load_policy(path: Path = POLICY_PATH) -> dict[str, Any]:
@@ -61,22 +61,17 @@ def resolve_task_policy(
         return slice_policy, None, "INVALID_RISK_TIER"
     if task_policy.get("checkpoint_policy") != "human-decision":
         return slice_policy, None, "INVALID_CHECKPOINT_POLICY"
-    automation = task_policy.get("automation", {})
+    automation = slice_policy.get("execution_policy", {}).get("automation", {})
     if not isinstance(automation, dict):
         return slice_policy, None, "INVALID_AUTOMATION_POLICY"
     if not isinstance(automation.get("auto_advance", False), bool):
         return slice_policy, None, "INVALID_AUTO_ADVANCE_POLICY"
-    if automation.get("human_gate", "task") not in HUMAN_GATES:
+    if automation.get("human_gate") not in HUMAN_GATES:
         return slice_policy, None, "INVALID_HUMAN_GATE"
     if not isinstance(automation.get("review_required", True), bool):
         return slice_policy, None, "INVALID_REVIEW_POLICY"
-    if task_policy["risk_tier"] == "LOW":
-        if not automation.get("auto_advance", False):
-            return slice_policy, None, "LOW_TASK_AUTO_ADVANCE_REQUIRED"
-        if automation.get("human_gate", "task") != "slice-completion":
-            return slice_policy, None, "LOW_TASK_SLICE_GATE_REQUIRED"
-    elif automation.get("auto_advance", False):
-        return slice_policy, None, "NON_LOW_TASK_AUTO_ADVANCE_FORBIDDEN"
+    if not automation.get("auto_advance", False):
+        return slice_policy, None, "SLICE_AUTO_ADVANCE_REQUIRED"
     return slice_policy, task_policy, None
 
 
@@ -209,14 +204,8 @@ def check(
     effective_tier = "HIGH" if risk_escalation_paths else task_policy["risk_tier"]
     configured_automation = task_automation_policy(slice_policy, task_id)
     automation = {
-        "auto_advance": bool(
-            effective_tier == "LOW" and configured_automation["auto_advance"]
-        ),
-        "human_gate": (
-            "slice-completion"
-            if effective_tier == "LOW" and configured_automation["auto_advance"]
-            else configured_automation["human_gate"]
-        ),
+        "auto_advance": bool(configured_automation["auto_advance"]),
+        "human_gate": configured_automation["human_gate"],
         "review_required": configured_automation["review_required"],
         "verification_mode": configured_automation["verification_mode"],
     }

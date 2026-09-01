@@ -505,30 +505,30 @@ def checkpoint_readiness(
         key=RISK_RANK.__getitem__,
         default=None,
     )
-    low_auto_advance = bool(
+    auto_advance = bool(
         not readiness_blockers
-        and reviewed_effective_tier == "LOW"
         and automation.get("auto_advance") is True
-        and automation.get("human_gate") == "slice-completion"
+        and automation.get("human_gate") == "unplanned-exception"
+        and reviewed_effective_tier == policy_tier
     )
-    ready_for_human = bool(not readiness_blockers and not low_auto_advance)
+    ready_for_human = bool(not readiness_blockers and not auto_advance)
     workflow_stage = (
         "AUTO_ADVANCE_ELIGIBLE"
-        if low_auto_advance
+        if auto_advance
         else "HUMAN_APPROVAL_REQUIRED"
         if ready_for_human
         else "BLOCKED"
     )
     status = (
         "AUTO_ADVANCE_ELIGIBLE"
-        if low_auto_advance
+        if auto_advance
         else "CHECKPOINT_READY — Awaiting explicit Human approval"
         if ready_for_human
         else "CHECKPOINT_NOT_READY"
     )
     reason = (
-        "LOW_RISK_AI_REVIEW_ADVANCE_ALLOWED"
-        if low_auto_advance
+        "PLANNED_TASK_AI_REVIEW_ADVANCE_ALLOWED"
+        if auto_advance
         else "AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED"
         if ready_for_human
         else "CHECKPOINT_EVIDENCE_INVALID"
@@ -539,7 +539,7 @@ def checkpoint_readiness(
     return {
         # LOW auto-advance is a successful eligibility decision, not checkpoint
         # acceptance. MEDIUM/HIGH remain Human-required and therefore non-ok.
-        "ok": low_auto_advance,
+        "ok": auto_advance,
         "workflow_stage": workflow_stage,
         "reason": reason,
         "status": status,
@@ -556,7 +556,7 @@ def checkpoint_readiness(
         "reviewed_digest": reviewed_digest,
         "digest_matches": digest_matches,
         "ready_for_human_approval": ready_for_human,
-        "auto_advance": low_auto_advance,
+        "auto_advance": auto_advance,
         "checkpoint_accepted": False,
         "human_approval": False,
         "integration_authorized": False,

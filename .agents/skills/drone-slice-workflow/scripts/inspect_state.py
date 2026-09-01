@@ -22,10 +22,10 @@ CANONICAL_TASK = re.compile(r"^(S\d{2})-(T\d{2})$")
 POLICY_RELATIVE_PATH = Path(
     ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
 )
-EXPECTED_WORKFLOW_SCHEMA_VERSION = 3
-EXPECTED_WORKFLOW_BASELINE_MARKER = "workflow-simplification-v2"
+EXPECTED_WORKFLOW_SCHEMA_VERSION = 4
+EXPECTED_WORKFLOW_BASELINE_MARKER = "workflow-slice-autopilot-v1"
 RISK_TIERS = {"LOW", "MEDIUM", "HIGH"}
-HUMAN_GATES = {"slice-completion", "key-checkpoint", "task"}
+HUMAN_GATES = {"unplanned-exception"}
 DEFAULT_PROTECTED_REFS = {
     "refs/heads/main",
     "refs/heads/master",
@@ -248,32 +248,40 @@ def fixed_policy_valid(policy: dict[str, Any] | None, tasks_file: str) -> bool:
 def task_automation_policy(
     slice_policy: dict[str, Any] | None, task_id: str
 ) -> dict[str, Any]:
-    """Return task automation settings, defaulting old policies to Human gates."""
-    if not isinstance(slice_policy, dict):
-        return {
-            "auto_advance": False,
-            "human_gate": "task",
-            "review_required": True,
-            "verification_mode": "targeted",
-        }
-    task_policy = slice_policy.get("tasks", {}).get(task_id, {})
-    automation = task_policy.get("automation")
+    """Return the Slice-wide review-gated automation profile for planned Tasks."""
+    automation = (slice_policy or {}).get("execution_policy", {}).get("automation")
     if not isinstance(automation, dict):
-        return {
-            "auto_advance": False,
-            "human_gate": "task",
-            "review_required": True,
-            "verification_mode": "targeted",
-        }
-    human_gate = automation.get("human_gate", "task")
-    if human_gate not in HUMAN_GATES:
-        human_gate = "task"
+        return {"auto_advance": False, "human_gate": "unplanned-exception", "review_required": True, "verification_mode": "targeted"}
     return {
         "auto_advance": bool(automation.get("auto_advance", False)),
-        "human_gate": human_gate,
+        "human_gate": automation.get("human_gate") if automation.get("human_gate") in HUMAN_GATES else "unplanned-exception",
         "review_required": bool(automation.get("review_required", True)),
         "verification_mode": automation.get("verification_mode", "targeted"),
     }
+
+
+def dependency_cycle_ids(tasks: list[dict[str, Any]]) -> list[str]:
+    """Return cyclic Task IDs; malformed graphs fail closed before scheduling."""
+    graph = {task["id"]: task["dependencies"] for task in tasks}
+    visiting: set[str] = set()
+    visited: set[str] = set()
+    cyclic: set[str] = set()
+
+    def visit(task_id: str) -> None:
+        if task_id in visiting:
+            cyclic.update(visiting)
+            return
+        if task_id in visited or task_id not in graph:
+            return
+        visiting.add(task_id)
+        for dependency in graph[task_id]:
+            visit(dependency)
+        visiting.remove(task_id)
+        visited.add(task_id)
+
+    for task_id in graph:
+        visit(task_id)
+    return sorted(cyclic)
 
 
 def implementation_gate(
@@ -494,8 +502,9 @@ def inspect(
         for task in tasks
         if task["status"] == "NOT_STARTED" and task["ordered_dependency_satisfied"]
     ]
-    ordered_candidate = (
-        ordered_candidates[0]["canonical_id"] if len(ordered_candidates) == 1 else None
+    # Table order is a deterministic scheduler tie-breaker only; it never changes DAG semantics.
+    selected_task = (
+        ordered_candidates[0]["canonical_id"] if not active_tasks and ordered_candidates else None
     )
 
     dirty_paths = porcelain_paths(repo)
@@ -516,13 +525,9 @@ def inspect(
     executable_candidates: list[str] = []
     for task in tasks:
         blockers: list[str] = []
-        if task["canonical_id"] == ordered_candidate:
+        if task["canonical_id"] == selected_task:
             blockers.extend(gate["blocking_reasons"])
-            slice_auto_authorized = bool(
-                authorized_slice
-                and task["automation_policy"]["auto_advance"]
-                and task["automation_policy"]["human_gate"] == "slice-completion"
-            )
+            slice_auto_authorized = bool(authorized_slice and task["automation_policy"]["auto_advance"])
             if not task["implementation_authorized"] and not slice_auto_authorized:
                 blockers.append("CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED")
             if (
@@ -530,7 +535,7 @@ def inspect(
                 and not slice_auto_authorized
                 and not task["implementation_authorized"]
             ):
-                blockers.append("SLICE_AUTHORIZATION_REQUIRES_LOW_RISK_TASK")
+                blockers.append("SLICE_AUTHORIZATION_REQUIRED")
             if dirty_paths:
                 blockers.append("CURRENT_WORKTREE_DIRTY")
             if active_tasks:
@@ -541,7 +546,7 @@ def inspect(
             task["implementation_authorized_via"] = (
                 "task"
                 if task["implementation_authorized"]
-                else "slice-low"
+                else "slice"
                 if slice_auto_authorized
                 else None
             )
@@ -564,8 +569,9 @@ def inspect(
         blocking_reasons.append("ACTIVE_TASK_DEPENDENCY_UNSATISFIED")
     if any(task["missing_dependencies"] for task in tasks):
         blocking_reasons.append("UNKNOWN_DEPENDENCY")
-    if not active_tasks and len(ordered_candidates) > 1:
-        blocking_reasons.append("AMBIGUOUS_ORDERED_CANDIDATE")
+    cyclic_task_ids = dependency_cycle_ids(tasks)
+    if cyclic_task_ids:
+        blocking_reasons.append("DEPENDENCY_CYCLE")
     if dirty_paths:
         blocking_reasons.append("CURRENT_WORKTREE_DIRTY")
     if same_slice_active_elsewhere:
@@ -586,7 +592,9 @@ def inspect(
         "tasks": tasks,
         "active_tasks": active_tasks,
         "active_task_refs": active_task_refs,
-        "ordered_candidate": ordered_candidate,
+        "ready_tasks": [item["canonical_id"] for item in ordered_candidates],
+        "selected_task": selected_task,
+        "ordered_candidate": selected_task,
         "ordered_candidates": [item["canonical_id"] for item in ordered_candidates],
         "executable_task": (
             executable_candidates[0] if len(executable_candidates) == 1 else None

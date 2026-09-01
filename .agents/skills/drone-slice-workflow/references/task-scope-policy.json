@@ -1,6 +1,7 @@
 {
-  "schema_version": 3,
-  "workflow_baseline_marker": "workflow-simplification-v2",
+  "schema_version": 4,
+  "workflow_baseline_marker": "workflow-slice-autopilot-v1",
+  "workflow_mode": "slice-autopilot-review-gated",
   "protected_refs": [],
   "risk_tiers": [
     "LOW",
@@ -15,10 +16,11 @@
         "review": "independent-per-task",
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
-        "human_gates": {
-          "LOW": "slice-completion",
-          "MEDIUM": "key-checkpoint",
-          "HIGH": "task"
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
         }
       },
       "core_artifacts": [
@@ -125,10 +127,11 @@
         "review": "independent-per-task",
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
-        "human_gates": {
-          "LOW": "slice-completion",
-          "MEDIUM": "key-checkpoint",
-          "HIGH": "task"
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
         }
       },
       "implementation_gate": {
@@ -267,10 +270,11 @@
         "review": "independent-per-task",
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
-        "human_gates": {
-          "LOW": "slice-completion",
-          "MEDIUM": "key-checkpoint",
-          "HIGH": "task"
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
         }
       },
       "implementation_gate": {
@@ -411,10 +415,11 @@
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
         "delivery": "feature-delivery-proposed-non-operational",
-        "human_gates": {
-          "LOW": "slice-completion",
-          "MEDIUM": "key-checkpoint",
-          "HIGH": "task"
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
         }
       },
       "implementation_gate": {
@@ -555,10 +560,11 @@
         "targeted_verification_per_task": true,
         "full_suite": "slice-completion",
         "delivery": "feature-delivery-proposed-non-operational",
-        "human_gates": {
-          "LOW": "slice-completion",
-          "MEDIUM": "key-checkpoint",
-          "HIGH": "task"
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
         }
       },
       "implementation_gate": {

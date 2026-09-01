@@ -24,7 +24,7 @@ Review behavior before source shape. Read the Task, plan rows, policy, immutable
 - No later Task/Slice behavior, generated residue, secret, raw header, or sensitive trace data appears.
 - The Execution Record contains real commands, failures, corrections, exit codes, evidence, and limitations.
 - AI verdict, Human approval, WIP snapshot, checkpoint handoff, integration/merge, and push remain distinct.
-- Risk routing is respected: LOW may become `AUTO_ADVANCE_ELIGIBLE` only after targeted gates and independent review; MEDIUM requires a key checkpoint; HIGH requires per-Task Human approval. No route authorizes checkpoint acceptance, integration, merge, or push.
+- Risk routing is respected: planned LOW/MEDIUM/HIGH Tasks may become `AUTO_ADVANCE_ELIGIBLE` only after policy-selected verification and independent review under a valid Slice authorization. Unplanned scope, safety, Contract, Architecture, evidence, or budget escalation requires Human intervention. No route authorizes checkpoint acceptance, integration, merge, or push.
 - If feature-branch delivery is claimed, first verify that the repository contains an implemented and approved operational protocol. Current `feature-delivery` planning text is proposed/non-operational and cannot be treated as enforcement. If a future operational protocol exists, verify that it is not a protected-branch push, the PR branch/range matches the reviewed Slice, required CI checks are present and passing, auto-merge is repository-managed, and no unplanned escalation condition is present.
 
 ## Verdicts
