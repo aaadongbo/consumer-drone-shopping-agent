@@ -249,6 +249,10 @@ class TemporaryRepository:
     ) -> tuple[str, str]:
         base = git(self.root, "rev-parse", "HEAD")
         changes = {
+            ".agents/skills/drone-slice-workflow/SKILL.md": ("# workflow policy\n"),
+            ".agents/skills/drone-slice-workflow/references/review-checklist.md": (
+                "# workflow review\n"
+            ),
             ".agents/skills/drone-slice-workflow/references/task-scope-policy.json": (
                 (
                     self.root / ".agents/skills/drone-slice-workflow/references/"
@@ -261,6 +265,9 @@ class TemporaryRepository:
             ),
             ".agents/skills/drone-slice-workflow/scripts/"
             "test_workflow_scripts.py": "def test_policy():\n    pass\n",
+            ".agents/skills/drone-slice-workflow/scripts/check_scope.py": (
+                "def check():\n    pass\n"
+            ),
             ".agents/skills/drone-slice-workflow/scripts/"
             "verify_commit_readiness.py": "def evidence():\n    pass\n",
         }
@@ -945,9 +952,7 @@ class WorkflowScriptTests(unittest.TestCase):
     ) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")
         self.addCleanup(holder.cleanup)
-        base, snapshot = repo.workflow_policy_snapshot(
-            extra_path=".agents/skills/drone-slice-workflow/SKILL.md"
-        )
+        base, snapshot = repo.workflow_policy_snapshot(extra_path="AGENTS.md")
         git(repo.root, "switch", "--detach", snapshot)
 
         evidence = immutable_evidence("WORKFLOW-S03-POLICY", base, snapshot, repo.root)

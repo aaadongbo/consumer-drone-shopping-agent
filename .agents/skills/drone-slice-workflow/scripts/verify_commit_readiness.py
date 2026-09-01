@@ -30,7 +30,10 @@ from verify_task import verify as verify_task
 WORKFLOW_POLICY_REPAIR_IDENTITY = "WORKFLOW-S03-POLICY"
 WORKFLOW_POLICY_REPAIR_TASKS_FILE = "changes/slice-03-target-resolution/tasks.md"
 WORKFLOW_POLICY_REPAIR_PATHS = {
+    ".agents/skills/drone-slice-workflow/SKILL.md",
+    ".agents/skills/drone-slice-workflow/references/review-checklist.md",
     ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+    ".agents/skills/drone-slice-workflow/scripts/check_scope.py",
     ".agents/skills/drone-slice-workflow/scripts/inspect_state.py",
     ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
     ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
