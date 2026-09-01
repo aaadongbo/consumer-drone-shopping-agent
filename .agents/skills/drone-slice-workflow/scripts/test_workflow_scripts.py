@@ -146,11 +146,20 @@ class TemporaryRepository:
         git(root, "config", "user.name", "Workflow Test")
         git(root, "config", "user.email", "workflow-test@example.invalid")
         if slice_name == "slice-01-product-facts":
-            self.titles, self.dependencies = dict(SLICE_1_TITLES), dict(SLICE_1_DEPENDENCIES)
+            self.titles, self.dependencies = (
+                dict(SLICE_1_TITLES),
+                dict(SLICE_1_DEPENDENCIES),
+            )
         elif slice_name == "slice-03-target-resolution":
-            self.titles, self.dependencies = dict(SLICE_3_TITLES), dict(SLICE_3_DEPENDENCIES)
+            self.titles, self.dependencies = (
+                dict(SLICE_3_TITLES),
+                dict(SLICE_3_DEPENDENCIES),
+            )
         else:
-            self.titles, self.dependencies = dict(SLICE_2_TITLES), dict(SLICE_2_DEPENDENCIES)
+            self.titles, self.dependencies = (
+                dict(SLICE_2_TITLES),
+                dict(SLICE_2_DEPENDENCIES),
+            )
         self.write_tasks(status_map(list(self.titles)))
         policy_target = (
             root
@@ -791,9 +800,7 @@ class WorkflowScriptTests(unittest.TestCase):
         state = inspect(repo.root, implementation_authorized_slice="S02")
         self.assertEqual(state["ordered_candidate"], "S02-T01")
         self.assertEqual(state["executable_task"], "S02-T01")
-        self.assertEqual(
-            state["tasks"][0]["implementation_authorized_via"], "slice"
-        )
+        self.assertEqual(state["tasks"][0]["implementation_authorized_via"], "slice")
 
         base, snapshot = repo.snapshot(task_id="T01")
         git(repo.root, "switch", "--detach", snapshot)
@@ -1148,10 +1155,8 @@ class WorkflowScriptTests(unittest.TestCase):
                 reviewed_risk_tier="HIGH",
             )
         self.assertEqual(high["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
-        self.assertEqual(
-            high["status"],
-            "CHECKPOINT_READY — Awaiting explicit Human approval",
-        )
+        self.assertEqual(high["status"], "HUMAN_DECISION_REQUIRED")
+        self.assertIn("UNPLANNED_ESCALATION_OR_EXCEPTION", high["blocking_reasons"])
         self.assertFalse(high["checkpoint_accepted"])
 
     def test_baseline_requires_fixed_integrated_or_exact_human_oid(self) -> None:
@@ -1398,7 +1403,9 @@ class WorkflowScriptTests(unittest.TestCase):
     def test_scheduler_serializes_multiple_ready_s03_tasks(self) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")
         self.addCleanup(holder.cleanup)
-        _, snapshot = repo.snapshot(task_id="T01", changed_path="backend/conversation/change.py")
+        _, snapshot = repo.snapshot(
+            task_id="T01", changed_path="backend/conversation/change.py"
+        )
         git(repo.root, "switch", "--detach", snapshot)
 
         unauthorised = inspect(repo.root)
@@ -1409,20 +1416,30 @@ class WorkflowScriptTests(unittest.TestCase):
         authorised = inspect(repo.root, implementation_authorized_slice="S03")
         self.assertEqual(authorised["selected_task"], "S03-T02")
         self.assertEqual(authorised["executable_task"], "S03-T02")
-        self.assertFalse(next(item for item in authorised["tasks"] if item["id"] == "T03")["executable"])
+        self.assertFalse(
+            next(item for item in authorised["tasks"] if item["id"] == "T03")[
+                "executable"
+            ]
+        )
 
-    def test_scheduler_advances_by_table_order_without_changing_dependencies(self) -> None:
+    def test_scheduler_advances_by_table_order_without_changing_dependencies(
+        self,
+    ) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")
         self.addCleanup(holder.cleanup)
         repo.snapshot(task_id="T01", changed_path="backend/conversation/t01.py")
-        _, snapshot = repo.snapshot(task_id="T02", changed_path="backend/conversation/t02.py")
+        _, snapshot = repo.snapshot(
+            task_id="T02", changed_path="backend/conversation/t02.py"
+        )
         git(repo.root, "switch", "--detach", snapshot)
         state = inspect(repo.root, implementation_authorized_slice="S03")
         self.assertEqual(state["selected_task"], "S03-T03")
         self.assertEqual(state["executable_task"], "S03-T03")
         self.assertNotIn("S03-T04", state["ready_tasks"])
 
-    def test_scheduler_rejects_cycles_unknown_dependencies_and_duplicate_ids(self) -> None:
+    def test_scheduler_rejects_cycles_unknown_dependencies_and_duplicate_ids(
+        self,
+    ) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")
         self.addCleanup(holder.cleanup)
         repo.dependencies["T01"] = "T02"
@@ -1446,6 +1463,27 @@ class WorkflowScriptTests(unittest.TestCase):
         )
         with self.assertRaises(Exception):
             inspect(repo.root)
+
+    def test_task_local_automation_authority_fails_closed(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        policy_path = (
+            repo.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        policy["slices"][repo.tasks_path.relative_to(repo.root).as_posix()]["tasks"][
+            "T01"
+        ]["automation"] = {
+            "auto_advance": False,
+            "human_gate": "task",
+            "review_required": True,
+            "verification_mode": "targeted",
+        }
+        policy_path.write_text(json.dumps(policy), encoding="utf-8")
+        result = check("S02-T01", repo.root)
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"], "CONFLICTING_TASK_AUTOMATION_AUTHORITY")
 
 
 if __name__ == "__main__":

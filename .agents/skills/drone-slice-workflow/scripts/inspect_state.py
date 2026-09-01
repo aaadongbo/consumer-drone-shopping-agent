@@ -251,10 +251,17 @@ def task_automation_policy(
     """Return the Slice-wide review-gated automation profile for planned Tasks."""
     automation = (slice_policy or {}).get("execution_policy", {}).get("automation")
     if not isinstance(automation, dict):
-        return {"auto_advance": False, "human_gate": "unplanned-exception", "review_required": True, "verification_mode": "targeted"}
+        return {
+            "auto_advance": False,
+            "human_gate": "unplanned-exception",
+            "review_required": True,
+            "verification_mode": "targeted",
+        }
     return {
         "auto_advance": bool(automation.get("auto_advance", False)),
-        "human_gate": automation.get("human_gate") if automation.get("human_gate") in HUMAN_GATES else "unplanned-exception",
+        "human_gate": automation.get("human_gate")
+        if automation.get("human_gate") in HUMAN_GATES
+        else "unplanned-exception",
         "review_required": bool(automation.get("review_required", True)),
         "verification_mode": automation.get("verification_mode", "targeted"),
     }
@@ -502,9 +509,12 @@ def inspect(
         for task in tasks
         if task["status"] == "NOT_STARTED" and task["ordered_dependency_satisfied"]
     ]
-    # Table order is a deterministic scheduler tie-breaker only; it never changes DAG semantics.
+    # Table order is a deterministic scheduler tie-breaker only; it does not change
+    # DAG semantics.
     selected_task = (
-        ordered_candidates[0]["canonical_id"] if not active_tasks and ordered_candidates else None
+        ordered_candidates[0]["canonical_id"]
+        if not active_tasks and ordered_candidates
+        else None
     )
 
     dirty_paths = porcelain_paths(repo)
@@ -527,7 +537,9 @@ def inspect(
         blockers: list[str] = []
         if task["canonical_id"] == selected_task:
             blockers.extend(gate["blocking_reasons"])
-            slice_auto_authorized = bool(authorized_slice and task["automation_policy"]["auto_advance"])
+            slice_auto_authorized = bool(
+                authorized_slice and task["automation_policy"]["auto_advance"]
+            )
             if not task["implementation_authorized"] and not slice_auto_authorized:
                 blockers.append("CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED")
             if (
@@ -594,7 +606,9 @@ def inspect(
             task["implementation_authorized_via"] = None
             if task["status"] == "NOT_STARTED":
                 task["execution_blockers"] = list(
-                    dict.fromkeys(task["execution_blockers"] + ["SCHEDULER_FAIL_CLOSED"])
+                    dict.fromkeys(
+                        task["execution_blockers"] + ["SCHEDULER_FAIL_CLOSED"]
+                    )
                 )
 
     return {

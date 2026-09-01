@@ -510,6 +510,7 @@ def checkpoint_readiness(
         and automation.get("auto_advance") is True
         and automation.get("human_gate") == "unplanned-exception"
         and reviewed_effective_tier == policy_tier
+        and not risk_policy.get("deterministic_escalation_paths")
     )
     ready_for_human = bool(not readiness_blockers and not auto_advance)
     workflow_stage = (
