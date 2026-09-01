@@ -3,14 +3,18 @@
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from backend.common import ObjectScope, TurnRequest
 from backend.conversation import (
     ContextAction,
+    ConversationState,
     InMemoryConversationStateRepository,
     PendingSwitchEffect,
     ResolutionSource,
+    StateDiff,
     StateTransitionRequest,
+    StateTransitionResult,
     StateTransitionStatus,
     TargetResolution,
     TurnTarget,
@@ -60,6 +64,31 @@ def test_state_reducer_wire_round_trip_is_internal_and_versioned() -> None:
     assert result.model_validate_json(result.to_wire_json()) == result
     assert result.to_wire()["schema_version"] == "1.0"
     assert result.state.to_wire()["schema_version"] == "1.0"
+
+
+def test_state_transition_result_rejects_invalid_wire_invariants() -> None:
+    with pytest.raises(ValidationError):
+        StateTransitionResult.model_validate(
+            {
+                "status": "APPLIED",
+                "state": {"conversation_id": "conversation-s03", "revision": 0},
+                "diff": {"revision_before": 0, "revision_after": 0, "entries": []},
+                "reason": "invalid applied result",
+            }
+        )
+
+    valid_conflict = StateTransitionResult(
+        status=StateTransitionStatus.REVISION_CONFLICT,
+        state=ConversationState(conversation_id="conversation-s03", revision=1),
+        diff=StateDiff(revision_before=1, revision_after=1),
+        conflict_revision=1,
+        reason="expected_revision is stale",
+    )
+
+    assert (
+        StateTransitionResult.model_validate_json(valid_conflict.to_wire_json())
+        == valid_conflict
+    )
 
 
 def test_state_reducer_does_not_expand_public_turn_request_contract() -> None:

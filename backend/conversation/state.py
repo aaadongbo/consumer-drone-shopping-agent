@@ -42,6 +42,7 @@ class StateTransitionStatus(StrEnum):
     REPLAYED = "REPLAYED"
     REVISION_CONFLICT = "REVISION_CONFLICT"
     IDEMPOTENCY_CONFLICT = "IDEMPOTENCY_CONFLICT"
+    PENDING_SWITCH_CONFLICT = "PENDING_SWITCH_CONFLICT"
 
 
 class StateChangeType(StrEnum):
@@ -130,6 +131,50 @@ class StateTransitionResult(WireModel):
     replay_of_message_id: str | None = None
     reason: str
 
+    @model_validator(mode="after")
+    def validate_result_invariants(self) -> StateTransitionResult:
+        state_revision = self.state.revision
+        if self.diff.revision_after != state_revision:
+            raise ValueError("state revision must match diff revision_after")
+        if self.status is StateTransitionStatus.APPLIED:
+            if not self.diff.entries:
+                raise ValueError("APPLIED requires a non-empty state diff")
+            if self.diff.revision_after != self.diff.revision_before + 1:
+                raise ValueError("APPLIED must advance revision exactly once")
+        elif self.status is StateTransitionStatus.REPLAYED:
+            if self.replay_of_message_id is None:
+                raise ValueError("REPLAYED requires replay_of_message_id")
+        else:
+            if self.replay_of_message_id is not None:
+                raise ValueError("only REPLAYED may use replay_of_message_id")
+            if self.diff.entries:
+                raise ValueError(
+                    f"{self.status.value} must not carry state diff entries"
+                )
+            if self.diff.revision_before != self.diff.revision_after:
+                raise ValueError(f"{self.status.value} must not change revision")
+        if (
+            self.status
+            in {
+                StateTransitionStatus.REVISION_CONFLICT,
+                StateTransitionStatus.IDEMPOTENCY_CONFLICT,
+                StateTransitionStatus.PENDING_SWITCH_CONFLICT,
+            }
+            and self.conflict_revision != state_revision
+        ):
+            raise ValueError("conflict results must expose the current state revision")
+        if (
+            self.status
+            not in {
+                StateTransitionStatus.REVISION_CONFLICT,
+                StateTransitionStatus.IDEMPOTENCY_CONFLICT,
+                StateTransitionStatus.PENDING_SWITCH_CONFLICT,
+            }
+            and self.conflict_revision is not None
+        ):
+            raise ValueError("only conflict results may carry conflict_revision")
+        return self
+
     @property
     def applied(self) -> bool:
         return self.status is StateTransitionStatus.APPLIED
@@ -171,10 +216,27 @@ class InMemoryConversationStateRepository:
                 )
             stored = existing.result
             return StateTransitionResult(
-                status=StateTransitionStatus.REPLAYED,
+                status=(
+                    StateTransitionStatus.REPLAYED
+                    if stored.status
+                    in {
+                        StateTransitionStatus.APPLIED,
+                        StateTransitionStatus.UNCHANGED,
+                    }
+                    else stored.status
+                ),
                 state=stored.state,
                 diff=stored.diff,
-                replay_of_message_id=request.message_id,
+                replay_of_message_id=(
+                    request.message_id
+                    if stored.status
+                    in {
+                        StateTransitionStatus.APPLIED,
+                        StateTransitionStatus.UNCHANGED,
+                    }
+                    else None
+                ),
+                conflict_revision=stored.conflict_revision,
                 reason=stored.reason,
             )
 
@@ -183,6 +245,8 @@ class InMemoryConversationStateRepository:
         if result.status in {
             StateTransitionStatus.APPLIED,
             StateTransitionStatus.UNCHANGED,
+            StateTransitionStatus.REVISION_CONFLICT,
+            StateTransitionStatus.PENDING_SWITCH_CONFLICT,
         }:
             self.save(result.state)
             self._message_records[key] = _IdempotencyRecord(
@@ -278,6 +342,21 @@ def _apply_confirmed_switch(
     state: ConversationState, request: StateTransitionRequest
 ) -> StateTransitionResult:
     target = _single_object_scope(request.resolution)
+    if state.pending_switch is not None:
+        if target != state.pending_switch.target:
+            return _unchanged_result(
+                status=StateTransitionStatus.PENDING_SWITCH_CONFLICT,
+                state=state,
+                reason="confirmed target does not match pending target switch",
+                conflict_revision=state.revision,
+            )
+        if request.expected_revision != state.pending_switch.expected_revision:
+            return _unchanged_result(
+                status=StateTransitionStatus.PENDING_SWITCH_CONFLICT,
+                state=state,
+                reason="pending target switch expected_revision does not match",
+                conflict_revision=state.revision,
+            )
     next_revision = state.revision + 1
     confirmed = ConfirmedTargetContext(
         target=target,

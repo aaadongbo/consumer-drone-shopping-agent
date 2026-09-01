@@ -6,11 +6,15 @@ from pydantic import ValidationError
 from backend.common import ObjectScope
 from backend.conversation import (
     ContextAction,
+    ConversationState,
     InMemoryConversationStateRepository,
     PendingSwitchEffect,
+    PendingTargetSwitch,
     ResolutionSource,
     StateChangeType,
+    StateDiff,
     StateTransitionRequest,
+    StateTransitionResult,
     StateTransitionStatus,
     TargetResolution,
     TurnTarget,
@@ -182,6 +186,58 @@ def test_confirmed_switch_updates_context_and_clears_pending_once() -> None:
     ]
 
 
+def test_confirmed_switch_must_match_pending_target() -> None:
+    repository = InMemoryConversationStateRepository()
+    repository.apply(
+        request("m-await", 0, resolution("drone-air", ContextAction.AWAIT_CONFIRMATION))
+    )
+
+    result = repository.apply(
+        request(
+            "m-confirm-wrong-target",
+            1,
+            resolution("drone-mini", ContextAction.SWITCH_CONFIRMED),
+        )
+    )
+
+    assert result.status is StateTransitionStatus.PENDING_SWITCH_CONFLICT
+    assert result.state.revision == 1
+    assert result.state.confirmed_context is None
+    assert result.state.pending_switch is not None
+    assert result.state.pending_switch.target == scope("drone-air")
+
+
+def test_confirmed_switch_must_match_pending_expected_revision() -> None:
+    repository = InMemoryConversationStateRepository()
+    repository.save(
+        ConversationState(
+            conversation_id="conversation-s03",
+            revision=2,
+            pending_switch=PendingTargetSwitch(
+                target=scope("drone-air"),
+                created_by_message_id="m-await",
+                created_at_revision=1,
+                expected_revision=1,
+                trigger="USER_SWITCH_REQUEST",
+            ),
+        )
+    )
+
+    result = repository.apply(
+        request(
+            "m-confirm-stale-pending",
+            2,
+            resolution("drone-air", ContextAction.SWITCH_CONFIRMED),
+        )
+    )
+
+    assert result.status is StateTransitionStatus.PENDING_SWITCH_CONFLICT
+    assert result.state.revision == 2
+    assert result.state.confirmed_context is None
+    assert result.state.pending_switch is not None
+    assert result.state.pending_switch.expected_revision == 1
+
+
 def test_duplicate_message_with_same_payload_replays_first_result() -> None:
     repository = InMemoryConversationStateRepository()
     first_request = request(
@@ -235,6 +291,70 @@ def test_stale_expected_revision_returns_recoverable_conflict_without_overwrite(
     assert result.state.revision == 1
     assert result.state.confirmed_context is not None
     assert result.state.confirmed_context.target == scope("drone-mini")
+
+
+def test_stale_revision_result_is_idempotency_recorded() -> None:
+    repository = InMemoryConversationStateRepository()
+    repository.apply(
+        request(
+            "m-confirm",
+            0,
+            resolution("drone-mini", ContextAction.SWITCH_CONFIRMED),
+        )
+    )
+    stale_request = request(
+        "m-stale-recorded", 0, resolution("drone-air", ContextAction.SWITCH_CONFIRMED)
+    )
+
+    first = repository.apply(stale_request)
+    retry = repository.apply(stale_request)
+    conflict = repository.apply(
+        request(
+            "m-stale-recorded",
+            1,
+            resolution("drone-air", ContextAction.SWITCH_CONFIRMED),
+        )
+    )
+
+    assert first.status is StateTransitionStatus.REVISION_CONFLICT
+    assert retry.status is StateTransitionStatus.REVISION_CONFLICT
+    assert retry == first
+    assert conflict.status is StateTransitionStatus.IDEMPOTENCY_CONFLICT
+    assert repository.get("conversation-s03").confirmed_context is not None
+    assert repository.get("conversation-s03").confirmed_context.target == scope(
+        "drone-mini"
+    )
+
+
+def test_state_transition_result_rejects_applied_with_empty_diff() -> None:
+    with pytest.raises(ValidationError):
+        StateTransitionResult(
+            status=StateTransitionStatus.APPLIED,
+            state=ConversationState(conversation_id="conversation-s03", revision=0),
+            diff=StateDiff(revision_before=0, revision_after=0),
+            reason="invalid applied result",
+        )
+
+
+def test_state_transition_result_rejects_conflict_with_state_diff() -> None:
+    with pytest.raises(ValidationError):
+        StateTransitionResult(
+            status=StateTransitionStatus.REVISION_CONFLICT,
+            state=ConversationState(conversation_id="conversation-s03", revision=1),
+            diff=StateDiff(
+                revision_before=0,
+                revision_after=1,
+                entries=(
+                    {
+                        "change_type": "CONFIRMED_CONTEXT_SET",
+                        "after": scope("drone-air"),
+                        "message_id": "m-invalid",
+                    },
+                ),
+            ),
+            conflict_revision=1,
+            reason="invalid conflict result",
+        )
 
 
 def test_models_forbid_dynamic_commerce_facts() -> None:
