@@ -1398,7 +1398,7 @@ class WorkflowScriptTests(unittest.TestCase):
                 },
             )
             for task_policy in slice_policy["tasks"].values():
-                self.assertEqual(task_policy["checkpoint_policy"], "human-decision")
+                self.assertNotIn("checkpoint_policy", task_policy)
 
     def test_scheduler_serializes_multiple_ready_s03_tasks(self) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")

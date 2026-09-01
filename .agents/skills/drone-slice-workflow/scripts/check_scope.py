@@ -59,8 +59,8 @@ def resolve_task_policy(
         return slice_policy, None, "INVALID_DEPENDENCY_POLICY"
     if task_policy.get("risk_tier") not in RISK_TIERS:
         return slice_policy, None, "INVALID_RISK_TIER"
-    if task_policy.get("checkpoint_policy") != "human-decision":
-        return slice_policy, None, "INVALID_CHECKPOINT_POLICY"
+    if "checkpoint_policy" in task_policy:
+        return slice_policy, None, "CONFLICTING_TASK_CHECKPOINT_AUTHORITY"
     if "automation" in task_policy:
         return slice_policy, None, "CONFLICTING_TASK_AUTOMATION_AUTHORITY"
     automation = slice_policy.get("execution_policy", {}).get("automation", {})
@@ -201,7 +201,8 @@ def check(
     risk_escalation_paths = sorted(
         path
         for path in paths["all"]
-        if path_allowed(path, list(slice_policy.get("risk_escalation_paths", [])))
+        if task_policy["risk_tier"] != "HIGH"
+        and path_allowed(path, list(slice_policy.get("risk_escalation_paths", [])))
     )
     effective_tier = "HIGH" if risk_escalation_paths else task_policy["risk_tier"]
     configured_automation = task_automation_policy(slice_policy, task_id)
@@ -273,7 +274,7 @@ def check(
         "risk_policy": {
             "minimum_tier": task_policy["risk_tier"],
             "effective_tier": effective_tier,
-            "checkpoint_policy": task_policy["checkpoint_policy"],
+            "checkpoint_policy": "policy-evaluation",
             "automation": automation,
             "deterministic_escalation_paths": risk_escalation_paths,
             "semantic_review_required": True,
