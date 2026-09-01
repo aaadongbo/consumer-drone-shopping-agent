@@ -13,7 +13,7 @@
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
 | T01 | Target Resolution contract 与 golden matrix baseline | DONE | Human-approved Planning Baseline + S03 workflow policy |
-| T02 | 最小 confirmed context、revision 与 idempotent reducer | NOT_STARTED | T01 |
+| T02 | 最小 confirmed context、revision 与 idempotent reducer | DONE | T01 |
 | T03 | store-scoped 显式 Product / Variant reference resolution | NOT_STARTED | T01 |
 | T04 | Turn Target precedence、临时问答与确认切换 | NOT_STARTED | T02, T03 |
 | T05 | 单对象 Target Resolution 接入现有 Product Fact flow 的 Walking Skeleton | NOT_STARTED | T04 |
@@ -131,16 +131,26 @@
 - **Reconciliation verification**：`git merge-base --is-ancestor 1506f1b473b2f7202508496d05cd40254eccf766 cf7d28ce0d84ac232fbcddd38b417d432757c5f7` exit `0`；`python .agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py S03-T01 --evidence --base-head 1506f1b473b2f7202508496d05cd40254eccf766 --snapshot-head cf7d28ce0d84ac232fbcddd38b417d432757c5f7 --mode task-review --repo /private/tmp/consumer-drone-s03-t01` exit `0`，重算 digest 与上述值一致，范围、路径和 scope 均通过。
 - **Result**：`DONE — AI_REVIEW_PASS`。未 integration、未 push。
 
+### T02 — 最小 confirmed context、revision 与 idempotent reducer
+
+- **Start baseline**：`092d784f261ec1f3edd75c937bd4559ca952f75d` on `codex/s03-t02-impl`；开始时当前 worktree clean，pre-existing diff 为空。
+- **Authority**：当前 Human 明确授权仅执行 `S03-T02`；`inspect_state.py --authorize-task S03-T02` exit `0`，`S03-T02` 为唯一 executable Task；`S03-T03` 虽 ready 但未授权，保持 `NOT_STARTED`。
+- **Implementation**：新增内部 `ConversationState` reducer、`ConfirmedTargetContext`、`PendingTargetSwitch`、revision guard、message idempotency record、state diff 与可替换 `InMemoryConversationStateRepository`；复用 `TargetResolution` / `ContextAction` / `ObjectScope`。`KEEP` 不改状态；`AWAIT_CONFIRMATION` 对 pending switch 创建、替换、取消与过期产生恰好一次 revision；`SWITCH_CONFIRMED` 更新 confirmed context 并清除 pending switch，恰好一次 revision；duplicate message replay / payload conflict 与 stale revision fail-closed 均有测试。未保存价格、库存、可售等动态事实。
+- **Changed paths**：`backend/conversation/state.py`、`backend/conversation/__init__.py`、`tests/unit/test_s03_t02_conversation_state.py`、`tests/contract/test_s03_t02_state_reducer_contract.py`、本文件。
+- **Actual verification**：`uv run --frozen pytest tests/unit/test_s03_t02_conversation_state.py tests/contract/test_s03_t02_state_reducer_contract.py tests/contract/test_s03_t01_target_resolution_contract.py -q` exit `0`，`28 passed`；`uv run --frozen pytest -m "unit or contract" -q` exit `0`，`262 passed, 57 deselected`；`uv run --frozen ruff check backend/conversation/state.py backend/conversation/__init__.py tests/unit/test_s03_t02_conversation_state.py tests/contract/test_s03_t02_state_reducer_contract.py` exit `0`；`uv run --frozen ruff format --check backend/conversation/state.py backend/conversation/__init__.py tests/unit/test_s03_t02_conversation_state.py tests/contract/test_s03_t02_state_reducer_contract.py` exit `0`；`uv run --frozen python -c "from backend.conversation import ConversationState, InMemoryConversationStateRepository, StateTransitionRequest; from backend.conversation.state import StateDiff; print(ConversationState(conversation_id='c').to_wire_json()); print(StateDiff(revision_before=0, revision_after=0).to_wire_json())"` exit `0`；sandboxed `uv lock --check` exit `2` due to `/Users/russeell/.cache/uv` permission, escalated rerun `uv lock --check` exit `0`；`git diff --check` exit `0`; `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S03-T02` exit `0`。
+- **Scope / limits**：未修改 `docs/`、workflow policy、`backend/common/contracts.py`、Shopify/catalog/application/API/agent/evidence 代码、dependency files 或 Slice 4+ behavior；未接入 MongoDB/Redis/持久化、外部服务、模型、RAG、完整 ConstraintPatch lifecycle、Target Resolver/T03、precedence/T04、Product Fact walking skeleton/T05、handoff/T06 或 Widget。
+- **Result**：`DONE` pending immutable snapshot and independent AI Review. 未 integration、未 push。
+
 ## 5. Planning Approval Record
 
 - Slice 1 Completion Evidence：accepted at `e1ca844554e3da0fd8d061dff55e149293a1dde3`。
 - Slice 2 Tasks：T01～T07 在当前 `main` HEAD `a8bf4f4369e8b349133837f334da9ffd0b176cfb` 均为 `DONE`。
 - Slice 3 Planning Reconciliation：approved and integrated at `6de33626036925ebec7d4e0ec4838e16a3738206`；Slice 已进入 Implementation。
 - Slice 3 workflow Task policy：integrated at `794c10739d8e795eef60d581e8c93425196dfe73`。
-- Slice 3 Implementation：S03-T01 is `DONE — AI_REVIEW_PASS`，snapshot 为 `cf7d28ce0d84ac232fbcddd38b417d432757c5f7`，完整 review digest 为 `98b885a1cdc4b706928f43655e88858d71affae86a4dd34389248117d0ddaf93`；T02～T07 remain `NOT_STARTED`。
+- Slice 3 Implementation：S03-T01 is `DONE — AI_REVIEW_PASS`，snapshot 为 `cf7d28ce0d84ac232fbcddd38b417d432757c5f7`，完整 review digest 为 `98b885a1cdc4b706928f43655e88858d71affae86a4dd34389248117d0ddaf93`；S03-T02 is `DONE` pending immutable snapshot and independent AI Review；T03～T07 remain `NOT_STARTED`。
 - T02 与 T03 是当前依赖图中的并列有序候选；本轮未授予任何后续 Task 执行授权，均不可执行。
 - Snapshot / checkpoint / integration / push：本 reconciliation 未创建后续 Task checkpoint、未 push。
 
 ## 6. Recommended Next Step
 
-先完成 Workflow Slice Autopilot Governance；随后以 Slice-level authorization 启动 S03-T02～S03-T07。在取得该授权前，任何后续 Task 均不得执行。
+先对 S03-T02 创建 immutable WIP snapshot，并交给 fresh independent AI Review；若 `AI_REVIEW_PASS`，再进入 policy checkpoint evaluation，然后才可选择下一步 `S03-T03`。在取得后续授权/检查点前，T03～T07 不得执行。
