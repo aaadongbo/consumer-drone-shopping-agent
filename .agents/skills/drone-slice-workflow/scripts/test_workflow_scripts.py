@@ -254,6 +254,9 @@ class TemporaryRepository:
             ".agents/skills/drone-slice-workflow/references/review-checklist.md": (
                 "# workflow review\n"
             ),
+            ".agents/skills/drone-slice-workflow/references/execution-protocol.md": (
+                "# workflow execution\n"
+            ),
             ".agents/skills/drone-slice-workflow/references/task-scope-policy.json": (
                 (
                     self.root / ".agents/skills/drone-slice-workflow/references/"
@@ -271,6 +274,9 @@ class TemporaryRepository:
             ),
             ".agents/skills/drone-slice-workflow/scripts/"
             "verify_commit_readiness.py": "def evidence():\n    pass\n",
+            ".agents/skills/drone-slice-workflow/scripts/verify_task.py": (
+                "def verify():\n    pass\n"
+            ),
         }
         if extra_path:
             changes[extra_path] = "extra\n"
