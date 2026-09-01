@@ -522,23 +522,22 @@ def checkpoint_readiness(
     status = (
         "AUTO_ADVANCE_ELIGIBLE"
         if auto_advance
-        else "CHECKPOINT_READY — Awaiting explicit Human approval"
+        else "HUMAN_DECISION_REQUIRED"
         if ready_for_human
         else "CHECKPOINT_NOT_READY"
     )
     reason = (
         "PLANNED_TASK_AI_REVIEW_ADVANCE_ALLOWED"
         if auto_advance
-        else "AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED"
+        else "UNPLANNED_ESCALATION_OR_EXCEPTION"
         if ready_for_human
         else "CHECKPOINT_EVIDENCE_INVALID"
     )
     blockers = list(readiness_blockers)
     if ready_for_human:
-        blockers.append("AUTOMATIC_CHECKPOINT_ACCEPTANCE_DISABLED")
+        blockers.append("UNPLANNED_ESCALATION_OR_EXCEPTION")
     return {
-        # LOW auto-advance is a successful eligibility decision, not checkpoint
-        # acceptance. MEDIUM/HIGH remain Human-required and therefore non-ok.
+        # Routing eligibility never accepts a checkpoint or authorizes delivery.
         "ok": auto_advance,
         "workflow_stage": workflow_stage,
         "reason": reason,
@@ -577,7 +576,7 @@ def build_parser() -> argparse.ArgumentParser:
     modes.add_argument(
         "--checkpoint",
         action="store_true",
-        help="show Human-required checkpoint readiness; never accepts",
+        help="evaluate a policy checkpoint; never accepts or integrates",
     )
     modes.add_argument(
         "--hash-only", action="store_true", help="emit legacy working-tree digest"

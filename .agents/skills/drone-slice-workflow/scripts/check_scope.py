@@ -61,6 +61,8 @@ def resolve_task_policy(
         return slice_policy, None, "INVALID_RISK_TIER"
     if task_policy.get("checkpoint_policy") != "human-decision":
         return slice_policy, None, "INVALID_CHECKPOINT_POLICY"
+    if "automation" in task_policy:
+        return slice_policy, None, "CONFLICTING_TASK_AUTOMATION_AUTHORITY"
     automation = slice_policy.get("execution_policy", {}).get("automation", {})
     if not isinstance(automation, dict):
         return slice_policy, None, "INVALID_AUTOMATION_POLICY"

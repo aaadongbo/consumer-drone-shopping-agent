@@ -24,7 +24,7 @@ A snapshot is one local WIP commit for independent review, never acceptance or i
 
 ## `review`
 
-The reviewer uses a separate clean Session/Worktree at the exact `snapshot_head`, recomputes immutable evidence, and inspects only `base_head..snapshot_head` plus source-of-truth Acceptance and actual verification records. Task-review evidence requires the selected Task to be strictly `DONE`; `IN_PROGRESS` fails closed. Any identity, path, mode/type, content, or cleanliness mismatch is a failure. Output only `AI_REVIEW_PASS`, `AI_REVIEW_NEEDS_CHANGES`, or `BLOCKED`; a pass says `AI_REVIEW_PASS — Awaiting explicit Human approval`. Fixes require a new snapshot/digest.
+The reviewer uses a separate clean Session/Worktree at the exact `snapshot_head`, recomputes immutable evidence, and inspects only `base_head..snapshot_head` plus source-of-truth Acceptance and actual verification records. Task-review evidence requires the selected Task to be strictly `DONE`; `IN_PROGRESS` fails closed. Any identity, path, mode/type, content, or cleanliness mismatch is a failure. Output only `AI_REVIEW_PASS`, `AI_REVIEW_NEEDS_CHANGES`, or `BLOCKED`; a pass says `AI_REVIEW_PASS — Ready for policy checkpoint evaluation`. Fixes require a new snapshot/digest.
 
 ## `checkpoint`
 

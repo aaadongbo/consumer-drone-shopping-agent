@@ -630,7 +630,7 @@ class WorkflowScriptTests(unittest.TestCase):
             )
         self.assertTrue(result["ok"])
         self.assertEqual(result["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
-        self.assertEqual(result["reason"], "LOW_RISK_AI_REVIEW_ADVANCE_ALLOWED")
+        self.assertEqual(result["reason"], "PLANNED_TASK_AI_REVIEW_ADVANCE_ALLOWED")
         self.assertTrue(result["auto_advance"])
         self.assertFalse(result["human_approval_required"])
         self.assertFalse(result["checkpoint_accepted"])
