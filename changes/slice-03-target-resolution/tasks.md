@@ -14,7 +14,7 @@
 |---|---|---|---|
 | T01 | Target Resolution contract 与 golden matrix baseline | DONE | Human-approved Planning Baseline + S03 workflow policy |
 | T02 | 最小 confirmed context、revision 与 idempotent reducer | DONE | T01 |
-| T03 | store-scoped 显式 Product / Variant reference resolution | NOT_STARTED | T01 |
+| T03 | store-scoped 显式 Product / Variant reference resolution | DONE | T01 |
 | T04 | Turn Target precedence、临时问答与确认切换 | NOT_STARTED | T02, T03 |
 | T05 | 单对象 Target Resolution 接入现有 Product Fact flow 的 Walking Skeleton | NOT_STARTED | T04 |
 | T06 | 比较 / 推荐 / 全站支持 typed routing handoff | NOT_STARTED | T05 |
@@ -118,6 +118,15 @@
 计划中的测试名称、命令和 pass count 都不是执行证据。Execution Record 只能填写实际运行的命令、exit code 与结果。
 
 ## 4. Execution Records
+
+### T03 — store-scoped 显式 Product / Variant reference resolution
+
+- **Start baseline**：`e5ac98336bf79aaf7712f3340468e87384d19af0` in the current detached Slice Implementation worktree；开始时 worktree clean，pre-existing diff 为空。
+- **Authority**：`python .agents/skills/drone-slice-workflow/scripts/inspect_state.py --authorize-slice S03` exit `0`；`S03-T03` 为唯一 executable Task。仅执行 T03，T04～T07 保持 `NOT_STARTED`。
+- **Implementation**：新增 `CatalogReferenceResolver`、`ExplicitReference` 与受控 `CatalogAlias` registry，以当前 catalog snapshot 的 store 边界作 deterministic exact-name / alias lookup。Product 与 Variant canonical ID/display name 和显式 alias 均只在同一 store 的已拥有对象中匹配；零、多候选及 Product/Variant ownership mismatch 都返回明确的 `NEEDS_CLARIFICATION`，不选择第一项。该 resolver 只读取 catalog snapshot，未读取 commerce 或动态事实，未进入 T04 的 precedence、Conversation Context 或 switch 行为。
+- **Changed paths**：`backend/catalog/target_references.py`、`backend/catalog/__init__.py`、`tests/unit/test_s03_t03_target_references.py`、`tests/integration/test_s03_t03_reference_resolution_integration.py`、本文件。
+- **Actual verification**：`/Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/pytest tests/unit/test_s03_t03_target_references.py tests/integration/test_s03_t03_reference_resolution_integration.py -q` exit `0`，`12 passed`；`/Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff check backend/catalog/target_references.py backend/catalog/__init__.py tests/unit/test_s03_t03_target_references.py tests/integration/test_s03_t03_reference_resolution_integration.py` exit `0`；对应 `ruff format --check` exit `0`；`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S03-T03` exit `0`；`git diff --check` exit `0`。
+- **Result**：`DONE` pending immutable MEDIUM snapshot, fresh independent AI Review, and checkpoint evaluation. 未 integration、未 push。
 
 ### T01 — Target Resolution contract 与 golden matrix baseline
 

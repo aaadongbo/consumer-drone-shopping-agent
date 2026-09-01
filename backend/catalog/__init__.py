@@ -19,6 +19,14 @@ from backend.catalog.preferences import (
     rank_eligible_variants_by_soft_preferences,
     score_soft_preferences,
 )
+from backend.catalog.target_references import (
+    CatalogAlias,
+    CatalogReferenceResolver,
+    ExplicitReference,
+    ExplicitReferenceResolution,
+    ReferenceClarificationReason,
+    ReferenceResolutionStatus,
+)
 
 __all__ = [
     "CatalogFixtureSnapshot",
@@ -30,6 +38,12 @@ __all__ = [
     "SoftPreferenceScore",
     "SoftPreferenceSignal",
     "VariantCommerceSnapshot",
+    "CatalogAlias",
+    "CatalogReferenceResolver",
+    "ExplicitReference",
+    "ExplicitReferenceResolution",
+    "ReferenceClarificationReason",
+    "ReferenceResolutionStatus",
     "evaluate_store_eligibility",
     "evaluate_variant_eligibility",
     "rank_eligible_variants_by_soft_preferences",
