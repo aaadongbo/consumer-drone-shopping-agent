@@ -116,6 +116,11 @@ class CatalogReferenceResolver:
             return _resolved(variant)
         return _resolved(products[0] if products else variants[0])
 
+    @property
+    def store_id(self) -> str:
+        """The sole store boundary for every resolved reference."""
+        return self._store_id
+
     def _product_candidates(self, name: str) -> tuple[ObjectScope, ...]:
         normalized = _normalize(name)
         candidates = [

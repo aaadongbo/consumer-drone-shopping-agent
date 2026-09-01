@@ -15,7 +15,7 @@
 | T01 | Target Resolution contract 与 golden matrix baseline | DONE | Human-approved Planning Baseline + S03 workflow policy |
 | T02 | 最小 confirmed context、revision 与 idempotent reducer | DONE | T01 |
 | T03 | store-scoped 显式 Product / Variant reference resolution | DONE | T01 |
-| T04 | Turn Target precedence、临时问答与确认切换 | NOT_STARTED | T02, T03 |
+| T04 | Turn Target precedence、临时问答与确认切换 | DONE | T02, T03 |
 | T05 | 单对象 Target Resolution 接入现有 Product Fact flow 的 Walking Skeleton | NOT_STARTED | T04 |
 | T06 | 比较 / 推荐 / 全站支持 typed routing handoff | NOT_STARTED | T05 |
 | T07 | Slice 3 Verification Matrix 与 Completion Evidence | NOT_STARTED | T06 |
@@ -118,6 +118,15 @@
 计划中的测试名称、命令和 pass count 都不是执行证据。Execution Record 只能填写实际运行的命令、exit code 与结果。
 
 ## 4. Execution Records
+
+### T04 — Turn Target precedence、临时问答与确认切换
+
+- **Start baseline**：`0c4edd3f6674da985b49047fe40462c2b8eaf9b7` in the current detached Slice Implementation worktree；开始时 worktree clean，pre-existing diff 为空。
+- **Authority**：当前 Human 明确授权仅执行 `S03-T04`；`python .agents/skills/drone-slice-workflow/scripts/inspect_state.py --authorize-task S03-T04 --approved-workflow-oid 0c4edd3f6674da985b49047fe40462c2b8eaf9b7` exit `0`，`S03-T04` 是唯一 executable Task。未执行 T05～T07。
+- **Implementation**：新增内部 `TurnTargetResolver` 与输入/输出 trace 类型，固定执行 explicit > confirmed > page > clarification。已识别的 explicit Product/Variant 复用 T03 的 store-scoped resolver；临时 explicit 问答保持 `KEEP`，不会写入 confirmed context；显式切换生成 `SWITCH_CONFIRMED`，pending switch 的确认、否定与过期生成可回放 reducer state patch。foreign page/confirmed/pending context、unresolved explicit reference 与无上下文均 fail closed 为 clarification；stale expected revision 交由 T02 reducer 返回可恢复 conflict。未修改任何 public wire Contract，未读取动态 commerce，未进入 T05 Product Fact flow。
+- **Changed paths**：`backend/catalog/target_references.py`、`backend/conversation/__init__.py`、`backend/conversation/turn_target_resolver.py`、`tests/unit/test_s03_t04_turn_target_resolver.py`、`tests/integration/test_s03_t04_target_resolution_integration.py`、本文件。
+- **Actual verification**：`uv run --frozen pytest tests/unit/test_s03_t04_turn_target_resolver.py tests/integration/test_s03_t04_target_resolution_integration.py tests/unit/test_s03_t02_conversation_state.py tests/unit/test_s03_t03_target_references.py -q` exit `0`，`35 passed`；`uv run --frozen ruff check ...` exit `0`；对应 `ruff format --check` exit `0`；`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S03-T04` exit `0`；`git diff --check` exit `0`。policy-selected `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S03-T04` exit `0`，其 compile、Ruff、targeted `pytest -m 'unit or integration'`（`9 passed`）、diff、core-artifact 与 dependency gates 均通过。
+- **Result**：`DONE` pending required HIGH-risk Human decision / semantic review boundary. 本后续 Session 将此完整范围建立为本地 WIP snapshot 以形成 clean boundary；它不是 Human approval、integration 或 push。T05～T07 保持 `NOT_STARTED`。
 
 ### T03 — store-scoped 显式 Product / Variant reference resolution
 

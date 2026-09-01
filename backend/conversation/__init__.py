@@ -36,6 +36,13 @@ from backend.conversation.target_resolution import (
     TurnTarget,
     TurnTargetKind,
 )
+from backend.conversation.turn_target_resolver import (
+    ResolutionReason,
+    TurnIntent,
+    TurnTargetResolutionInput,
+    TurnTargetResolutionOutcome,
+    TurnTargetResolver,
+)
 
 __all__ = [
     "ConstraintField",
@@ -68,4 +75,9 @@ __all__ = [
     "TargetResolution",
     "TurnTarget",
     "TurnTargetKind",
+    "ResolutionReason",
+    "TurnIntent",
+    "TurnTargetResolutionInput",
+    "TurnTargetResolutionOutcome",
+    "TurnTargetResolver",
 ]
