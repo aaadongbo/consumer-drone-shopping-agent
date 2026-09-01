@@ -1,10 +1,10 @@
 # Slice 3 Ordered Implementation Tasks
 
-> 状态：DRAFT / Awaiting Human Review
+> 状态：Implementation / S03-T01 reconciliation complete.
 >
 > 执行设计：[plan.md](./plan.md)
 >
-> 当前所有 Task 均未开始；本文件不是 Implementation authority。不得执行、snapshot、commit、checkpoint、integrate 或 push。
+> Slice 3 Planning 已批准并已进入 Implementation。S03-T01 已完成并通过独立 AI Review；T02～T07 均未开始。本文件记录状态与不可变证据，不自行构成后续 Task 的 Implementation authority、snapshot、checkpoint、integration 或 push authority。
 
 ## 1. Naming and Status
 
@@ -24,7 +24,7 @@
 
 | Task | Provisional risk | Planned Human gate |
 |---|---|---|
-| T01 | HIGH | per-Task Contract checkpoint |
+| T01 | HIGH | completed — `AI_REVIEW_PASS` |
 | T02 | HIGH | per-Task state-semantics checkpoint |
 | T03 | MEDIUM | key checkpoint |
 | T04 | HIGH | per-Task Product Behavior checkpoint |
@@ -126,17 +126,21 @@
 - **Implementation**：新增 Slice-local `TargetResolution` / `TurnTarget` / per-member comparison provenance / context-action Contract 与 7 个确定性 golden scenarios；保留既有 `TurnRequest.store_id` 顶层语义和 public `PageContext(product_id, variant_id)`。没有修改现有 `TurnRequest`、`AnswerEnvelope` 或 `RouteDecision` public wire schema；expected/resulting revision、conflict、replay、bundle 和 handoff 仍留给后续的版本化 proposal / Task。
 - **Changed paths**：`backend/conversation/__init__.py`、`backend/conversation/target_resolution.py`、`tests/contract/test_s03_t01_target_resolution_contract.py`、`tests/fixtures/s03_t01_target_resolution_golden.json`、本文件。
 - **Actual verification**：首次 `uv run` 不能访问 sandbox `~/.cache/uv`（未启动测试）；在可用的本地 `.venv` 重跑后，Ruff check / format、backend import、targeted Contract `14 passed`、Contract marker suite `144 passed, 161 deselected`、`uv lock --check` 与 `git diff --check` 均 exit `0`。
-- **Result**：`DONE — Awaiting independent AI Review`。未创建 snapshot、未 integration、未 push。
+- **Immutable snapshot**：`cf7d28ce0d84ac232fbcddd38b417d432757c5f7`，review range 为 `1506f1b473b2f7202508496d05cd40254eccf766..cf7d28ce0d84ac232fbcddd38b417d432757c5f7`。
+- **Independent AI Review**：`AI_REVIEW_PASS`；完整 review digest：`98b885a1cdc4b706928f43655e88858d71affae86a4dd34389248117d0ddaf93`。该 verdict 只确认已审查的不可变范围，不构成 integration、push 或后续 Task 的执行授权。
+- **Reconciliation verification**：`git merge-base --is-ancestor 1506f1b473b2f7202508496d05cd40254eccf766 cf7d28ce0d84ac232fbcddd38b417d432757c5f7` exit `0`；`python .agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py S03-T01 --evidence --base-head 1506f1b473b2f7202508496d05cd40254eccf766 --snapshot-head cf7d28ce0d84ac232fbcddd38b417d432757c5f7 --mode task-review --repo /private/tmp/consumer-drone-s03-t01` exit `0`，重算 digest 与上述值一致，范围、路径和 scope 均通过。
+- **Result**：`DONE — AI_REVIEW_PASS`。未 integration、未 push。
 
 ## 5. Planning Approval Record
 
 - Slice 1 Completion Evidence：accepted at `e1ca844554e3da0fd8d061dff55e149293a1dde3`。
 - Slice 2 Tasks：T01～T07 在当前 `main` HEAD `a8bf4f4369e8b349133837f334da9ffd0b176cfb` 均为 `DONE`。
-- Slice 3 Planning Reconciliation：accepted and integrated at `6de33626036925ebec7d4e0ec4838e16a3738206`。
+- Slice 3 Planning Reconciliation：approved and integrated at `6de33626036925ebec7d4e0ec4838e16a3738206`；Slice 已进入 Implementation。
 - Slice 3 workflow Task policy：integrated at `794c10739d8e795eef60d581e8c93425196dfe73`。
-- Slice 3 Implementation：S03-T01 is `DONE — Awaiting independent AI Review`; T02～T07 remain `NOT_STARTED`。
-- Snapshot / checkpoint / integration / push：not authorized and not performed。
+- Slice 3 Implementation：S03-T01 is `DONE — AI_REVIEW_PASS`，snapshot 为 `cf7d28ce0d84ac232fbcddd38b417d432757c5f7`，完整 review digest 为 `98b885a1cdc4b706928f43655e88858d71affae86a4dd34389248117d0ddaf93`；T02～T07 remain `NOT_STARTED`。
+- T02 与 T03 是当前依赖图中的并列有序候选；本轮未授予任何后续 Task 执行授权，均不可执行。
+- Snapshot / checkpoint / integration / push：本 reconciliation 未创建后续 Task checkpoint、未 push。
 
 ## 6. Recommended Next Step
 
-为 S03-T01 创建仅含当前 Task paths 的 local immutable snapshot，交由独立 AI Review。AI Review 通过后，HIGH-risk checkpoint 仍须按当前 workflow 路由处理；不得执行 T02。
+先完成 Workflow Slice Autopilot Governance；随后以 Slice-level authorization 启动 S03-T02～S03-T07。在取得该授权前，任何后续 Task 均不得执行。
