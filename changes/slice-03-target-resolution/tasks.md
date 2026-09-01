@@ -12,7 +12,7 @@
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Target Resolution contract 与 golden matrix baseline | NOT_STARTED | Human-approved Planning Baseline + S03 workflow policy |
+| T01 | Target Resolution contract 与 golden matrix baseline | DONE | Human-approved Planning Baseline + S03 workflow policy |
 | T02 | 最小 confirmed context、revision 与 idempotent reducer | NOT_STARTED | T01 |
 | T03 | store-scoped 显式 Product / Variant reference resolution | NOT_STARTED | T01 |
 | T04 | Turn Target precedence、临时问答与确认切换 | NOT_STARTED | T02, T03 |
@@ -119,26 +119,24 @@
 
 ## 4. Execution Records
 
-当前不存在 Execution Record。Human Review、Planning Baseline、workflow policy 与单独 Implementation authority 完成前，T01～T07 必须保持 `NOT_STARTED`。
+### T01 — Target Resolution contract 与 golden matrix baseline
+
+- **Start baseline**：`1506f1b473b2f7202508496d05cd40254eccf766` on `codex/s03-t01`；开始时 worktree clean。
+- **Authority**：当前 Human 明确授权仅执行 `S03-T01`；T02～T07 未执行。
+- **Implementation**：新增 Slice-local `TargetResolution` / `TurnTarget` / per-member comparison provenance / context-action Contract 与 7 个确定性 golden scenarios；保留既有 `TurnRequest.store_id` 顶层语义和 public `PageContext(product_id, variant_id)`。没有修改现有 `TurnRequest`、`AnswerEnvelope` 或 `RouteDecision` public wire schema；expected/resulting revision、conflict、replay、bundle 和 handoff 仍留给后续的版本化 proposal / Task。
+- **Changed paths**：`backend/conversation/__init__.py`、`backend/conversation/target_resolution.py`、`tests/contract/test_s03_t01_target_resolution_contract.py`、`tests/fixtures/s03_t01_target_resolution_golden.json`、本文件。
+- **Actual verification**：首次 `uv run` 不能访问 sandbox `~/.cache/uv`（未启动测试）；在可用的本地 `.venv` 重跑后，Ruff check / format、backend import、targeted Contract `14 passed`、Contract marker suite `144 passed, 161 deselected`、`uv lock --check` 与 `git diff --check` 均 exit `0`。
+- **Result**：`DONE — Awaiting independent AI Review`。未创建 snapshot、未 integration、未 push。
 
 ## 5. Planning Approval Record
 
 - Slice 1 Completion Evidence：accepted at `e1ca844554e3da0fd8d061dff55e149293a1dde3`。
 - Slice 2 Tasks：T01～T07 在当前 `main` HEAD `a8bf4f4369e8b349133837f334da9ffd0b176cfb` 均为 `DONE`。
-- Slice 3 Planning Reconciliation：本轮已创建，`DRAFT / Awaiting Human Review`。
-- Slice 3 Planning Baseline commit：not created / not authorized in this Session。
-- Slice 3 workflow Task policy：not configured / not approved。
-- Slice 3 Implementation：not authorized；S03-T01 `NOT_STARTED`。
+- Slice 3 Planning Reconciliation：accepted and integrated at `6de33626036925ebec7d4e0ec4838e16a3738206`。
+- Slice 3 workflow Task policy：integrated at `794c10739d8e795eef60d581e8c93425196dfe73`。
+- Slice 3 Implementation：S03-T01 is `DONE — Awaiting independent AI Review`; T02～T07 remain `NOT_STARTED`。
 - Snapshot / checkpoint / integration / push：not authorized and not performed。
 
 ## 6. Recommended Next Step
 
-Human 先审查以下文件及完整 diff：
-
-- `docs/PROJECT_SPEC.md`
-- `docs/ARCHITECTURE.md`
-- `docs/DECISIONS.md`
-- [plan.md](./plan.md)
-- [tasks.md](./tasks.md)
-
-若接受，下一 Session 才创建仅含批准 Planning Artifact 的 Planning Baseline commit，并配置/审查 Slice 3 workflow policy。完成这些前置条件后，Human 再单独授权 `S03-T01`；不得从本 Planning Session 直接进入实现。
+为 S03-T01 创建仅含当前 Task paths 的 local immutable snapshot，交由独立 AI Review。AI Review 通过后，HIGH-risk checkpoint 仍须按当前 workflow 路由处理；不得执行 T02。

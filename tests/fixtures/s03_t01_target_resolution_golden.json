@@ -1,0 +1,115 @@
+[
+  {
+    "case_id": "page-default-single-object",
+    "expected": {
+      "turn_target": {
+        "kind": "SINGLE_OBJECT",
+        "object_scope": {
+          "store_id": "store-s02-alpha",
+          "product_id": "drone-travel",
+          "variant_id": "travel-lite"
+        }
+      },
+      "resolution_source": "PAGE_CONTEXT",
+      "context_action": "KEEP"
+    }
+  },
+  {
+    "case_id": "explicit-temporary-other-product",
+    "expected": {
+      "explicit_references": [
+        {
+          "store_id": "store-s02-alpha",
+          "product_id": "drone-cinema"
+        }
+      ],
+      "turn_target": {
+        "kind": "SINGLE_OBJECT",
+        "object_scope": {
+          "store_id": "store-s02-alpha",
+          "product_id": "drone-cinema"
+        }
+      },
+      "resolution_source": "EXPLICIT",
+      "context_action": "KEEP"
+    }
+  },
+  {
+    "case_id": "confirmed-switch-single-object",
+    "expected": {
+      "turn_target": {
+        "kind": "SINGLE_OBJECT",
+        "object_scope": {
+          "store_id": "store-s02-alpha",
+          "product_id": "drone-cinema",
+          "variant_id": "cinema-pro"
+        }
+      },
+      "resolution_source": "EXPLICIT",
+      "context_action": "SWITCH_CONFIRMED"
+    }
+  },
+  {
+    "case_id": "comparison-per-member-provenance",
+    "expected": {
+      "turn_target": {
+        "kind": "COMPARISON_SET",
+        "comparison_members": [
+          {
+            "scope": {
+              "store_id": "store-s02-alpha",
+              "product_id": "drone-travel"
+            },
+            "provenance": "CONFIRMED_CONTEXT"
+          },
+          {
+            "scope": {
+              "store_id": "store-s02-alpha",
+              "product_id": "drone-cinema"
+            },
+            "provenance": "EXPLICIT"
+          }
+        ]
+      },
+      "context_action": "KEEP"
+    }
+  },
+  {
+    "case_id": "unresolved-reference-clarification",
+    "expected": {
+      "turn_target": {
+        "kind": "NEEDS_CLARIFICATION",
+        "clarification_reason": "PRODUCT_AMBIGUOUS",
+        "clarification_candidates": [
+          {
+            "store_id": "store-s02-alpha",
+            "product_id": "drone-travel"
+          },
+          {
+            "store_id": "store-s02-alpha",
+            "product_id": "drone-cinema"
+          }
+        ]
+      },
+      "context_action": "KEEP"
+    }
+  },
+  {
+    "case_id": "recommendation-is-not-page-scoped",
+    "expected": {
+      "turn_target": {
+        "kind": "RECOMMENDATION_TASK"
+      },
+      "context_action": "KEEP"
+    }
+  },
+  {
+    "case_id": "store-support-is-not-product-qa",
+    "expected": {
+      "turn_target": {
+        "kind": "STORE_SUPPORT"
+      },
+      "context_action": "KEEP"
+    }
+  }
+]

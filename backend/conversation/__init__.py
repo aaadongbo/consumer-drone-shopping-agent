@@ -13,6 +13,14 @@ from backend.conversation.constraints import (
     normalize_constraint_patches,
     parse_constraint_patches,
 )
+from backend.conversation.target_resolution import (
+    ComparisonMember,
+    ContextAction,
+    ResolutionSource,
+    TargetResolution,
+    TurnTarget,
+    TurnTargetKind,
+)
 
 __all__ = [
     "ConstraintField",
@@ -26,4 +34,10 @@ __all__ = [
     "normalize_constraint_patch",
     "normalize_constraint_patches",
     "parse_constraint_patches",
+    "ComparisonMember",
+    "ContextAction",
+    "ResolutionSource",
+    "TargetResolution",
+    "TurnTarget",
+    "TurnTargetKind",
 ]
