@@ -336,6 +336,27 @@ def test_state_transition_result_rejects_applied_with_empty_diff() -> None:
         )
 
 
+def test_state_transition_result_rejects_applied_with_replay_message_id() -> None:
+    with pytest.raises(ValidationError):
+        StateTransitionResult(
+            status=StateTransitionStatus.APPLIED,
+            state=ConversationState(conversation_id="conversation-s03", revision=1),
+            diff=StateDiff(
+                revision_before=0,
+                revision_after=1,
+                entries=(
+                    {
+                        "change_type": "CONFIRMED_CONTEXT_SET",
+                        "after": scope("drone-air"),
+                        "message_id": "m-invalid",
+                    },
+                ),
+            ),
+            replay_of_message_id="m-original",
+            reason="invalid applied result",
+        )
+
+
 def test_state_transition_result_rejects_conflict_with_state_diff() -> None:
     with pytest.raises(ValidationError):
         StateTransitionResult(

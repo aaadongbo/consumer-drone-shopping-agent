@@ -136,17 +136,22 @@ class StateTransitionResult(WireModel):
         state_revision = self.state.revision
         if self.diff.revision_after != state_revision:
             raise ValueError("state revision must match diff revision_after")
+        if (
+            self.status is StateTransitionStatus.REPLAYED
+            and self.replay_of_message_id is None
+        ):
+            raise ValueError("REPLAYED requires replay_of_message_id")
+        if (
+            self.status is not StateTransitionStatus.REPLAYED
+            and self.replay_of_message_id is not None
+        ):
+            raise ValueError("only REPLAYED may use replay_of_message_id")
         if self.status is StateTransitionStatus.APPLIED:
             if not self.diff.entries:
                 raise ValueError("APPLIED requires a non-empty state diff")
             if self.diff.revision_after != self.diff.revision_before + 1:
                 raise ValueError("APPLIED must advance revision exactly once")
-        elif self.status is StateTransitionStatus.REPLAYED:
-            if self.replay_of_message_id is None:
-                raise ValueError("REPLAYED requires replay_of_message_id")
-        else:
-            if self.replay_of_message_id is not None:
-                raise ValueError("only REPLAYED may use replay_of_message_id")
+        elif self.status is not StateTransitionStatus.REPLAYED:
             if self.diff.entries:
                 raise ValueError(
                     f"{self.status.value} must not carry state diff entries"
