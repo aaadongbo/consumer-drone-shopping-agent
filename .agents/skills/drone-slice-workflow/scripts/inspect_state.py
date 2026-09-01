@@ -35,6 +35,8 @@ DEFAULT_PROTECTED_REFS = {
 WORKFLOW_GATED_TASK_FILES = {
     "changes/slice-02-single-turn-recommendation/tasks.md",
     "changes/slice-03-target-resolution/tasks.md",
+    "changes/slice-05-product-rag/tasks.md",
+    "changes/slice-06-evidence-recommendation/tasks.md",
 }
 
 
@@ -95,7 +97,18 @@ def find_tasks_file(repo: Path) -> Path:
     candidates = sorted((repo / "changes").glob("*/tasks.md"))
     if not candidates:
         raise InspectionError("no changes/*/tasks.md found")
-    parsed = [(path, parse_tasks(path)) for path in candidates]
+    parsed: list[tuple[Path, list[dict[str, Any]]]] = []
+    skipped_drafts: list[Path] = []
+    for path in candidates:
+        try:
+            parsed.append((path, parse_tasks(path)))
+        except InspectionError as exc:
+            if "no Task status rows found" not in str(exc):
+                raise
+            skipped_drafts.append(path)
+    if not parsed:
+        relative = [str(path.relative_to(repo)) for path in skipped_drafts]
+        raise InspectionError(f"no executable Slice task files found: {relative}")
     active = [
         path
         for path, tasks in parsed

@@ -5,9 +5,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shlex
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -42,8 +44,18 @@ def summarize(output: str, limit: int = 4000) -> str:
 
 def execute(repo: Path, command: list[str]) -> dict[str, Any]:
     try:
+        env = os.environ.copy()
+        env.setdefault(
+            "UV_CACHE_DIR",
+            str(Path(tempfile.gettempdir()) / "drone-slice-workflow-uv-cache"),
+        )
         result = subprocess.run(
-            command, cwd=repo, check=False, capture_output=True, text=True
+            command,
+            cwd=repo,
+            check=False,
+            capture_output=True,
+            text=True,
+            env=env,
         )
         combined = "\n".join(part for part in (result.stdout, result.stderr) if part)
         return {

@@ -67,6 +67,7 @@ V1 明确不做：
 - 把未知字段当作“不支持”，或让未知值自动通过硬约束。
 - 使用外部评论、开放网络搜索或未经商家授权的内容作为证据。
 - 构建开放式自治多 Agent 系统。
+- 让模型通过无限工具循环、开放网络或未经授权资料自行补齐证据。
 - 将 fine-tuning 作为 V1 交付前提。
 - 预先维护完整实现文件树。
 
@@ -137,6 +138,8 @@ V1 明确不做：
 - 可接受的证据来源仅包括 Shopify 商家授权数据及商家提供或认可的官方资料。
 - 推荐的关键理由、关键比较事实和直接商品事实回答必须能关联到证据。
 - 证据不足时必须说明无法确认，而不是依靠模型常识补全。
+- 需要多步补证时，只能使用受限、可审计的 Agentic RAG：每轮 ActionPlan 必须有明确 Turn Target、约束、工具预算和 allowlist；Evidence Gate 拥有最终否决权。V1 的 `max_action_rounds = 2 total`，第 1 轮包含初始检索或读取，最多再执行一轮纠正。
+- 受限 Agentic RAG 不得改变 Product / Variant identity、用户约束或证据范围；预算耗尽、证据错配、资料缺失或工具失败时必须 fail closed。
 
 ### 6.5 动态事实与只读边界
 
@@ -174,6 +177,8 @@ V1 只有在以下行为可通过预定义案例独立验证时，才视为完�
 10. 关键回放信息完整：输入状态、状态变化、路由、工具结果、候选筛除、证据、回答和失败原因可关联到同一轮次。
 11. 商品页上的显式跨产品问题以显式对象作为 Turn Target，临时问答不污染 Conversation Context；明确切换后后续代词才继承新对象。
 12. 比较、推荐与全站支持请求按其自身目标类型路由；回答对象展示以及 Answer、Card、Evidence、bindings 的身份均与 Turn Target 一致，歧义时不默认选择商品或 Variant。
+13. Product RAG 只能在 Turn Target 限定的单一 store/product/variant 和授权文档版本内检索；若 `max_action_rounds = 2 total` 内仍无支持证据，不得生成事实结论。
+14. 多商品推荐的每个候选只能使用自身 Catalog、Shopify 和文档 Evidence；Derived Evidence 必须可复算并绑定来源，证据不足的理由必须降级或删除。
 
 ## 8. Provisional Quality Gates
 
@@ -246,16 +251,16 @@ V1 只有在以下行为可通过预定义案例独立验证时，才视为完�
 ### Slice 5：Product RAG
 
 - **User Journey**：用户询问手册、FAQ、包装内容、操作或适用政策中的非实时知识。
-- **Goal**：在限定商店与商品范围内完成可回溯的文档检索、回答和引用。
-- **Acceptance**：证据可定位到原始资料；不跨商品误引；资料不足时不补写常识；动态价格、库存和可售状态不从文档回答。
+- **Goal**：在限定商店与商品范围内完成可回溯的文档检索、受限 ActionPlan 补检、回答和引用。
+- **Acceptance**：证据可定位到原始资料；不跨商品误引；资料不足时不补写常识；动态价格、库存和可售状态不从文档回答；`max_action_rounds = 2 total` 内仍不足则 fallback。
 - **关键依赖**：文档范围/版本、Retriever、Evidence locator、claim-evidence binding Contract 以及首批评估集。
-- **主要 Open Decisions**：Chunking、Query Rewrite、Reranker、检索引擎（含 Milvus）和召回参数。
+- **主要 Open Decisions**：Chunking、Query Rewrite、Reranker、检索引擎（含 Milvus）、召回参数和 ActionPlan 是否需要模型参与。
 
 ### Slice 6：多商品 Evidence-based Recommendation
 
 - **User Journey**：用户在多个候选中获得带适配理由、取舍和多来源证据的正式推荐。
-- **Goal**：组合确定性候选、动态 Shopify 事实与商品范围内文档证据，形成完整推荐解释。
-- **Acceptance**：最多推荐三款不同商品；每款使用自身证据；硬约束资格与解释一致；证据不足的理由被降级或删除；无匹配时不生成正式推荐。
+- **Goal**：组合确定性候选、动态 Shopify 事实、商品范围内文档证据和可复算 Derived Evidence，形成完整推荐解释。
+- **Acceptance**：最多推荐三款不同商品；每款使用自身证据；硬约束资格与解释一致；动态 commerce 与静态 RAG 分离；证据不足的理由被降级或删除；无匹配时不生成正式推荐。
 - **关键依赖**：稳定的 eligibility、multi-product Evidence、Recommendation、Composer 和 trace Contract。
 - **主要 Open Decisions**：Multi-product Retrieval 候选配额、软偏好 Recommendation Ranking、是否启用 Reranker。
 
@@ -291,4 +296,4 @@ Reconcile
 - 改变 Product Behavior 时更新本文件；改变模块边界或核心 Contract 时更新 Architecture；改变重大技术取舍时更新 Decisions。
 - 只有局部实现细节或文件级 Tree 变化、且模块边界未变时，不更新高层 Artifact。
 - Evidence 证明旧设计错误时，应 Reconcile Artifact，而不是要求代码机械服从旧设计。
-- Slice 进度、Coding Task 和工作状态等到正式进入相应 Slice 时再建立，当前不预生成。
+- Slice 进度、Coding Task 和工作状态等到正式进入相应 Slice 时再建立；若提前创建远期 Slice 规划 Artifact，必须明确标记为 draft/non-executable，不得形成可执行 Task 状态。

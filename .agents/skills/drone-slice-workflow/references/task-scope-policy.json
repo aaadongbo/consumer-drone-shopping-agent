@@ -402,6 +402,293 @@
           }
         }
       }
+    },
+    "changes/slice-05-product-rag/tasks.md": {
+      "completion_task": "T07",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "independent-per-task",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "delivery": "feature-delivery-proposed-non-operational",
+        "human_gates": {
+          "LOW": "slice-completion",
+          "MEDIUM": "key-checkpoint",
+          "HIGH": "task"
+        }
+      },
+      "implementation_gate": {
+        "type": "protected-workflow-baseline"
+      },
+      "core_artifacts": [
+        "changes/slice-05-product-rag/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "backend/agent/",
+        "backend/catalog/",
+        "backend/shopify/",
+        "storefront/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["backend/rag/", "tests/unit/", "tests/contract/", "eval/datasets/", "changes/slice-05-product-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "document manifest, source authorization, version and locator contract",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T02": {
+          "allowed_paths": ["backend/rag/", "tests/unit/", "eval/datasets/", "changes/slice-05-product-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit",
+          "verification_rationale": "scoped chunking, ordering, and locator preservation",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T03": {
+          "allowed_paths": ["backend/rag/", "tests/unit/", "tests/integration/", "eval/datasets/", "changes/slice-05-product-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "metadata-filtered baseline retrieval and product scope isolation",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T04": {
+          "allowed_paths": ["backend/evidence/", "backend/rag/", "tests/unit/", "tests/contract/", "changes/slice-05-product-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "Evidence quality, scope and claim coverage gate",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T05": {
+          "allowed_paths": ["backend/agent/", "backend/rag/", "backend/evidence/", "tests/unit/", "tests/integration/", "changes/slice-05-product-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "bounded ActionPlan corrective loop and budget enforcement",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T06": {
+          "allowed_paths": ["backend/application/", "backend/agent/", "backend/rag/", "backend/evidence/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-05-product-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "contract or integration or e2e",
+          "verification_rationale": "Product RAG answer/fallback walking skeleton",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T07": {
+          "allowed_paths": ["tests/", "eval/datasets/", "changes/slice-05-product-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "Slice 5 Acceptance and Product RAG completion require the full suite",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        }
+      }
+    },
+    "changes/slice-06-evidence-recommendation/tasks.md": {
+      "completion_task": "T07",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "independent-per-task",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "delivery": "feature-delivery-proposed-non-operational",
+        "human_gates": {
+          "LOW": "slice-completion",
+          "MEDIUM": "key-checkpoint",
+          "HIGH": "task"
+        }
+      },
+      "implementation_gate": {
+        "type": "protected-workflow-baseline"
+      },
+      "core_artifacts": [
+        "changes/slice-06-evidence-recommendation/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "backend/shopify/",
+        "backend/rag/",
+        "storefront/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["backend/evidence/", "tests/unit/", "tests/contract/", "changes/slice-06-evidence-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "candidate evidence bundle contract",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T02": {
+          "allowed_paths": ["backend/agent/", "backend/evidence/", "tests/unit/", "tests/integration/", "changes/slice-06-evidence-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "per-product RAG evidence collection plan",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T03": {
+          "allowed_paths": ["backend/agent/", "backend/catalog/", "backend/evidence/", "tests/unit/", "tests/integration/", "changes/slice-06-evidence-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "commerce refresh and HARD recheck plan",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T04": {
+          "allowed_paths": ["backend/evidence/", "tests/unit/", "changes/slice-06-evidence-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit",
+          "verification_rationale": "Derived Evidence deterministic computations",
+          "risk_tier": "MEDIUM",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "key-checkpoint",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T05": {
+          "allowed_paths": ["backend/agent/", "backend/evidence/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-06-evidence-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "recommendation explanation, coverage and degradation",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T06": {
+          "allowed_paths": ["backend/api/", "backend/agent/", "backend/application/", "backend/catalog/", "backend/conversation/", "backend/evidence/", "tests/unit/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-06-evidence-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "integration or e2e",
+          "verification_rationale": "multi-product recommendation walking skeleton",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        },
+        "T07": {
+          "allowed_paths": ["tests/", "eval/datasets/", "changes/slice-06-evidence-recommendation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "Slice 6 Acceptance and recommendation completion require the full suite",
+          "risk_tier": "HIGH",
+          "checkpoint_policy": "human-decision",
+          "automation": {
+            "auto_advance": false,
+            "human_gate": "task",
+            "review_required": true,
+            "verification_mode": "targeted"
+          }
+        }
+      }
     }
   }
 }

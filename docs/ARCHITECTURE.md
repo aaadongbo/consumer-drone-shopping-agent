@@ -13,6 +13,7 @@
 6. **工具边界有界且只读。** Agent 只能在声明的能力和预算内调用工具，不运行开放式自治循环。
 7. **失败是协议的一部分。** 无匹配、未知、不可售、超时和授权问题均使用稳定的失败语义。
 8. **保持实现可替换。** 存储、向量引擎、模型供应商和传输协议通过 Contract 隔离，不成为产品 Requirement。
+9. **Agentic 只用于受限补证。** 多步检索必须以 Turn Target、约束、allowlist 和 Evidence Gate 为边界，不能演变成开放式 ReAct 或多 Agent 自治。
 
 ## 2. System Context and Current Design Choices
 
@@ -112,8 +113,9 @@ V1 最小能力集合：
 - 保留原始来源、文档版本、商品/变体范围和解析位置。
 - 为指定商店与商品范围检索支持性片段，返回 Evidence 而不是直接回答。
 - 支持索引版本、重复检测、删除或失效传播和离线评估。
+- 为受限 ActionPlan 提供可复现的 baseline retrieval 与定向二次检索能力。
 
-边界：RAG 不负责实时价格、库存或可售状态，不跨商品无约束检索，不以模型清洗结果替代原始证据。
+边界：RAG 不负责实时价格、库存或可售状态，不跨商品无约束检索，不以模型清洗结果替代原始证据。RAG 可被 Agent 请求补检，但不得自行修改目标、约束或最终 claim。
 
 Chunking、Query Rewrite、Multi-product Retrieval 与 Reranker 的具体策略保持开放，见 DEC-001 至 DEC-004。Milvus 仍是可替换候选，见 DEC-007。
 
@@ -126,6 +128,7 @@ Chunking、Query Rewrite、Multi-product Retrieval 与 Reranker 的具体策略�
 - 将单对象、比较集合、推荐任务与全站支持意图区分为不同目标类型；比较集合不得折叠成单对象切换，推荐不得被 Page Context 限定。
 - 仅在显式切换动作或切换确认后请求 State Manager 更新 Conversation Context；普通跨产品问答的目标只在本轮有效。
 - 在有界策略内请求 Constraint Manager、Catalog、Shopify Tool 或 RAG 能力。
+- 生成受限 ActionPlan 时只能选择 allowlist 动作，并受 round、latency、tool-call 和 token 预算约束。
 - 控制澄清次数、工具预算、超时和 fallback。
 - 输出可解释 RouteDecision。
 
@@ -139,7 +142,56 @@ V1 路由意图：
 - POLICY_QA
 - OUT_OF_SCOPE
 
-边界：Router 不直接选择最终推荐商品，不自行进行数值判断，也不通过无限循环尝试工具。Target Resolver 只能解析已识别对象和目标类型；商品/Variant 歧义必须请求澄清，不能默认选择第一个。推荐候选由 Catalog/Constraint Engine 产生。
+边界：Router 不直接选择最终推荐商品，不自行进行数值判断，也不通过无限循环尝试工具。Target Resolver 只能解析已识别对象和目标类型；商品/Variant 歧义必须请求澄清，不能默认选择第一个。推荐候选由 Catalog/Constraint Engine 产生。ActionPlan 只能请求补证或澄清，不能放宽 HARD 条件、改变 identity 或把文档事实当作实时 commerce 事实。
+
+### 3.7.1 Bounded ActionPlan
+
+受限 Agentic RAG 使用单编排器内的顺序 ActionPlan，而不是开放式自治 Agent。最小闭环：
+
+```text
+Turn Target / Constraints
+        -> bounded ActionPlan
+        -> Shopify Read or Product RAG
+        -> Evidence / Commerce Verification
+        -> optional corrective round
+        -> Evidence Gate
+        -> Answer or Fallback
+```
+
+`max_action_rounds = 2 total`。第 1 轮包含 baseline 初始检索或读取；只有第 1 轮后的验证结果证明证据不足、动态事实缺失或需要澄清时，才允许第 2 轮 corrective action。因此不是“初始轮 + 两轮纠正”，最多只有一次纠正轮。
+
+Provisional budget config：
+
+| Key | Provisional hard limit | Stop reason |
+|---|---:|---|
+| `max_action_rounds` | `2` total | `ACTION_ROUND_LIMIT` |
+| `max_tool_calls` | `2` per turn | `TOOL_CALL_LIMIT` |
+| `turn_deadline_ms` | `8000` | `TURN_DEADLINE` |
+| `max_retrieval_tokens` | `4000` per turn | `RETRIEVAL_TOKEN_BUDGET` |
+| `max_model_tokens` | `1200` per turn | `MODEL_TOKEN_BUDGET` |
+
+这些数值是实验前默认硬上限，不是永久性能目标。任一预算耗尽时，当前 Turn 必须停止继续补证并返回可解释 fallback；不得继续调用工具、扩大范围或用模型常识补齐。
+
+V1 allowlist action types：
+
+- 对同一 store/product/variant 做定向二次文档检索。
+- 调用只读 `refresh_commerce_state` 获取当前动态事实。
+- 基于已有 Evidence 做 Derived Evidence 二次计算，并复核 HARD 条件。
+- 请求澄清。
+
+Slice 5 只能执行同一 Store/Product/Variant 范围内的 Product RAG baseline retrieval、一次定向二次检索或请求澄清。`refresh_commerce_state`、Derived Evidence 复算和 HARD recheck 是 Slice 6 的执行职责；它们可以作为全局 action type 被命名，但不得在 Slice 5 实现中执行。
+
+ActionPlan 最多执行 `2` 轮 total；不得开放网络搜索、启动多 Agent、生成任意工具调用、跨店/跨商品扩展检索、修改用户约束或覆盖 Evidence Gate 的否决。
+
+`ActionRoundTrace` 最小记录：
+
+- `action_plan`：本轮计划、target scope、allowlisted action 和预算快照。
+- `choice_reason`：为什么选择该动作或为什么停止。
+- `observation`：工具或检索返回的结构化结果摘要。
+- `verification_result`：scope、freshness、coverage、conflict 与 budget gate 的判定。
+- `corrective_action`：若进入第 2 轮，记录触发原因和动作；否则为空。
+- `budget_consumption`：round、tool call、deadline、retrieval token 和 model token 消耗。
+- `final_stop_reason`：`ANSWER_READY`、`CLARIFICATION_REQUIRED`、`ACTION_ROUND_LIMIT`、`TOOL_CALL_LIMIT`、`TURN_DEADLINE`、`RETRIEVAL_TOKEN_BUDGET`、`MODEL_TOKEN_BUDGET` 或具体 failure reason。
 
 ### 3.8 Evidence and Response Composer
 
@@ -188,6 +240,8 @@ Agent / Router --> bounded action plan
         +--> Catalog / Constraint Engine --> eligible variants + rejection reasons
         |
         +--> Product RAG --> scoped Evidence
+        |
+        +--> bounded action rounds, max 2 total, allowlist only
         |
         v
 Evidence / Response Composer --> identity, freshness, constraint and citation validation

@@ -118,6 +118,20 @@ def task_table(
     return "\n".join(rows) + "\n"
 
 
+def successful_verification(
+    task: str, base: str, snapshot: str, *, slice_review: bool = False
+) -> dict[str, object]:
+    return {
+        "ok": True,
+        "task": task,
+        "base_head": base,
+        "snapshot_head": snapshot,
+        "verification_complete": True,
+        "slice_review": slice_review,
+        "results": [{"command": "targeted gates", "exit_code": 0}],
+    }
+
+
 class TemporaryRepository:
     def __init__(
         self,
@@ -306,6 +320,25 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertFalse(evidence["ok"])
         self.assertIn("TASK_NOT_DONE", evidence["blocking_reasons"])
 
+    def test_future_draft_tasks_without_formal_status_are_ignored(self) -> None:
+        holder, repo = self.repo(slice_name="slice-03-target-resolution")
+        self.addCleanup(holder.cleanup)
+        future_tasks = repo.root / "changes/slice-05-product-rag/tasks.md"
+        future_tasks.parent.mkdir(parents=True, exist_ok=True)
+        future_tasks.write_text(
+            "| Planned Task | Title | Planned state | Dependencies |\n"
+            "|---|---|---|---|\n"
+            "| T01 | Future task | PLANNED | later |\n",
+            encoding="utf-8",
+        )
+
+        state = inspect(repo.root)
+
+        self.assertEqual(
+            state["tasks_file"], "changes/slice-03-target-resolution/tasks.md"
+        )
+        self.assertEqual(state["ordered_candidate"], "S03-T01")
+
     def test_slice_review_accepts_multi_task_scope_and_aggregates_high_risk(
         self,
     ) -> None:
@@ -405,13 +438,15 @@ class WorkflowScriptTests(unittest.TestCase):
             "S02-T07",
             repo.root,
             full=True,
+            plan_only=True,
             base_head=base,
             snapshot_head=snapshot,
             slice_review=True,
         )
-        self.assertTrue(verification["ok"], verification)
+        self.assertFalse(verification["ok"])
         self.assertTrue(verification["slice_review"])
-        self.assertTrue(verification["verification_complete"])
+        self.assertFalse(verification["verification_complete"])
+        self.assertTrue(verification["scope"]["ok"], verification)
 
     def test_slice_review_verification_uses_union_dependency_policy(self) -> None:
         holder, repo = self.repo(slice_name="slice-01-product-facts")
@@ -447,12 +482,15 @@ class WorkflowScriptTests(unittest.TestCase):
             "S01-T09",
             repo.root,
             full=True,
+            plan_only=True,
             base_head=base,
             snapshot_head=snapshot,
             slice_review=True,
         )
-        self.assertTrue(verification["ok"], verification)
+        self.assertFalse(verification["ok"])
         self.assertTrue(verification["slice_review"])
+        self.assertFalse(verification["verification_complete"])
+        self.assertTrue(verification["scope"]["ok"], verification)
         planned = "\n".join(verification["planned_commands"])
         self.assertNotIn("-- .python-version pyproject.toml uv.lock", planned)
 
@@ -578,16 +616,18 @@ class WorkflowScriptTests(unittest.TestCase):
         base, snapshot = repo.snapshot()
         git(repo.root, "switch", "--detach", snapshot)
         evidence = immutable_evidence("S02-T01", base, snapshot, repo.root)
-        result = checkpoint_readiness(
-            "S02-T01",
-            repo.root,
-            base_revision=base,
-            snapshot_revision=snapshot,
-            reviewed_digest=evidence["digest"],
-            ai_review_pass=True,
-            verification_pass=True,
-            reviewed_risk_tier="LOW",
-        )
+        verification = successful_verification("S02-T01", base, snapshot)
+        with patch("verify_commit_readiness.verify_task", return_value=verification):
+            result = checkpoint_readiness(
+                "S02-T01",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=evidence["digest"],
+                ai_review_pass=True,
+                verification_pass=True,
+                reviewed_risk_tier="LOW",
+            )
         self.assertTrue(result["ok"])
         self.assertEqual(result["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
         self.assertEqual(result["reason"], "LOW_RISK_AI_REVIEW_ADVANCE_ALLOWED")
@@ -603,15 +643,19 @@ class WorkflowScriptTests(unittest.TestCase):
         base, snapshot = repo.snapshot()
         git(repo.root, "switch", "--detach", snapshot)
         evidence = immutable_evidence("S02-T01", base, snapshot, repo.root)
-        low = checkpoint_readiness(
-            "S02-T01",
-            repo.root,
-            base_revision=base,
-            snapshot_revision=snapshot,
-            reviewed_digest=evidence["digest"],
-            ai_review_pass=True,
-            reviewed_risk_tier="LOW",
-        )
+        low_verification = successful_verification("S02-T01", base, snapshot)
+        with patch(
+            "verify_commit_readiness.verify_task", return_value=low_verification
+        ):
+            low = checkpoint_readiness(
+                "S02-T01",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=evidence["digest"],
+                ai_review_pass=True,
+                reviewed_risk_tier="LOW",
+            )
         self.assertTrue(low["ok"])
         self.assertEqual(low["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
         self.assertFalse(low["human_approval_required"])
@@ -623,15 +667,21 @@ class WorkflowScriptTests(unittest.TestCase):
         medium_evidence = immutable_evidence(
             "S02-T02", medium_base, medium_snapshot, repo.root
         )
-        medium = checkpoint_readiness(
-            "S02-T02",
-            repo.root,
-            base_revision=medium_base,
-            snapshot_revision=medium_snapshot,
-            reviewed_digest=medium_evidence["digest"],
-            ai_review_pass=True,
-            reviewed_risk_tier="MEDIUM",
+        medium_verification = successful_verification(
+            "S02-T02", medium_base, medium_snapshot
         )
+        with patch(
+            "verify_commit_readiness.verify_task", return_value=medium_verification
+        ):
+            medium = checkpoint_readiness(
+                "S02-T02",
+                repo.root,
+                base_revision=medium_base,
+                snapshot_revision=medium_snapshot,
+                reviewed_digest=medium_evidence["digest"],
+                ai_review_pass=True,
+                reviewed_risk_tier="MEDIUM",
+            )
         self.assertFalse(medium["ok"])
         self.assertTrue(medium["human_approval_required"])
 
@@ -642,15 +692,19 @@ class WorkflowScriptTests(unittest.TestCase):
         high_evidence = immutable_evidence(
             "S02-T05", high_base, high_snapshot, repo.root
         )
-        high = checkpoint_readiness(
-            "S02-T05",
-            repo.root,
-            base_revision=high_base,
-            snapshot_revision=high_snapshot,
-            reviewed_digest=high_evidence["digest"],
-            ai_review_pass=True,
-            reviewed_risk_tier="HIGH",
-        )
+        high_verification = successful_verification("S02-T05", high_base, high_snapshot)
+        with patch(
+            "verify_commit_readiness.verify_task", return_value=high_verification
+        ):
+            high = checkpoint_readiness(
+                "S02-T05",
+                repo.root,
+                base_revision=high_base,
+                snapshot_revision=high_snapshot,
+                reviewed_digest=high_evidence["digest"],
+                ai_review_pass=True,
+                reviewed_risk_tier="HIGH",
+            )
         self.assertFalse(high["ok"])
         self.assertTrue(high["human_approval_required"])
 
@@ -1048,15 +1102,17 @@ class WorkflowScriptTests(unittest.TestCase):
         )
         git(repo.root, "switch", "--detach", snapshot)
         evidence = immutable_evidence("S02-T05", base, snapshot, repo.root)
-        result = checkpoint_readiness(
-            "S02-T05",
-            repo.root,
-            base_revision=base,
-            snapshot_revision=snapshot,
-            reviewed_digest=evidence["digest"],
-            ai_review_pass=True,
-            reviewed_risk_tier="HIGH",
-        )
+        verification = successful_verification("S02-T05", base, snapshot)
+        with patch("verify_commit_readiness.verify_task", return_value=verification):
+            result = checkpoint_readiness(
+                "S02-T05",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=evidence["digest"],
+                ai_review_pass=True,
+                reviewed_risk_tier="HIGH",
+            )
         self.assertFalse(result["ok"])
         self.assertTrue(result["human_approval_required"])
         self.assertFalse(result["human_approval_supplied"])
@@ -1091,15 +1147,17 @@ class WorkflowScriptTests(unittest.TestCase):
             low["blocking_reasons"],
         )
 
-        high = checkpoint_readiness(
-            "S02-T01",
-            repo.root,
-            base_revision=base,
-            snapshot_revision=snapshot,
-            reviewed_digest=evidence["digest"],
-            ai_review_pass=True,
-            reviewed_risk_tier="HIGH",
-        )
+        verification = successful_verification("S02-T01", base, snapshot)
+        with patch("verify_commit_readiness.verify_task", return_value=verification):
+            high = checkpoint_readiness(
+                "S02-T01",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=evidence["digest"],
+                ai_review_pass=True,
+                reviewed_risk_tier="HIGH",
+            )
         self.assertEqual(high["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
         self.assertEqual(
             high["status"],
@@ -1302,11 +1360,22 @@ class WorkflowScriptTests(unittest.TestCase):
             text=True,
         )
         ready_payload = json.loads(ready.stdout)
-        self.assertEqual(ready.returncode, 0)
-        self.assertEqual(ready_payload["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
-        self.assertEqual(ready_payload["status"], "AUTO_ADVANCE_ELIGIBLE")
-        self.assertTrue(ready_payload["auto_advance"])
+        if ready.returncode == 0:
+            self.assertEqual(ready_payload["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
+            self.assertEqual(ready_payload["status"], "AUTO_ADVANCE_ELIGIBLE")
+            self.assertTrue(ready_payload["auto_advance"])
+        else:
+            self.assertEqual(ready.returncode, 1)
+            self.assertEqual(ready_payload["workflow_stage"], "BLOCKED")
+            self.assertEqual(ready_payload["status"], "CHECKPOINT_NOT_READY")
+            self.assertIn(
+                "TARGETED_VERIFICATION_FAILED",
+                ready_payload["blocking_reasons"],
+            )
+            self.assertFalse(ready_payload["auto_advance"])
         self.assertFalse(ready_payload["checkpoint_accepted"])
+        self.assertFalse(ready_payload["integration_authorized"])
+        self.assertFalse(ready_payload["push_authorized"])
 
     def test_policy_has_explicit_completion_task_and_no_auto_checkpoint_semantics(
         self,
@@ -1320,6 +1389,11 @@ class WorkflowScriptTests(unittest.TestCase):
             self.assertEqual(execution_policy["implementation_session"], "slice")
             self.assertTrue(execution_policy["targeted_verification_per_task"])
             self.assertEqual(execution_policy["full_suite"], "slice-completion")
+            if "delivery" in execution_policy:
+                self.assertEqual(
+                    execution_policy["delivery"],
+                    "feature-delivery-proposed-non-operational",
+                )
             self.assertEqual(
                 execution_policy["human_gates"],
                 {

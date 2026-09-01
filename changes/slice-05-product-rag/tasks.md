@@ -1,0 +1,110 @@
+# Slice 5 Ordered Planning Tasks — Product RAG
+
+> 状态：DRAFT / Non-executable roadmap planning
+>
+> 本文件故意不创建正式 Task status table。以下任务均为 `PLANNED`，不是 `NOT_STARTED`，因此不得被 workflow 视为当前可执行 Slice。正式进入 Slice 5 前，需要 Human Review、planning baseline、workflow policy 激活和单独 Implementation authority。
+
+Slice 5 只实现单一 Store/Product/optional Variant 范围内的 Product RAG、Evidence Gate、同商品定向补检和澄清。`refresh_commerce_state`、Derived Evidence 复算和 HARD eligibility recheck 可作为全局 action type 被文档命名，但不在 Slice 5 执行；它们由 Slice 6 承接。
+
+Provisional budget config:
+
+| Key | Provisional hard limit | Stop reason |
+|---|---:|---|
+| `max_action_rounds` | `2` total | `ACTION_ROUND_LIMIT` |
+| `max_tool_calls` | `2` per turn | `TOOL_CALL_LIMIT` |
+| `turn_deadline_ms` | `8000` | `TURN_DEADLINE` |
+| `max_retrieval_tokens` | `4000` per turn | `RETRIEVAL_TOKEN_BUDGET` |
+| `max_model_tokens` | `1200` per turn | `MODEL_TOKEN_BUDGET` |
+
+`max_action_rounds = 2 total` means round 1 is baseline retrieval; only one corrective round is allowed.
+
+| Planned Task | Title | Planned state | Dependencies |
+|---|---|---|---|
+| T01 | Document manifest and ingestion contract | PLANNED | Slice 4 completion + Slice 5 planning approval |
+| T02 | Scoped chunking and locator baseline | PLANNED | T01 |
+| T03 | Metadata-filtered baseline retrieval | PLANNED | T02 |
+| T04 | Evidence quality and claim coverage gate | PLANNED | T03 |
+| T05 | Bounded Product RAG action loop | PLANNED | T04 |
+| T06 | Product RAG answer/fallback walking skeleton | PLANNED | T05 |
+| T07 | Slice 5 evaluation matrix and completion evidence | PLANNED | T06 |
+
+## T01 — Document manifest and ingestion contract
+
+- **Goal**：定义授权文档、版本、source locator、store/product/variant metadata 和 ingestion manifest。
+- **Why**：RAG 只有在来源、授权、版本和 locator 可审计时，后续 Evidence 才能被用户和测试回放。
+- **Scope**：未来 `backend/rag/` 的 manifest/value object；`eval/datasets/` 的最小授权文档 fixture；unit/contract tests。
+- **Contract**：`DocumentSource`、source authorization state、version、canonical locator、store/product/optional variant metadata。
+- **Acceptance**：未授权来源被拒绝；每个 chunk 可回到 source/version/locator；不导入真实秘密、客户数据或开放网络内容。
+- **Verification**：Static + Unit + Contract.
+- **Dependencies**：Slice 4 completion + Slice 5 planning approval.
+- **Out of Scope**：真实托管向量库、开放网络、LLM 清洗替代原文、生产文档导入。
+
+## T02 — Scoped chunking and locator baseline
+
+- **Goal**：建立保序、可定位、heading-aware 的 baseline chunking。
+- **Why**：FAQ、包装清单、手册步骤和政策片段需要稳定 locator，否则 answer citation 和冲突排查不可复现。
+- **Scope**：未来 `backend/rag/` chunking utilities；golden source fixtures；unit tests。
+- **Contract**：`DocumentChunk` 包含 source identity、chunk_id、ordered locator、heading path、text、metadata filter fields。
+- **Acceptance**：标题、表格/列表、页/段 locator 保留；重复、删除和失效源可追踪；chunk metadata 不丢 store/product/variant。
+- **Verification**：Unit + golden source fixtures.
+- **Dependencies**：T01.
+- **Out of Scope**：semantic chunking 固化、训练数据生成、reranker、索引引擎选择。
+
+## T03 — Metadata-filtered baseline retrieval
+
+- **Goal**：实现按单一 Turn Target 强制过滤的 baseline retrieval。
+- **Why**：Slice 5 的核心风险是把其他商品文档当成当前商品证据；metadata filter 必须先于 ranking。
+- **Scope**：未来 `backend/rag/` retriever port/fixture；integration tests with local index fixtures；retrieval eval baseline。
+- **Contract**：`RetrievalRequest`、`RetrievalResult`、metadata filter、index version、missing/filtered reason。
+- **Acceptance**：store/product/variant filter 先于 ranking；不跨商品返回 Evidence；top-k 可复现；错误 product injection 被拒绝。
+- **Verification**：Unit + Integration + retrieval eval baseline.
+- **Dependencies**：T02.
+- **Out of Scope**：multi-product retrieval quota、Milvus 硬依赖、reranker 固化、开放网络检索。
+
+## T04 — Evidence quality and claim coverage gate
+
+- **Goal**：在回答前验证 scope、locator、version、coverage 和 conflict。
+- **Why**：RAG 检索命中并不等于事实可回答；claim 必须被正确商品范围内的 Evidence 覆盖。
+- **Scope**：未来 `backend/evidence/` quality/coverage checks；`backend/rag/` result adapters；contract/integration tests。
+- **Contract**：`EvidenceQuality`、claim coverage、conflict state、`RagFallback`。
+- **Acceptance**：claim 无支持证据则删除/降级/fallback；动态事实不由 RAG 放行；冲突或 stale version 不生成确定结论。
+- **Verification**：Contract + Integration.
+- **Dependencies**：T03.
+- **Out of Scope**：推荐排序、自然语言文案优化、commerce refresh、Derived Evidence。
+
+## T05 — Bounded Product RAG action loop
+
+- **Goal**：允许最多 `2` 个 action rounds total：baseline retrieval 后最多一次同商品定向补检或澄清。
+- **Why**：Product RAG 需要一个小的补证闭环，但不能滑向开放式 ReAct 或跨模块推荐编排。
+- **Scope**：未来 `backend/agent/` bounded loop；`backend/rag/` targeted retrieval call；ActionRoundTrace；unit/integration tests。
+- **Contract**：`ActionPlan`、`ActionRoundTrace`、budget config、stop reasons。
+- **Acceptance**：只执行同一 Store/Product/Variant 定向二次检索或澄清；预算耗尽 fail closed；不执行 `refresh_commerce_state`、Derived Evidence 或 HARD recheck。
+- **Verification**：Unit state table + Integration trace.
+- **Dependencies**：T04.
+- **Out of Scope**：无限 ReAct、多 Agent、开放工具 dispatcher、commerce refresh、Derived Evidence、HARD eligibility recheck。
+
+## T06 — Product RAG answer/fallback walking skeleton
+
+- **Goal**：打通 Product QA 的 RAG Evidence -> Answer/Fallback 闭环。
+- **Why**：在 Slice 5 结束前需要一个真实 walking skeleton，证明检索、证据、trace 和回答绑定能协同工作。
+- **Scope**：未来 `backend/application/` Product QA flow；`backend/rag/` retriever；`backend/evidence/` gate；contract/integration/e2e tests。
+- **Contract**：现有 `AnswerEnvelope`、Evidence binding、`RagFallback`、ActionRoundTrace。
+- **Acceptance**：FAQ/包装/手册/政策 happy path 与缺证 fallback 均通过；Answer/Evidence/Trace 绑定同一 Turn Target；动态事实请求不由文档回答。
+- **Verification**：Contract + Integration + E2E.
+- **Dependencies**：T05.
+- **Out of Scope**：多商品推荐、比较表、正式 Widget、真实外部服务、Slice 6 recommendation。
+
+## T07 — Slice 5 evaluation matrix and completion evidence
+
+- **Goal**：覆盖 S5-A01～S5-A12 和 Matrix #1～#12。
+- **Why**：完成 Slice 5 前需要证明单商品 RAG 没有跨商品、动态事实、预算和证据绑定漏洞。
+- **Scope**：tests、eval fixtures、tasks execution evidence。
+- **Contract**：Slice 5 acceptance matrix、budget stop reasons、ActionRoundTrace replay evidence。
+- **Acceptance**：full suite、scope、secret、zero-write、dynamic/static split、budget limit 和 Evidence Gate 通过。
+- **Verification**：Static + Unit + Contract + Integration + E2E + full suite.
+- **Dependencies**：T06.
+- **Out of Scope**：Slice 6 implementation、fine-tuning、push、feature delivery workflow changes。
+
+## Human Escalation
+
+公共 Contract、Product Behavior、Architecture、主要依赖、外部服务、检索引擎锁定、开放网络、超过 `2` 个 total action rounds、跨商品检索、在 Slice 5 执行 commerce refresh / Derived Evidence / HARD recheck、Shopify write 或 Evidence Gate 放宽都必须升级。

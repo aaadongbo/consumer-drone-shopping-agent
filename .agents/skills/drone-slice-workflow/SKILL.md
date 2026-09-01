@@ -5,7 +5,7 @@ description: "Manage the risk-tiered Slice task workflow for this consumer-drone
 
 # Drone Slice Workflow
 
-Use one mode: `status`, `run-next`, `snapshot`, `review`, `checkpoint`, `slice-review`, `integrate-approved`, or `reconcile`. If invocation is implicit or the user only says “继续”, start with `status`; discovery never authorizes a write, Task execution, status change, snapshot, checkpoint, integration, merge, or push.
+Use one mode: `status`, `run-next`, `snapshot`, `review`, `checkpoint`, `slice-review`, `integrate-approved`, or `reconcile`. `feature-delivery` is a proposed/non-operational protocol note, not an executable mode. If invocation is implicit or the user only says “继续”, start with `status`; discovery never authorizes a write, Task execution, status change, snapshot, checkpoint, integration, merge, or push.
 
 ## Sources and state
 
@@ -19,9 +19,10 @@ Formal Task states are `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, and `DONE`. Deri
 - `run-next`: read [references/execution-protocol.md](references/execution-protocol.md). A LOW Task may be started with one explicit Slice authorization and may advance to the next ordered LOW Task only after its targeted gates, immutable snapshot, and independent AI Review pass. MEDIUM still pauses at a key checkpoint; HIGH pauses after each Task. Never execute two Tasks concurrently or cross a risk gate automatically.
 - `snapshot`: after the Task is `DONE` and deterministic gates pass, create exactly one Task-scoped local WIP commit. It must be detached or on a task branch, never on a protected integration branch; stop after immutable evidence. A `SNAPSHOT_CREATED` result must carry `integration_authorized: false`, `push_authorized: false`, and `human_approval: false`. A snapshot is not acceptance, integration, merge, Human approval, or push.
 - `review`: in an independent clean Session/Worktree, inspect only `base_head..snapshot_head`, recompute the digest, and output one leading verdict: `AI_REVIEW_PASS`, `AI_REVIEW_NEEDS_CHANGES`, or `BLOCKED`. Task review evidence requires that exact Task to be `DONE`; `IN_PROGRESS` fails closed. A pass wording is `AI_REVIEW_PASS — Awaiting explicit Human approval`.
-- `checkpoint`: run `verify_commit_readiness.py` for identity, scope, digest, real policy-selected verification, and risk-tier routing. Missing, invalid, mismatched, or plan-only evidence reports `BLOCKED / CHECKPOINT_NOT_READY`; complete LOW evidence with `AI_REVIEW_PASS` and a sufficient reviewed tier may report `AUTO_ADVANCE_ELIGIBLE` (never checkpoint acceptance), while MEDIUM/HIGH evidence reports `HUMAN_APPROVAL_REQUIRED`. A Reviewer-reported tier above policy always escalates. It never authorizes integration/push; `--verification-pass` is ignored.
+- `checkpoint`: run `verify_commit_readiness.py` for identity, scope, digest, real policy-selected verification, and risk-tier routing. Missing, invalid, mismatched, or plan-only evidence reports `BLOCKED / CHECKPOINT_NOT_READY`; complete LOW evidence with `AI_REVIEW_PASS` and a sufficient reviewed tier may report `AUTO_ADVANCE_ELIGIBLE` (never checkpoint acceptance), while MEDIUM/HIGH evidence reports `HUMAN_APPROVAL_REQUIRED`. A Reviewer-reported tier above policy always escalates. It never authorizes direct main integration/push; `--verification-pass` is ignored.
 - `slice-review`: after every Slice Task is `DONE`, independently review the complete Slice range against the union of every configured Task scope. The Task identity must equal the policy's explicit `completion_task`. Core Artifact, dependency, forbidden-path, identity, and aggregate HIGH-risk gates still apply. Stop for the Human merge/push decision.
-- `integrate-approved`: proceed only when the current user explicitly authorizes the exact integration/merge or local integration commit. Push requires a separate explicit authorization.
+- `integrate-approved`: proceed only when the current user explicitly authorizes the exact integration/merge or local integration commit. Direct protected-branch push remains forbidden.
+- `feature-delivery` proposal: planned/non-operational protocol for future Slice automation. It is not callable through this Skill and must not be treated as active enforcement. A separate Workflow Implementation Planning and Human approval must define and test feature branch push, PR creation, required CI, force-push prevention, auto-merge authorization, and Slice completion evidence before any operation can rely on it. Even then, it may automate only post-Slice PR/CI/merge mechanics and must not weaken LOW/MEDIUM/HIGH Task gates.
 - `reconcile`: read [references/reconciliation-rules.md](references/reconciliation-rules.md) and remain read-only unless the applicable authority is explicit.
 
 ## Deterministic helpers
@@ -44,13 +45,13 @@ Risk tiers are `LOW`, `MEDIUM`, and `HIGH`:
 
 - LOW: one Slice-level implementation authorization; targeted verification and independent AI Review per Task; Human intervenes at Slice completion.
 - MEDIUM: independent AI Review per Task; Human intervenes at key checkpoints.
-- HIGH: current full per-Task Human gate.
+- HIGH: independent AI Review per Task and explicit per-Task Human decision.
 
-All tiers retain immutable snapshots, independent review, fail-closed errors, and zero automatic integration or push. Public Contract, Product Behavior, Architecture, Acceptance, Accepted Decision, major/cross-Slice dependency, external service behavior, Shopify writes, or safety-gate weakening are HIGH or escalation regardless of configured path.
+All tiers retain immutable snapshots, independent review, fail-closed errors, and no direct protected-branch integration. Public Contract, Product Behavior, Architecture, Acceptance, Accepted Decision, major/cross-Slice dependency, external service behavior, Shopify writes, or safety-gate weakening are HIGH or escalation regardless of configured path.
 
 ## Minimal safety boundary
 
-This workflow intentionally does not provide transaction-level concurrent Git-ref protection, protected-ref ancestry/TOCTOU auditing, temporary verification artifacts, or automatic checkpoint acceptance. Safety comes from refusing protected-branch snapshots, binding review to an immutable range and digest, requiring independent AI Review, escalating by risk tier, and requiring Human-controlled Slice integration and push.
+This workflow intentionally does not provide transaction-level concurrent Git-ref protection, protected-ref ancestry/TOCTOU auditing, temporary verification artifacts, or direct protected-branch checkpoint acceptance. Safety comes from refusing protected-branch snapshots, binding review to an immutable range and digest, requiring independent AI Review, escalating by risk tier, and keeping feature-delivery non-operational until separately implemented and approved.
 
 本版本不提供并发 Git ref 的事务级保护。安全边界通过禁止 protected-branch snapshot、禁止自动 checkpoint acceptance、以及 Human-controlled integration 保证。
 
