@@ -577,6 +577,26 @@ def inspect(
     if same_slice_active_elsewhere:
         blocking_reasons.append("SAME_SLICE_ACTIVE_IN_OTHER_WORKTREE")
 
+    scheduler_fail_closed = {
+        "MULTIPLE_IN_PROGRESS",
+        "ACTIVE_TASK_DEPENDENCY_UNSATISFIED",
+        "UNKNOWN_DEPENDENCY",
+        "DEPENDENCY_CYCLE",
+    }
+    if scheduler_fail_closed.intersection(blocking_reasons):
+        # A malformed graph or concurrent activity invalidates the whole schedule.
+        # Never leak a selected/executable Task from a partially inspected graph.
+        selected_task = None
+        executable_candidates = []
+        for task in tasks:
+            task["ordered_candidate"] = False
+            task["executable"] = False
+            task["implementation_authorized_via"] = None
+            if task["status"] == "NOT_STARTED":
+                task["execution_blockers"] = list(
+                    dict.fromkeys(task["execution_blockers"] + ["SCHEDULER_FAIL_CLOSED"])
+                )
+
     return {
         "ok": not blocking_reasons,
         "repository_root": str(repo),

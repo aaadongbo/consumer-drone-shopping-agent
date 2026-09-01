@@ -1429,11 +1429,15 @@ class WorkflowScriptTests(unittest.TestCase):
         repo.write_tasks(status_map(list(repo.titles)))
         cycle = inspect(repo.root)
         self.assertIn("DEPENDENCY_CYCLE", cycle["blocking_reasons"])
+        self.assertIsNone(cycle["selected_task"])
+        self.assertIsNone(cycle["executable_task"])
 
         repo.dependencies["T01"] = "T99"
         repo.write_tasks(status_map(list(repo.titles)))
         unknown = inspect(repo.root)
         self.assertIn("UNKNOWN_DEPENDENCY", unknown["blocking_reasons"])
+        self.assertIsNone(unknown["selected_task"])
+        self.assertIsNone(unknown["executable_task"])
 
         repo.tasks_path.write_text(
             repo.tasks_path.read_text(encoding="utf-8")
