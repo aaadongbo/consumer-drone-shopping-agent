@@ -133,6 +133,40 @@ def successful_verification(
     }
 
 
+def reviewer_evidence(
+    immutable: dict[str, object], *, findings: list[object] | None = None
+) -> dict[str, object]:
+    return {
+        "schema_version": 1,
+        "verdict": "AI_REVIEW_PASS",
+        "slice": immutable["slice"],
+        "task": immutable["task"],
+        "base_head": immutable["base_head"],
+        "snapshot_head": immutable["snapshot_head"],
+        "mode": immutable["mode"],
+        "digest": immutable["digest"],
+        "risk_tier": (immutable["risk_policy"] or {})["effective_tier"],
+        "reviewer": {
+            "identity": "reviewer-agent",
+            "session": "fresh-child-session",
+            "kind": "independent-child",
+        },
+        "review_worktree": {
+            "path": "/tmp/independent-review",
+            "head": immutable["snapshot_head"],
+            "detached": True,
+            "clean": True,
+        },
+        "no_write": True,
+        "findings": [] if findings is None else findings,
+        "verification": {
+            "commands": [
+                {"command": "python -m pytest", "exit_code": 0, "result": "passed"}
+            ]
+        },
+    }
+
+
 class TemporaryRepository:
     def __init__(
         self,
@@ -610,7 +644,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
                 mode="slice-review",
-                ai_review_pass=True,
                 reviewed_risk_tier="HIGH",
             )
         self.assertFalse(result["ok"])
@@ -702,7 +735,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=base,
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
-                ai_review_pass=True,
                 verification_pass=True,
                 reviewed_risk_tier="LOW",
             )
@@ -731,7 +763,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=base,
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
-                ai_review_pass=True,
                 reviewed_risk_tier="LOW",
             )
         self.assertTrue(low["ok"])
@@ -757,7 +788,7 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=medium_base,
                 snapshot_revision=medium_snapshot,
                 reviewed_digest=medium_evidence["digest"],
-                ai_review_pass=True,
+                reviewer_evidence=reviewer_evidence(medium_evidence),
                 reviewed_risk_tier="MEDIUM",
             )
         self.assertTrue(medium["ok"])
@@ -780,7 +811,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=high_base,
                 snapshot_revision=high_snapshot,
                 reviewed_digest=high_evidence["digest"],
-                ai_review_pass=True,
                 reviewed_risk_tier="HIGH",
             )
         self.assertFalse(high["ok"])
@@ -810,7 +840,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=base,
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
-                ai_review_pass=True,
                 reviewed_risk_tier="HIGH",
             )
         self.assertEqual(result["reviewed_effective_tier"], "HIGH")
@@ -838,7 +867,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=base,
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
-                ai_review_pass=True,
                 reviewed_risk_tier="LOW",
             )
         self.assertFalse(result["ok"])
@@ -951,7 +979,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=base,
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
-                ai_review_pass=True,
                 reviewed_risk_tier="HIGH",
             )
 
@@ -1186,7 +1213,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=base,
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
-                ai_review_pass=True,
                 reviewed_risk_tier="HIGH",
             )
         self.assertFalse(result["ok"])
@@ -1214,7 +1240,6 @@ class WorkflowScriptTests(unittest.TestCase):
             base_revision=base,
             snapshot_revision=snapshot,
             reviewed_digest=evidence["digest"],
-            ai_review_pass=True,
             reviewed_risk_tier="LOW",
         )
         self.assertEqual(low["workflow_stage"], "BLOCKED")
@@ -1232,7 +1257,6 @@ class WorkflowScriptTests(unittest.TestCase):
                 base_revision=base,
                 snapshot_revision=snapshot,
                 reviewed_digest=evidence["digest"],
-                ai_review_pass=True,
                 reviewed_risk_tier="HIGH",
             )
         self.assertEqual(high["workflow_stage"], "HUMAN_APPROVAL_REQUIRED")
@@ -1352,7 +1376,6 @@ class WorkflowScriptTests(unittest.TestCase):
             base_revision=base,
             snapshot_revision=snapshot,
             reviewed_digest=evidence["digest"],
-            ai_review_pass=True,
         )
 
         self.assertEqual(result["workflow_stage"], "BLOCKED")
@@ -1372,7 +1395,6 @@ class WorkflowScriptTests(unittest.TestCase):
             base_revision=base,
             snapshot_revision=snapshot,
             reviewed_digest=evidence["digest"],
-            ai_review_pass=True,
             reviewed_risk_tier="CRITICAL",
         )
 
@@ -1397,7 +1419,6 @@ class WorkflowScriptTests(unittest.TestCase):
             base,
             "--snapshot-head",
             snapshot,
-            "--ai-review-pass",
             "--risk-tier",
             "LOW",
         ]
@@ -1470,7 +1491,7 @@ class WorkflowScriptTests(unittest.TestCase):
                 {
                     "LOW": {
                         "review": "batch-or-slice-completion",
-                        "max_consecutive_tasks": 3,
+                        "max_tasks_per_invocation": 3,
                     },
                     "MEDIUM": {"review": "task"},
                     "HIGH": {"review": "human-decision"},
@@ -1499,6 +1520,62 @@ class WorkflowScriptTests(unittest.TestCase):
             )
             for task_policy in slice_policy["tasks"].values():
                 self.assertNotIn("checkpoint_policy", task_policy)
+
+    def test_low_batch_hard_limits_one_invocation_and_stops_at_risk_boundary(
+        self,
+    ) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        policy_path = (
+            repo.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"][
+            repo.tasks_path.relative_to(repo.root).as_posix()
+        ]
+        for task_id in ("T01", "T02", "T03", "T04"):
+            repo.dependencies[task_id] = "SATISFIED"
+            slice_policy["tasks"][task_id]["risk_tier"] = "LOW"
+        slice_policy["tasks"]["T05"]["risk_tier"] = "MEDIUM"
+        repo.write_tasks(status_map(list(repo.titles)))
+        policy_path.write_text(json.dumps(policy), encoding="utf-8")
+        state = inspect(repo.root, implementation_authorized_slice="S02")
+        self.assertEqual(state["low_batch"]["tasks"], ["S02-T01", "S02-T02", "S02-T03"])
+        self.assertEqual(state["low_batch"]["stop_reason"], "LOW_BATCH_LIMIT_REACHED")
+        self.assertEqual(state["low_batch"]["next_task"], "S02-T04")
+
+        slice_policy["tasks"]["T03"]["risk_tier"] = "MEDIUM"
+        policy_path.write_text(json.dumps(policy), encoding="utf-8")
+        state = inspect(repo.root, implementation_authorized_slice="S02")
+        self.assertEqual(state["low_batch"]["tasks"], ["S02-T01", "S02-T02"])
+        self.assertEqual(state["low_batch"]["stop_reason"], "NON_LOW_RISK_BOUNDARY")
+
+    def test_medium_boolean_cannot_unlock_without_bound_reviewer_evidence(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        repo.snapshot(task_id="T01")
+        base, snapshot = repo.snapshot(
+            task_id="T02", changed_path="backend/conversation/change.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+        immutable = immutable_evidence("S02-T02", base, snapshot, repo.root)
+        verification = successful_verification("S02-T02", base, snapshot)
+        with patch("verify_commit_readiness.verify_task", return_value=verification):
+            blocked = checkpoint_readiness(
+                "S02-T02", repo.root, base_revision=base, snapshot_revision=snapshot,
+                reviewed_digest=immutable["digest"],
+                reviewed_risk_tier="MEDIUM",
+            )
+        self.assertFalse(blocked["ok"])
+        self.assertIn("REVIEWER_EVIDENCE_REQUIRED", blocked["blocking_reasons"])
+        with patch("verify_commit_readiness.verify_task", return_value=verification):
+            ready = checkpoint_readiness(
+                "S02-T02", repo.root, base_revision=base, snapshot_revision=snapshot,
+                reviewed_digest=immutable["digest"], reviewed_risk_tier="MEDIUM",
+                reviewer_evidence=reviewer_evidence(immutable),
+            )
+        self.assertTrue(ready["ok"])
 
     def test_scheduler_serializes_multiple_ready_s03_tasks(self) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")

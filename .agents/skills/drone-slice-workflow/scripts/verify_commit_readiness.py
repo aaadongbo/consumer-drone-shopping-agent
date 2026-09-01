@@ -41,6 +41,76 @@ WORKFLOW_POLICY_REPAIR_PATHS = {
     ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
     ".agents/skills/drone-slice-workflow/scripts/verify_task.py",
 }
+REVIEW_EVIDENCE_SCHEMA_VERSION = 1
+
+
+def validate_reviewer_evidence(
+    payload: Any, evidence: dict[str, Any] | None
+) -> tuple[dict[str, Any] | None, list[str]]:
+    """Validate a child-review JSON summary against immutable evidence."""
+    reasons: list[str] = []
+    if not isinstance(payload, dict):
+        return None, ["REVIEWER_EVIDENCE_REQUIRED"]
+    required = {
+        "schema_version": REVIEW_EVIDENCE_SCHEMA_VERSION,
+        "verdict": "AI_REVIEW_PASS",
+        "mode": (evidence or {}).get("mode"),
+        "slice": (evidence or {}).get("slice"),
+        "task": (evidence or {}).get("task"),
+        "base_head": (evidence or {}).get("base_head"),
+        "snapshot_head": (evidence or {}).get("snapshot_head"),
+        "digest": (evidence or {}).get("digest"),
+        "risk_tier": ((evidence or {}).get("risk_policy") or {}).get("effective_tier")
+        or ((evidence or {}).get("risk_policy") or {}).get("minimum_tier"),
+    }
+    for key, expected in required.items():
+        if payload.get(key) != expected:
+            reasons.append(f"REVIEWER_EVIDENCE_{key.upper()}_MISMATCH")
+    reviewer = payload.get("reviewer")
+    if not isinstance(reviewer, dict) or not all(
+        isinstance(reviewer.get(key), str) and reviewer[key].strip()
+        for key in ("identity", "session")
+    ) or reviewer.get("kind") != "independent-child":
+        reasons.append("REVIEWER_IDENTITY_OR_INDEPENDENCE_INVALID")
+    worktree = payload.get("review_worktree")
+    if not isinstance(worktree, dict) or not all(
+        worktree.get(key) is expected
+        for key, expected in (("detached", True), ("clean", True))
+    ) or (
+        worktree.get("head") != (evidence or {}).get("snapshot_head")
+        or not isinstance(worktree.get("path"), str)
+        or not worktree["path"].strip()
+    ):
+        reasons.append("REVIEWER_WORKTREE_INVALID")
+    if payload.get("no_write") is not True:
+        reasons.append("REVIEWER_NO_WRITE_REQUIRED")
+    if payload.get("findings") != []:
+        reasons.append("REVIEWER_FINDINGS_NOT_EMPTY")
+    verification = payload.get("verification")
+    commands = verification.get("commands") if isinstance(verification, dict) else None
+    if not isinstance(commands, list) or not commands or any(
+        not isinstance(item, dict)
+        or not isinstance(item.get("command"), str)
+        or not item["command"].strip()
+        or item.get("exit_code") != 0
+        or not isinstance(item.get("result"), str)
+        or not item["result"].strip()
+        for item in commands
+    ):
+        reasons.append("REVIEWER_VERIFICATION_RECORD_INVALID")
+    return payload, list(dict.fromkeys(reasons))
+
+
+def load_reviewer_evidence(path: str | None) -> tuple[dict[str, Any] | None, list[str]]:
+    if not path:
+        # The risk-tier-specific validator supplies the fail-closed required
+        # reason for MEDIUM; LOW has no checkpoint review path.
+        return None, []
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, ["REVIEWER_EVIDENCE_FILE_INVALID"]
+    return payload, []
 
 
 def _frame(hasher: hashlib._Hash, label: str, value: str | bytes) -> None:
@@ -402,8 +472,6 @@ def verify(
     reviewed_head: str,
     reviewed_digest: str,
     repo_arg: str | Path = ".",
-    *,
-    ai_review_pass: bool = False,
     human_approved: bool = False,
     dependency_review_confirmed: bool = False,
 ) -> dict[str, Any]:
@@ -414,7 +482,6 @@ def verify(
         base_revision=reviewed_head,
         snapshot_revision=reviewed_head,
         reviewed_digest=reviewed_digest,
-        ai_review_pass=ai_review_pass,
         human_approved=human_approved,
         dependency_review_confirmed=dependency_review_confirmed,
     )
@@ -428,9 +495,9 @@ def checkpoint_readiness(
     snapshot_revision: str | None = None,
     reviewed_digest: str | None = None,
     mode: str = "task-review",
-    ai_review_pass: bool = False,
     verification_pass: bool = False,
     reviewed_risk_tier: str | None = None,
+    reviewer_evidence: dict[str, Any] | None = None,
     human_approved: bool = False,
     dependency_review_confirmed: bool = False,
 ) -> dict[str, Any]:
@@ -457,8 +524,6 @@ def checkpoint_readiness(
         readiness_blockers.append("REVIEWED_DIGEST_REQUIRED")
     elif not digest_matches:
         readiness_blockers.append("REVIEWED_DIGEST_MISMATCH")
-    if not ai_review_pass:
-        readiness_blockers.append("AI_REVIEW_PASS_NOT_SUPPLIED")
     if reviewed_risk_tier is None:
         readiness_blockers.append("REVIEWED_RISK_TIER_REQUIRED")
     elif reviewed_risk_tier not in RISK_RANK:
@@ -473,6 +538,14 @@ def checkpoint_readiness(
         ):
             readiness_blockers.append("REVIEWED_RISK_TIER_BELOW_POLICY_MINIMUM")
     dependency_review = (evidence or {}).get("scope", {}).get("dependency_review", {})
+    risk_policy = (evidence or {}).get("risk_policy") or {}
+    policy_tier = risk_policy.get("effective_tier") or risk_policy.get("minimum_tier")
+    reviewer_payload: dict[str, Any] | None = None
+    if policy_tier == "MEDIUM":
+        reviewer_payload, reviewer_reasons = validate_reviewer_evidence(
+            reviewer_evidence, evidence
+        )
+        readiness_blockers.extend(reviewer_reasons)
     if (
         dependency_review.get("manual_confirmation_required")
         and not dependency_review_confirmed
@@ -480,7 +553,7 @@ def checkpoint_readiness(
         readiness_blockers.append("DEPENDENCY_MANUAL_CONFIRMATION_REQUIRED")
 
     verification: dict[str, Any] | None = None
-    if evidence and digest_matches and ai_review_pass and not readiness_blockers:
+    if evidence and digest_matches and not readiness_blockers:
         risk_policy = evidence.get("risk_policy") or {}
         boundary_full_verification = bool(
             mode == "slice-review"
@@ -509,9 +582,7 @@ def checkpoint_readiness(
     elif evidence and digest_matches:
         readiness_blockers.append("TARGETED_VERIFICATION_EVIDENCE_REQUIRED")
 
-    risk_policy = (evidence or {}).get("risk_policy") or {}
     automation = risk_policy.get("automation") or {}
-    policy_tier = risk_policy.get("effective_tier") or risk_policy.get("minimum_tier")
     reviewed_effective_tier = max(
         (tier for tier in (policy_tier, reviewed_risk_tier) if tier in RISK_RANK),
         key=RISK_RANK.__getitem__,
@@ -564,7 +635,7 @@ def checkpoint_readiness(
         "mode": mode,
         "human_approval_required": ready_for_human,
         "human_approval_supplied": human_approved,
-        "ai_review_pass": ai_review_pass,
+        "reviewer_evidence": reviewer_payload,
         "verification_pass_claim_ignored": verification_pass,
         "caller_verification_pass_claim_ignored": verification_pass,
         "dependency_review_confirmed": dependency_review_confirmed,
@@ -606,7 +677,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--mode", default="task-review", choices=["task-review", "slice-review"]
     )
-    parser.add_argument("--ai-review-pass", action="store_true")
+    parser.add_argument(
+        "--review-evidence",
+        help="path to independent-child reviewer JSON (required for MEDIUM)",
+    )
     parser.add_argument(
         "--verification-pass", action="store_true", help="deprecated claim; ignored"
     )
@@ -623,6 +697,9 @@ def main() -> int:
         if args.hash_only:
             payload = review_snapshot(args.repo)
         elif args.checkpoint:
+            reviewer_evidence, reviewer_load_reasons = load_reviewer_evidence(
+                args.review_evidence
+            )
             payload = checkpoint_readiness(
                 args.task or "UNKNOWN",
                 args.repo,
@@ -630,12 +707,19 @@ def main() -> int:
                 snapshot_revision=args.snapshot_head,
                 reviewed_digest=args.reviewed_digest,
                 mode=args.mode,
-                ai_review_pass=args.ai_review_pass,
                 verification_pass=args.verification_pass,
                 reviewed_risk_tier=args.risk_tier,
                 human_approved=args.human_approved,
                 dependency_review_confirmed=args.dependency_review_confirmed,
+                reviewer_evidence=reviewer_evidence,
             )
+            if reviewer_load_reasons:
+                payload["blocking_reasons"] = list(dict.fromkeys(
+                    payload["blocking_reasons"] + reviewer_load_reasons
+                ))
+                payload["ok"] = False
+                payload["workflow_stage"] = "BLOCKED"
+                payload["status"] = "CHECKPOINT_NOT_READY"
         elif args.evidence:
             if not args.task or not args.base_head or not args.snapshot_head:
                 raise InspectionError(
@@ -649,6 +733,9 @@ def main() -> int:
                 mode=args.mode,
             )
         else:
+            reviewer_evidence, reviewer_load_reasons = load_reviewer_evidence(
+                args.review_evidence
+            )
             if not args.task:
                 raise InspectionError("task is required")
             payload = checkpoint_readiness(
@@ -658,12 +745,19 @@ def main() -> int:
                 snapshot_revision=args.snapshot_head,
                 reviewed_digest=args.reviewed_digest,
                 mode=args.mode,
-                ai_review_pass=args.ai_review_pass,
                 verification_pass=args.verification_pass,
                 reviewed_risk_tier=args.risk_tier,
                 human_approved=args.human_approved,
                 dependency_review_confirmed=args.dependency_review_confirmed,
+                reviewer_evidence=reviewer_evidence,
             )
+            if reviewer_load_reasons:
+                payload["blocking_reasons"] = list(dict.fromkeys(
+                    payload["blocking_reasons"] + reviewer_load_reasons
+                ))
+                payload["ok"] = False
+                payload["workflow_stage"] = "BLOCKED"
+                payload["status"] = "CHECKPOINT_NOT_READY"
     except (InspectionError, OSError, UnicodeError) as exc:
         payload = {"ok": False, "workflow_stage": "BLOCKED", "error": str(exc)}
         print(

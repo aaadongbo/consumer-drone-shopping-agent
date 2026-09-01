@@ -87,7 +87,7 @@ def resolve_task_policy(
         profile = cadence.get(tier)
         if not isinstance(profile, dict) or profile.get("review") != expected_review:
             return slice_policy, None, "INVALID_REVIEW_CADENCE_POLICY"
-    if cadence["LOW"].get("max_consecutive_tasks") != 3:
+    if cadence["LOW"].get("max_tasks_per_invocation") != 3:
         return slice_policy, None, "INVALID_REVIEW_CADENCE_POLICY"
     task_validation = execution_policy.get("task_validation", {})
     if not isinstance(task_validation, dict):

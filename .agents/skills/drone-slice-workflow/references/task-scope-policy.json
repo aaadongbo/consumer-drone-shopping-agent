@@ -23,7 +23,7 @@
           "verification_mode": "targeted"
         },
         "review_cadence": {
-          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
           "MEDIUM": {"review": "task"},
           "HIGH": {"review": "human-decision"}
         },
@@ -134,7 +134,7 @@
           "verification_mode": "targeted"
         },
         "review_cadence": {
-          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
           "MEDIUM": {"review": "task"},
           "HIGH": {"review": "human-decision"}
         },
@@ -237,7 +237,7 @@
           "verification_mode": "targeted"
         },
         "review_cadence": {
-          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
           "MEDIUM": {"review": "task"},
           "HIGH": {"review": "human-decision"}
         },
@@ -342,7 +342,7 @@
           "verification_mode": "targeted"
         },
         "review_cadence": {
-          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
           "MEDIUM": {"review": "task"},
           "HIGH": {"review": "human-decision"}
         },
@@ -447,7 +447,7 @@
           "verification_mode": "targeted"
         },
         "review_cadence": {
-          "LOW": {"review": "batch-or-slice-completion", "max_consecutive_tasks": 3},
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
           "MEDIUM": {"review": "task"},
           "HIGH": {"review": "human-decision"}
         },

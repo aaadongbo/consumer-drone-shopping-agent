@@ -11,6 +11,7 @@ Review behavior before source shape. For a MEDIUM boundary, read the Task, relev
 - Scope and deterministic verification output refer to the same immutable range; caller pass claims are not evidence.
 - Task review requires the selected MEDIUM Task to be `DONE`. Slice review requires every Task to be `DONE`, the Task identity to equal the explicit policy `completion_task`, and the complete range to pass the union of configured Task scopes plus core Artifact, dependency, forbidden-path, identity, and aggregate HIGH-risk gates.
 - The reviewer did not modify or implement the snapshot and remains independent.
+- A MEDIUM review handoff is a schema-valid JSON summary, not a boolean or prose: `AI_REVIEW_PASS`, exact Slice/Task/base/snapshot/mode/digest, independent-child identity/session, detached clean worktree at the snapshot, `no_write: true`, empty findings, and each real verification command with exit code/result. Any absent or mismatched field fails closed.
 
 ## Required findings
 
@@ -24,7 +25,7 @@ Review behavior before source shape. For a MEDIUM boundary, read the Task, relev
 - No later Task/Slice behavior, generated residue, secret, raw header, or sensitive trace data appears.
 - The Execution Record contains real commands, failures, corrections, exit codes, evidence, and limitations.
 - AI verdict, Human approval, WIP snapshot, checkpoint handoff, integration/merge, and push remain distinct.
-- Risk routing is respected: LOW batches need targeted checks; MEDIUM boundaries need independent review; HIGH and unplanned scope, safety, Product Behavior, Contract, Architecture, major dependency, external-service, or Shopify-write changes require Human intervention. Slice completion needs the full suite and independent Slice review. No route authorizes checkpoint acceptance, integration, merge, or push.
+- Risk routing is respected: a scheduler LOW batch contains at most three currently-ready adjacent Tasks and stops explicitly at the batch/risk boundary; MEDIUM boundaries need the schema-valid independent-child JSON review; HIGH and unplanned scope, safety, Product Behavior, Contract, Architecture, major dependency, external-service, or Shopify-write changes require Human intervention. Slice completion needs the full suite and independent Slice review. No route authorizes checkpoint acceptance, integration, merge, or push.
 - If feature-branch delivery is claimed, first verify that the repository contains an implemented and approved operational protocol. Current `feature-delivery` planning text is proposed/non-operational and cannot be treated as enforcement. If a future operational protocol exists, verify that it is not a protected-branch push, the PR branch/range matches the reviewed Slice, required CI checks are present and passing, auto-merge is repository-managed, and no unplanned escalation condition is present.
 
 ## Verdicts

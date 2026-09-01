@@ -279,6 +279,59 @@ def task_automation_policy(
     }
 
 
+def low_batch_plan(
+    tasks: list[dict[str, Any]], ordered_candidates: list[dict[str, Any]]
+) -> dict[str, Any]:
+    """Return the one-invocation LOW batch, never a cross-session counter.
+
+    Only currently dependency-ready table rows are eligible.  The explicit stop
+    result is part of the scheduler contract: callers cannot continue past it
+    recursively or by claiming a task count.
+    """
+    limit = 3
+    candidates = {task["id"]: task for task in ordered_candidates}
+    selected = ordered_candidates[0] if ordered_candidates else None
+    if selected is None:
+        return {"tasks": [], "limit": limit, "stop_reason": "NO_READY_LOW_TASK"}
+    selected_policy = selected["automation_policy"]
+    if selected_policy.get("review_cadence") != "batch-or-slice-completion":
+        return {
+            "tasks": [],
+            "limit": limit,
+            "stop_reason": "NON_LOW_RISK_BOUNDARY",
+            "next_task": selected["canonical_id"],
+        }
+    batch: list[str] = []
+    start = tasks.index(selected)
+    stop_reason = "NOT_CURRENTLY_DEPENDENCY_READY"
+    next_task: str | None = None
+    for task in tasks[start:]:
+        ready = candidates.get(task["id"])
+        if ready is None:
+            next_task = task["canonical_id"]
+            break
+        if (
+            ready["automation_policy"].get("review_cadence")
+            != "batch-or-slice-completion"
+        ):
+            stop_reason = "NON_LOW_RISK_BOUNDARY"
+            next_task = ready["canonical_id"]
+            break
+        if len(batch) == limit:
+            stop_reason = "LOW_BATCH_LIMIT_REACHED"
+            next_task = ready["canonical_id"]
+            break
+        batch.append(ready["canonical_id"])
+    else:
+        stop_reason = "NO_FURTHER_READY_TASK"
+    return {
+        "tasks": batch,
+        "limit": limit,
+        "stop_reason": stop_reason,
+        "next_task": next_task,
+    }
+
+
 def dependency_cycle_ids(tasks: list[dict[str, Any]]) -> list[str]:
     """Return cyclic Task IDs; malformed graphs fail closed before scheduling."""
     graph = {task["id"]: task["dependencies"] for task in tasks}
@@ -528,6 +581,7 @@ def inspect(
         for task in tasks
         if task["status"] == "NOT_STARTED" and task["ordered_dependency_satisfied"]
     ]
+    low_batch = low_batch_plan(tasks, ordered_candidates)
     # Table order is a deterministic scheduler tie-breaker only; it does not change
     # DAG semantics.
     selected_task = (
@@ -636,6 +690,11 @@ def inspect(
                         task["execution_blockers"] + ["SCHEDULER_FAIL_CLOSED"]
                     )
                 )
+        low_batch = {
+            "tasks": [],
+            "limit": 3,
+            "stop_reason": "SCHEDULER_FAIL_CLOSED",
+        }
 
     return {
         "ok": not blocking_reasons,
@@ -664,6 +723,7 @@ def inspect(
             executable_candidates[0] if len(executable_candidates) == 1 else None
         ),
         "legal_next_candidates": executable_candidates,
+        "low_batch": low_batch,
         "implementation_authority_asserted_for": authorized_canonical,
         "slice_implementation_authority_asserted_for": authorized_slice,
         "human_approved_workflow_oid_asserted": approved_workflow_oid,
