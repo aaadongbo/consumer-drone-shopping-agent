@@ -109,6 +109,24 @@ SLICE_4_DEPENDENCIES = {
     "T05": "T03, T04",
     "T06": "T05",
 }
+SLICE_5_TITLES = {
+    "T01": "Document manifest and ingestion contract",
+    "T02": "Scoped chunking and locator baseline",
+    "T03": "Metadata-filtered baseline retrieval",
+    "T04": "Evidence quality and claim coverage gate",
+    "T05": "Bounded Product RAG action loop",
+    "T06": "Product RAG answer/fallback walking skeleton",
+    "T07": "Slice 5 evaluation matrix and completion evidence",
+}
+SLICE_5_DEPENDENCIES = {
+    "T01": "Slice 4 completion + Slice 5 planning approval + S05 workflow policy",
+    "T02": "T01",
+    "T03": "T02",
+    "T04": "T03",
+    "T05": "T04",
+    "T06": "T05",
+    "T07": "T06",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -213,6 +231,11 @@ class TemporaryRepository:
             self.titles, self.dependencies = (
                 dict(SLICE_4_TITLES),
                 dict(SLICE_4_DEPENDENCIES),
+            )
+        elif slice_name == "slice-05-product-rag":
+            self.titles, self.dependencies = (
+                dict(SLICE_5_TITLES),
+                dict(SLICE_5_DEPENDENCIES),
             )
         else:
             self.titles, self.dependencies = (
@@ -1392,6 +1415,312 @@ class WorkflowScriptTests(unittest.TestCase):
 
         extra = immutable_evidence(
             "WORKFLOW-S04-POLICY", extra_base, extra_snapshot, extra_repo.root
+        )
+        self.assertFalse(extra["ok"])
+        self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
+
+    def test_s05_planned_table_is_nonexecutable_until_reconciled(self) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder.cleanup)
+        repo.write_tasks(status_map(list(repo.titles), "T06"))
+        planned = repo.root / "changes/slice-05-product-rag/tasks.md"
+        planned.parent.mkdir(parents=True, exist_ok=True)
+        planned.write_text(
+            "| Planned Task | Title | Planned state | Dependencies |\n"
+            "|---|---|---|---|\n"
+            "| T01 | Document manifest and ingestion contract | PLANNED | "
+            "Slice 4 completion + Slice 5 planning approval |\n"
+            "| T02 | Scoped chunking and locator baseline | PLANNED | T01 |\n",
+            encoding="utf-8",
+        )
+
+        state = inspect(repo.root, implementation_authorized_slice="S04")
+
+        self.assertEqual(
+            state["tasks_file"], "changes/slice-04-variant-comparison/tasks.md"
+        )
+        self.assertEqual(state["ready_tasks"], [])
+        self.assertIsNone(state["selected_task"])
+        self.assertIsNone(state["executable_task"])
+
+    def test_s05_tasks_are_configured_but_require_formal_status_and_authority(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-05-product-rag")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root)
+
+        self.assertEqual(
+            [task["canonical_id"] for task in state["tasks"]],
+            [
+                "S05-T01",
+                "S05-T02",
+                "S05-T03",
+                "S05-T04",
+                "S05-T05",
+                "S05-T06",
+                "S05-T07",
+            ],
+        )
+        self.assertEqual(state["ordered_candidate"], "S05-T01")
+        self.assertIsNone(state["executable_task"])
+        self.assertIn(
+            "CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+
+        authorized = inspect(repo.root, implementation_authorized_slice="S05")
+        self.assertEqual(authorized["executable_task"], "S05-T01")
+        self.assertEqual(
+            authorized["tasks"][0]["implementation_authorized_via"], "slice"
+        )
+
+    def test_s05_scope_keeps_rag_in_scope_and_agent_allowlist_precedence(self) -> None:
+        allowed_cases = {
+            "T01": "backend/rag/manifest.py",
+            "T02": "backend/rag/chunking.py",
+            "T03": "backend/rag/retriever.py",
+            "T04": "tests/integration/test_s05_rag_quality.py",
+            "T05": "backend/agent/rag_action_loop.py",
+            "T06": "backend/agent/product_rag_answer.py",
+            "T07": "eval/datasets/s05_matrix.json",
+        }
+        for task_id, changed_path in allowed_cases.items():
+            holder, repo = self.repo(slice_name="slice-05-product-rag")
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id=task_id, changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                f"S05-{task_id}",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertTrue(scoped["ok"], (task_id, changed_path, scoped))
+            self.assertNotIn(
+                changed_path, scoped["forbidden_slice_path_changes"], changed_path
+            )
+
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        t04_policy = policy["slices"]["changes/slice-05-product-rag/tasks.md"]["tasks"][
+            "T04"
+        ]
+        self.assertIn("tests/integration/", t04_policy["allowed_paths"])
+        self.assertEqual(
+            t04_policy["verification_marker"], "unit or contract or integration"
+        )
+
+    def test_s05_semantic_action_rules_fail_closed_inside_allowed_paths(self) -> None:
+        forbidden_cases = {
+            ("T04", "backend/evidence/derived_evidence.py"): (
+                "derived_evidence_recompute"
+            ),
+            ("T05", "backend/agent/commerce_refresh.py"): "refresh_commerce_state",
+            ("T05", "backend/agent/open_web_retrieval.py"): "open_web_retrieval",
+            ("T06", "backend/evidence/derived_evidence.py"): (
+                "derived_evidence_recompute"
+            ),
+        }
+        for (task_id, changed_path), behavior in forbidden_cases.items():
+            holder, repo = self.repo(slice_name="slice-05-product-rag")
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id=task_id, changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                f"S05-{task_id}",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertFalse(scoped["ok"], (task_id, changed_path, scoped))
+            self.assertIn(
+                "SEMANTIC_SLICE_ACTION_FORBIDDEN",
+                scoped["blocking_reasons"],
+                changed_path,
+            )
+            self.assertEqual(scoped["risk_policy"]["effective_tier"], "HIGH")
+            self.assertIn(
+                behavior,
+                [item["behavior"] for item in scoped["semantic_action_violations"]],
+                changed_path,
+            )
+
+    def test_s05_slice_review_rejects_forbidden_semantic_actions(self) -> None:
+        holder, repo = self.repo(slice_name="slice-05-product-rag")
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        repo.write_tasks(status_map(list(repo.titles), "T07"))
+        changes = {
+            "backend/rag/retriever.py": "RETRIEVER = 1\n",
+            "backend/agent/rag_action_loop.py": "AGENT = 1\n",
+            "backend/evidence/derived_evidence.py": "DERIVED = 1\n",
+            "tests/e2e/test_s05_product_rag.py": "VALUE = 1\n",
+        }
+        for relative, content in changes.items():
+            path = repo.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S05): semantic violation")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence(
+            "S05-T07", base, snapshot, repo.root, mode="slice-review"
+        )
+
+        self.assertFalse(evidence["ok"])
+        self.assertIn(
+            "SEMANTIC_SLICE_ACTION_FORBIDDEN",
+            evidence["blocking_reasons"],
+        )
+        self.assertIn(
+            "derived_evidence_recompute",
+            [
+                item["behavior"]
+                for item in evidence["scope"]["semantic_action_violations"]
+            ],
+        )
+
+    def test_s05_forbidden_dependency_and_core_artifact_changes_fail_closed(
+        self,
+    ) -> None:
+        guarded_cases = {
+            "docs/PROJECT_SPEC.md": "CORE_ARTIFACT_CHANGED",
+            "pyproject.toml": "DEPENDENCY_FILE_CHANGED_WITHOUT_TASK_POLICY",
+            "backend/catalog/hard_recheck.py": "FORBIDDEN_SLICE_PATH_CHANGED",
+            "backend/shopify/refresh.py": "FORBIDDEN_SLICE_PATH_CHANGED",
+            "backend/evaluation/rag_engine.py": "FORBIDDEN_SLICE_PATH_CHANGED",
+            "changes/slice-06-evidence-recommendation/tasks.md": (
+                "FORBIDDEN_SLICE_PATH_CHANGED"
+            ),
+            "storefront/product_rag.ts": "FORBIDDEN_SLICE_PATH_CHANGED",
+        }
+        for changed_path, reason in guarded_cases.items():
+            holder, repo = self.repo(slice_name="slice-05-product-rag")
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id="T03", changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                "S05-T03",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertFalse(scoped["ok"], changed_path)
+            self.assertIn(reason, scoped["blocking_reasons"], changed_path)
+
+    def test_s05_slice_review_uses_t07_union_scope_and_high_completion(self) -> None:
+        holder, repo = self.repo(slice_name="slice-05-product-rag")
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        repo.write_tasks(status_map(list(repo.titles), "T07"))
+        changes = {
+            "backend/rag/manifest.py": "MANIFEST = 1\n",
+            "backend/rag/chunking.py": "CHUNKING = 1\n",
+            "backend/rag/retriever.py": "RETRIEVER = 1\n",
+            "backend/evidence/rag_quality.py": "EVIDENCE = 1\n",
+            "backend/agent/rag_action_loop.py": "AGENT = 1\n",
+            "backend/application/product_rag.py": "APP = 1\n",
+            "tests/e2e/test_s05_product_rag.py": "VALUE = 1\n",
+            "eval/datasets/s05_matrix.json": "{}\n",
+        }
+        for relative, content in changes.items():
+            path = repo.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S05): complete slice snapshot")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence(
+            "S05-T07", base, snapshot, repo.root, mode="slice-review"
+        )
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["scope"]["scope_kind"], "slice-range")
+        self.assertEqual(evidence["scope"]["completion_task"], "T07")
+        self.assertEqual(
+            evidence["scope"]["configured_tasks"],
+            ["T01", "T02", "T03", "T04", "T05", "T06", "T07"],
+        )
+        self.assertEqual(evidence["risk_policy"]["minimum_tier"], "HIGH")
+        self.assertFalse(evidence["risk_policy"]["automation"]["auto_advance"])
+        self.assertTrue(evidence["risk_policy"]["human_decision_required"])
+
+        wrong_task = immutable_evidence(
+            "S05-T06", base, snapshot, repo.root, mode="slice-review"
+        )
+        self.assertFalse(wrong_task["ok"])
+        self.assertIn(
+            "SLICE_REVIEW_TASK_IDENTITY_MISMATCH",
+            wrong_task["blocking_reasons"],
+        )
+
+    def test_s05_policy_records_forbidden_actions_and_allowlist_precedence(
+        self,
+    ) -> None:
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"]["changes/slice-05-product-rag/tasks.md"]
+
+        self.assertEqual(slice_policy["completion_task"], "T07")
+        self.assertTrue(slice_policy["activation_policy"]["formal_task_table_required"])
+        self.assertTrue(
+            slice_policy["activation_policy"]["planned_rows_non_executable"]
+        )
+        self.assertIn("backend/agent/", slice_policy["forbidden_path_prefixes"])
+        self.assertIn("backend/agent/", slice_policy["tasks"]["T05"]["allowed_paths"])
+        self.assertIn("backend/agent/", slice_policy["tasks"]["T06"]["allowed_paths"])
+        self.assertIn(
+            "Task allowed_paths are evaluated before forbidden_path_prefixes",
+            slice_policy["scope_notes"]["allowlist_precedence"],
+        )
+        self.assertIn("backend/rag/", slice_policy["tasks"]["T03"]["allowed_paths"])
+        self.assertNotIn("backend/rag/", slice_policy["forbidden_path_prefixes"])
+        for action in (
+            "refresh_commerce_state",
+            "derived_evidence_recompute",
+            "hard_eligibility_recheck",
+            "open_web_retrieval",
+            "shopify_write",
+            "cross_product_retrieval",
+            "more_than_two_total_action_rounds",
+            "evidence_gate_weakening",
+        ):
+            self.assertIn(action, slice_policy["forbidden_actions"])
+
+    def test_workflow_s05_policy_identity_accepts_only_workflow_paths(self) -> None:
+        holder, repo = self.repo(slice_name="slice-05-product-rag")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.workflow_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("WORKFLOW-S05-POLICY", base, snapshot, repo.root)
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["task"], "WORKFLOW-S05-POLICY")
+        self.assertEqual(evidence["scope"]["scope_kind"], "workflow-policy")
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertFalse(evidence["integration_authorized"])
+        self.assertFalse(evidence["push_authorized"])
+
+        extra_holder, extra_repo = self.repo(slice_name="slice-05-product-rag")
+        self.addCleanup(extra_holder.cleanup)
+        extra_base, extra_snapshot = extra_repo.workflow_policy_snapshot(
+            extra_path="README.md"
+        )
+        git(extra_repo.root, "switch", "--detach", extra_snapshot)
+
+        extra = immutable_evidence(
+            "WORKFLOW-S05-POLICY", extra_base, extra_snapshot, extra_repo.root
         )
         self.assertFalse(extra["ok"])
         self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])

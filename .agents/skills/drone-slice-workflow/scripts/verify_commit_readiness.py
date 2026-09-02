@@ -30,6 +30,7 @@ from verify_task import verify as verify_task
 WORKFLOW_POLICY_REPAIR_IDENTITIES = {
     "WORKFLOW-S03-POLICY": "changes/slice-03-target-resolution/tasks.md",
     "WORKFLOW-S04-POLICY": "changes/slice-04-variant-comparison/tasks.md",
+    "WORKFLOW-S05-POLICY": "changes/slice-05-product-rag/tasks.md",
 }
 WORKFLOW_POLICY_REPAIR_IDENTITY = "WORKFLOW-S03-POLICY"
 WORKFLOW_POLICY_REPAIR_TASKS_FILE = WORKFLOW_POLICY_REPAIR_IDENTITIES[

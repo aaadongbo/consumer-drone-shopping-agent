@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import subprocess
 import sys
@@ -30,6 +31,7 @@ DEPENDENCY_MODES = {DEPENDENCY_FORBIDDEN, DEPENDENCY_PLAN_MINIMAL}
 RISK_TIERS = {"LOW", "MEDIUM", "HIGH"}
 RISK_RANK = {"LOW": 0, "MEDIUM": 1, "HIGH": 2}
 HUMAN_GATES = {"unplanned-exception"}
+SEMANTIC_FORBIDDEN_REASON = "SEMANTIC_SLICE_ACTION_FORBIDDEN"
 
 
 def load_policy(path: Path = POLICY_PATH) -> dict[str, Any]:
@@ -146,6 +148,45 @@ def path_allowed(path: str, patterns: list[str]) -> bool:
     )
 
 
+def semantic_rule_matches(path: str, patterns: list[str]) -> bool:
+    return any(fnmatch.fnmatchcase(path, pattern) for pattern in patterns)
+
+
+def semantic_action_violations(
+    slice_policy: dict[str, Any], task_ids: set[str], paths: list[str]
+) -> list[dict[str, Any]]:
+    violations: list[dict[str, Any]] = []
+    rules = slice_policy.get("semantic_path_rules", [])
+    if not isinstance(rules, list):
+        return violations
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+        rule_tasks = rule.get("tasks", [])
+        path_patterns = rule.get("path_patterns", [])
+        if (
+            not isinstance(rule_tasks, list)
+            or not isinstance(path_patterns, list)
+            or not set(rule_tasks).intersection(task_ids)
+        ):
+            continue
+        valid_patterns = [item for item in path_patterns if isinstance(item, str)]
+        matched_paths = sorted(
+            path for path in paths if semantic_rule_matches(path, valid_patterns)
+        )
+        if not matched_paths:
+            continue
+        violations.append(
+            {
+                "behavior": rule.get("behavior"),
+                "tasks": sorted(set(rule_tasks).intersection(task_ids)),
+                "matched_paths": matched_paths,
+                "reason": rule.get("reason"),
+            }
+        )
+    return violations
+
+
 def policy_error(
     repo: Path, state: dict[str, Any], task_ref: str, reason: str
 ) -> dict[str, Any]:
@@ -225,7 +266,14 @@ def check(
         for path in paths["all"]
         if path_allowed(path, list(slice_policy.get("risk_escalation_paths", [])))
     )
-    effective_tier = "HIGH" if risk_escalation_paths else task_policy["risk_tier"]
+    semantic_violations = semantic_action_violations(
+        slice_policy, {task_id}, paths["all"]
+    )
+    effective_tier = (
+        "HIGH"
+        if risk_escalation_paths or semantic_violations
+        else task_policy["risk_tier"]
+    )
     configured_automation = task_automation_policy(
         slice_policy, task_id, task_policy["risk_tier"]
     )
@@ -259,6 +307,8 @@ def check(
         reasons.append("DEPENDENCY_FILE_CHANGED_WITHOUT_TASK_POLICY")
     if forbidden_prefix_changes:
         reasons.append("FORBIDDEN_SLICE_PATH_CHANGED")
+    if semantic_violations:
+        reasons.append(SEMANTIC_FORBIDDEN_REASON)
 
     dependency_review = {
         "mode": dependency_mode,
@@ -295,6 +345,7 @@ def check(
         "core_artifact_changes": core_changes,
         "dependency_review": dependency_review,
         "forbidden_slice_path_changes": forbidden_prefix_changes,
+        "semantic_action_violations": semantic_violations,
         "risk_policy": {
             "minimum_tier": task_policy["risk_tier"],
             "effective_tier": effective_tier,
@@ -394,11 +445,16 @@ def check_slice_range(
         for path in paths
         if path_allowed(path, list(slice_policy.get("risk_escalation_paths", [])))
     )
+    semantic_violations = semantic_action_violations(
+        slice_policy, set(configured_tasks), paths
+    )
     aggregate_tier = max(
         (task_policy["risk_tier"] for task_policy in task_policies),
         key=RISK_RANK.__getitem__,
     )
-    effective_tier = "HIGH" if risk_escalation_paths else aggregate_tier
+    effective_tier = (
+        "HIGH" if risk_escalation_paths or semantic_violations else aggregate_tier
+    )
     slice_execution_policy = slice_policy.get("execution_policy", {})
     full_suite_at = (
         slice_execution_policy.get("full_suite", "slice-completion")
@@ -426,6 +482,8 @@ def check_slice_range(
         reasons.append("DEPENDENCY_FILE_CHANGED_WITHOUT_SLICE_POLICY")
     if forbidden_prefix_changes:
         reasons.append("FORBIDDEN_SLICE_PATH_CHANGED")
+    if semantic_violations:
+        reasons.append(SEMANTIC_FORBIDDEN_REASON)
 
     other_dirty = [
         {"path": item["path"], "dirty_paths": item["dirty_paths"]}
@@ -469,6 +527,7 @@ def check_slice_range(
             ),
         },
         "forbidden_slice_path_changes": forbidden_prefix_changes,
+        "semantic_action_violations": semantic_violations,
         "risk_policy": {
             "minimum_tier": aggregate_tier,
             "effective_tier": effective_tier,

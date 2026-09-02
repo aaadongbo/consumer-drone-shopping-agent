@@ -454,6 +454,81 @@
       "implementation_gate": {
         "type": "protected-workflow-baseline"
       },
+      "activation_policy": {
+        "formal_task_table_required": true,
+        "planned_rows_non_executable": true,
+        "only_legal_activation_path": "Human-approved status reconciliation converts the approved Planned Task table into the formal Task status table; this policy alone must not rewrite PLANNED rows or make S05-T01 executable."
+      },
+      "scope_notes": {
+        "allowlist_precedence": "Task allowed_paths are evaluated before forbidden_path_prefixes so planned S05 paths such as backend/agent/ for T05/T06 are not rejected by a generic prefix.",
+        "backend_rag_boundary": "backend/rag/ is normal S05 implementation scope and must not be treated as a forbidden Slice 5 dependency.",
+        "slice6_boundary": "Slice 5 must not execute commerce refresh, Derived Evidence recomputation, HARD eligibility recheck, multi-product recommendation, or storefront/RAG-engine dependency work reserved for later Slices."
+      },
+      "forbidden_actions": [
+        "refresh_commerce_state",
+        "derived_evidence_recompute",
+        "hard_eligibility_recheck",
+        "open_web_retrieval",
+        "shopify_write",
+        "cross_product_retrieval",
+        "external_service_completion_gate",
+        "more_than_two_total_action_rounds",
+        "evidence_gate_weakening"
+      ],
+      "semantic_path_rules": [
+        {
+          "tasks": ["T04", "T06", "T07"],
+          "behavior": "derived_evidence_recompute",
+          "path_patterns": [
+            "backend/evidence/derived_evidence*",
+            "backend/evidence/derived/**",
+            "backend/evidence/*derived*",
+            "tests/**/test_*derived*"
+          ],
+          "reason": "Slice 5 may name Derived Evidence as a deferred global action type but must not implement or validate its execution."
+        },
+        {
+          "tasks": ["T05", "T07"],
+          "behavior": "refresh_commerce_state",
+          "path_patterns": [
+            "backend/agent/*commerce_refresh*",
+            "backend/agent/*refresh_commerce*",
+            "backend/agent/commerce_refresh/**",
+            "tests/**/test_*commerce_refresh*",
+            "tests/**/test_*refresh_commerce*"
+          ],
+          "reason": "Slice 5 Product RAG action loops may only do same-product targeted retrieval or clarification; commerce refresh is deferred to Slice 6."
+        },
+        {
+          "tasks": ["T05", "T07"],
+          "behavior": "open_web_retrieval",
+          "path_patterns": [
+            "backend/agent/*open_web*",
+            "backend/agent/*web_retrieval*",
+            "backend/rag/*open_web*",
+            "backend/rag/*web_retrieval*",
+            "tests/**/test_*open_web*",
+            "tests/**/test_*web_retrieval*"
+          ],
+          "reason": "Slice 5 retrieval is limited to merchant-authorized product documents, not open-web retrieval."
+        }
+      ],
+      "semantic_escalations": [
+        "public Contract change",
+        "Product Behavior change",
+        "Architecture boundary change",
+        "Acceptance or Accepted Decision change",
+        "major or cross-Slice dependency",
+        "real external service behavior",
+        "open-web or Shopify-write capability",
+        "more than two total action rounds",
+        "cross-product retrieval",
+        "commerce refresh execution inside S05",
+        "Derived Evidence execution inside S05",
+        "HARD eligibility recheck execution inside S05",
+        "Evidence Gate weakening",
+        "Slice 6 recommendation or storefront dependency"
+      ],
       "core_artifacts": [
         "changes/slice-05-product-rag/plan.md",
         "docs/ARCHITECTURE.md",
@@ -470,12 +545,17 @@
         ".agents/skills/drone-slice-workflow/",
         "backend/agent/",
         "backend/catalog/",
+        "backend/evaluation/",
         "backend/shopify/",
+        "changes/slice-06-evidence-recommendation/",
         "storefront/"
       ],
       "risk_escalation_paths": [
         "backend/common/contracts.py",
+        "backend/shopify/",
+        "changes/slice-06-evidence-recommendation/",
         "docs/",
+        "storefront/",
         "pyproject.toml",
         "uv.lock",
         ".python-version"
@@ -503,10 +583,10 @@
           "risk_tier": "MEDIUM"
         },
         "T04": {
-          "allowed_paths": ["backend/evidence/", "backend/rag/", "tests/unit/", "tests/contract/", "changes/slice-05-product-rag/tasks.md"],
+          "allowed_paths": ["backend/evidence/", "backend/rag/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-05-product-rag/tasks.md"],
           "dependency_policy": "forbidden",
-          "verification_marker": "unit or contract",
-          "verification_rationale": "Evidence quality, scope and claim coverage gate",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "Evidence quality, scope, claim coverage gate, and RAG result adapter integration",
           "risk_tier": "HIGH"
         },
         "T05": {
