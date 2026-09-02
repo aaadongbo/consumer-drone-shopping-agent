@@ -18,13 +18,13 @@ Provisional budget config:
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Candidate evidence bundle contract | NOT_STARTED | Slice 5 completion + Slice 6 planning baseline |
-| T02 | Per-product RAG evidence collection plan | NOT_STARTED | T01 |
-| T03 | Commerce refresh and HARD recheck plan | NOT_STARTED | T01 |
-| T04 | Derived Evidence computation | NOT_STARTED | T02, T03 |
-| T05 | Recommendation explanation and degradation | NOT_STARTED | T04 |
-| T06 | Multi-product recommendation walking skeleton | NOT_STARTED | T05 |
-| T07 | Slice 6 verification matrix and completion evidence | NOT_STARTED | T06 |
+| T01 | Candidate evidence bundle contract | DONE | Slice 5 completion + Slice 6 planning baseline |
+| T02 | Per-product RAG evidence collection plan | DONE | T01 |
+| T03 | Commerce refresh and HARD recheck plan | DONE | T01 |
+| T04 | Derived Evidence computation | DONE | T02, T03 |
+| T05 | Recommendation explanation and degradation | DONE | T04 |
+| T06 | Multi-product recommendation walking skeleton | DONE | T05 |
+| T07 | Slice 6 verification matrix and completion evidence | DONE | T06 |
 
 ## T01 — Candidate evidence bundle contract
 
@@ -37,6 +37,18 @@ Provisional budget config:
 - **Dependencies**：Slice 5 completion + Slice 6 planning approval.
 - **Out of Scope**：真实推荐文案、RAG retrieval execution、commerce refresh execution。
 
+### Execution Record — S06-T01
+
+- **Status**：DONE
+- **Start commit**：`ce515ca1b809449538ce209fa30d93dcc59c3b00`
+- **Start workspace**：clean；无 staged 或 untracked 文件。
+- **Changed paths**：`backend/evidence/recommendation_bundle.py`、`backend/evidence/__init__.py`、`tests/unit/test_s06_t01_evidence_bundle.py`、`tests/contract/test_s06_t01_evidence_bundle_contract.py`、本任务表。
+- **Implementation**：新增 candidate identity、source-separated evidence lanes、coverage state、derived evidence 输入引用和 bundle identity/ID invariants；未修改公共 wire Contract。
+- **Verification**：targeted unit/contract `6 passed`；changed-file Ruff lint/format 通过；`git diff --check` 通过。
+- **First failure and fix**：首次 Ruff 发现 contract test 两个未使用的 datetime imports（exit `1`）；删除 imports 后重跑通过。
+- **Scope/safety**：仅限 T01 allowlist；无依赖、网络、Shopify 调用或写操作。
+- **Next**：进入 S06-T02。
+
 ## T02 — Per-product RAG evidence collection plan
 
 - **Goal**：为每个 Product/Variant 分配独立 evidence objectives 与检索预算。
@@ -47,6 +59,18 @@ Provisional budget config:
 - **Verification**：Unit + Integration with Slice 5 retriever.
 - **Dependencies**：T01.
 - **Out of Scope**：multi-product retrieval 算法定案、reranker 固化、开放网络。
+
+### Execution Record — S06-T02
+
+- **Status**：DONE
+- **Start commit**：`ce515ca1b809449538ce209fa30d93dcc59c3b00`
+- **Start workspace**：T01 changes present only; no staged or unrelated paths.
+- **Changed paths**：`backend/agent/recommendation_evidence_plan.py`、`backend/agent/__init__.py`、`tests/unit/test_s06_t02_evidence_plan.py`、`tests/integration/test_s06_t02_retrieval_plan.py`、本任务表。
+- **Implementation**：新增 candidate-set、per-product objectives/budgets、两轮上限及 typed `RetrievalRequest` builder；每个 request 保留独立 Store/Product/Variant scope，不执行 retriever。
+- **Verification**：targeted unit/integration `4 passed`；changed-file Ruff lint/format 通过；`git diff --check` 通过。
+- **First failure and fix**：首次 integration fixture 使用了错误的 `DocumentManifest` shape（exit `1`）；改为合法授权 `DocumentSource` 后通过。随后修正 3 个 Ruff 格式问题并重跑通过。
+- **Scope/safety**：仅限 T02 allowlist；无公共 Contract、依赖、网络、Shopify 调用或写操作。
+- **Next**：进入 S06-T03。
 
 ## T03 — Commerce refresh and HARD recheck plan
 
@@ -59,6 +83,18 @@ Provisional budget config:
 - **Dependencies**：T01.
 - **Out of Scope**：Shopify write、真实 credentials、retry/backoff framework、状态持久化重构。
 
+### Execution Record — S06-T03
+
+- **Status**：DONE
+- **Start commit**：`ce515ca1b809449538ce209fa30d93dcc59c3b00`
+- **Start workspace**：T01/T02 changes present; no staged or unrelated paths.
+- **Changed paths**：`backend/catalog/commerce_refresh.py`、`backend/evidence/commerce.py`、相关 package exports、`tests/unit/test_s06_t03_commerce_evidence.py`、`tests/integration/test_s06_t03_commerce_refresh.py`、本任务表。
+- **Implementation**：使用现有 `ShopifyReadPort.refresh_commerce_state` 获取当前 ToolResult，立即执行 Variant-level HARD recheck；仅将当前成功/部分数据转换为 candidate-scoped commerce Evidence，失败不复用旧值。
+- **Verification**：targeted unit/integration `4 passed`；changed-file Ruff lint/format 通过；import probe 与 `git diff --check` 通过；fixture ledger 仅记录 refresh read，write count 为 `0`。
+- **First failure and fix**：首次测试错误使用 Slice 1 Shopify fixture 的 `drone-travel`/`store-s02-alpha` identity，导致预期成功路径返回 `PRODUCT_NOT_FOUND`（exit `1`）；改为当前 `store-drone-cn / drone-mini / mini-standard` fixture identity 后通过。
+- **Scope/safety**：仅限 T03 allowlist；未修改 Port surface、公共 Contract、依赖或外部服务。
+- **Next**：进入 S06-T04。
+
 ## T04 — Derived Evidence computation
 
 - **Goal**：计算预算余量、差价、重量/续航/电池差等可复算 Evidence。
@@ -69,6 +105,18 @@ Provisional budget config:
 - **Verification**：Unit + property-like table.
 - **Dependencies**：T02, T03.
 - **Out of Scope**：不可解释评分、学习排序、Product RAG retrieval。
+
+### Execution Record — S06-T04
+
+- **Status**：DONE
+- **Start commit**：`ce515ca1b809449538ce209fa30d93dcc59c3b00`
+- **Start workspace**：T01–T03 changes present; no staged or unrelated paths.
+- **Changed paths**：`backend/evidence/derived.py`、`backend/evidence/__init__.py`、`tests/unit/test_s06_t04_derived_evidence.py`、本任务表。
+- **Implementation**：新增预算余量和同候选数值差的确定性派生函数；强制输入为 KNOWN、数值、同一 Variant，并记录公式、输入 Evidence ID、单位与时间戳。
+- **Verification**：targeted unit `3 passed`；changed-file Ruff lint/format、import probe 与 `git diff --check` 通过。
+- **First failure and fix**：首次 Ruff format 检查发现派生模块与测试各有一处需格式化（exit `1`）；格式化后重跑全部通过。
+- **Scope/safety**：仅限 T04 allowlist；未引入学习排序、模型数学或公共 Contract 变化。
+- **Next**：进入 S06-T05。
 
 ## T05 — Recommendation explanation and degradation
 
@@ -81,6 +129,18 @@ Provisional budget config:
 - **Dependencies**：T04.
 - **Out of Scope**：正式 UI、个性化学习排序、利润/库存去化排序。
 
+### Execution Record — S06-T05
+
+- **Status**：DONE
+- **Start commit**：`ce515ca1b809449538ce209fa30d93dcc59c3b00`
+- **Start workspace**：T01–T04 changes present; no staged or unrelated paths.
+- **Changed paths**：`backend/agent/recommendation_explanation.py`、`backend/agent/__init__.py`、`tests/unit/test_s06_t05_explanation.py`、`tests/contract/test_s06_t05_explanation_contract.py`、`tests/integration/test_s06_t05_explanation_flow.py`、本任务表。
+- **Implementation**：新增按候选 Evidence 覆盖生成理由、tradeoff 与 unknown disclosure 的内部模型；非关键缺证据降级，关键缺证据返回 fallback；禁止 foreign-candidate tradeoff。
+- **Verification**：targeted unit/contract/integration `5 passed`；changed-file Ruff lint/format、import 与 `git diff --check` 通过。
+- **First failure and fix**：首次 Ruff 检查发现 import 排序、3 处行长及 1 个未使用局部变量（exit `1`）；修正并格式化后重跑通过。
+- **Scope/safety**：仅限 T05 allowlist；未生成公共 AnswerEnvelope、未引入学习排序或外部服务。
+- **Next**：进入 S06-T06。
+
 ## T06 — Multi-product recommendation walking skeleton
 
 - **Goal**：打通 constraints -> eligibility -> per-product evidence -> derived -> explanation -> response。
@@ -92,6 +152,18 @@ Provisional budget config:
 - **Dependencies**：T05.
 - **Out of Scope**：Slice 7 storefront、真实外部服务、push、完整比较引擎。
 
+### Execution Record — S06-T06
+
+- **Status**：DONE
+- **Start commit**：`ce515ca1b809449538ce209fa30d93dcc59c3b00`
+- **Start workspace**：T01–T05 changes present; no staged or unrelated paths.
+- **Changed paths**：`backend/application/recommendation.py`、`backend/application/__init__.py`、`tests/integration/test_s06_t06_recommendation_flow.py`、`tests/e2e/test_s06_t06_recommendation_journey.py`、本任务表。
+- **Implementation**：打通 Catalog eligibility/ranking → candidate-scoped current commerce refresh/HARD recheck → per-candidate RAG retrieval → Derived Evidence → explanation/degradation → internal typed response；最多三款 Product，所有 trace 共享 correlation ID。
+- **Verification**：targeted integration `2 passed`、E2E `1 passed`；changed-file Ruff lint/format、import 与 `git diff --check` 通过；test read double write count 为 `0`。
+- **First failure and fix**：首次 integration 断言过度假设具体排序结果，把 `drone-survey` 错判为失败（exit `1`）；收敛为验证最多三款、Product 去重与页面候选存在后通过。随后修正 import/format 问题并重跑通过。
+- **Scope/safety**：未修改公共 `AnswerEnvelope` 或 Shopify Port；多商品 public payload 继续是后续 Contract 决策，不调用网络或写操作。
+- **Next**：进入 S06-T07。
+
 ## T07 — Slice 6 verification matrix and completion evidence
 
 - **Goal**：覆盖 S6-A01～S6-A12 和 Matrix #1～#12。
@@ -102,6 +174,19 @@ Provisional budget config:
 - **Verification**：Static + Unit + Contract + Integration + E2E + full suite.
 - **Dependencies**：T06.
 - **Out of Scope**：Slice 7 implementation、fine-tuning、feature delivery workflow changes。
+
+### Execution Record — S06-T07
+
+- **Status**：DONE
+- **Start commit**：`ce515ca1b809449538ce209fa30d93dcc59c3b00`
+- **Start workspace**：T01–T06 changes present; no staged or unrelated paths.
+- **Changed paths**：`tests/e2e/test_s06_t07_completion_matrix.py`、本任务表。
+- **Implementation**：补齐候选上限、HARD no-match/UNKNOWN、per-candidate Evidence 与 Derived Evidence identity、当前动态事实、RAG 缺失降级、确定性回放、trace correlation 与 zero-write matrix。
+- **Verification**：targeted matrix `7 passed`；`uv lock --check` 通过；全仓 Ruff lint/format 通过；完整 suite `525 passed`；`git diff --check` 通过。
+- **First failure and fix**：首次 Ruff 检查发现 matrix 测试 import 排序和 4 处行长问题（exit `1`）；格式化并整理 imports 后 targeted 与全量门禁通过。
+- **Matrix result**：S6-A01～S6-A12 及 Matrix #1～#12 均有可回放测试证据；无 Shopify write、外部网络、秘密 trace 或跨 Store 读取。
+- **Scope/safety**：仅限 T07 allowlist；未修改公共 Contract、Architecture、Workflow、依赖或 Slice 7。
+- **Completion**：S06 T01–T07 全部 `DONE`；等待一次独立 Slice completion review 与 Human 集成决策。
 
 ## Human Escalation
 

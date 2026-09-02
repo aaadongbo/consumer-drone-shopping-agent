@@ -18,6 +18,23 @@ from backend.agent.recommendation import (
     Slice2RecommendationService,
     Slice2TraceSink,
 )
+from backend.agent.recommendation_evidence_plan import (
+    EvidenceObjective,
+    PerProductEvidenceBudget,
+    RecommendationActionObservation,
+    RecommendationActionPlan,
+    RecommendationActionRoundTrace,
+    RecommendationEvidenceAction,
+    build_retrieval_requests,
+)
+from backend.agent.recommendation_explanation import (
+    RecommendationExplanation,
+    RecommendationExplanationResult,
+    RecommendationFallback,
+    RecommendationFallbackReason,
+    SupportedReason,
+    build_recommendation_explanation,
+)
 
 __all__ = [
     "ActionObservation",
@@ -34,4 +51,17 @@ __all__ = [
     "RagStopReason",
     "Slice2RecommendationService",
     "Slice2TraceSink",
+    "EvidenceObjective",
+    "PerProductEvidenceBudget",
+    "RecommendationActionObservation",
+    "RecommendationActionPlan",
+    "RecommendationActionRoundTrace",
+    "RecommendationEvidenceAction",
+    "build_retrieval_requests",
+    "RecommendationExplanation",
+    "RecommendationExplanationResult",
+    "RecommendationFallback",
+    "RecommendationFallbackReason",
+    "SupportedReason",
+    "build_recommendation_explanation",
 ]

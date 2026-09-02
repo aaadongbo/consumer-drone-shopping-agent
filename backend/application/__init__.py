@@ -23,6 +23,15 @@ from backend.application.product_rag import (
     ProductRagApplicationService,
     ProductRagQuestionInterpreter,
 )
+from backend.application.recommendation import (
+    CatalogProvider,
+    MultiProductRecommendationService,
+    RecommendationCandidateResult,
+    RecommendationFlowResult,
+    RecommendationRetriever,
+    RecommendationTraceEvent,
+    RecommendationTraceEventType,
+)
 from backend.application.slice_1 import (
     DeterministicQuestionInterpreter,
     InMemoryTraceSink,
@@ -58,4 +67,11 @@ __all__ = [
     "ComparisonTraceEvent",
     "ComparisonTraceEventType",
     "ComparisonTraceResult",
+    "CatalogProvider",
+    "MultiProductRecommendationService",
+    "RecommendationCandidateResult",
+    "RecommendationFlowResult",
+    "RecommendationRetriever",
+    "RecommendationTraceEvent",
+    "RecommendationTraceEventType",
 ]
