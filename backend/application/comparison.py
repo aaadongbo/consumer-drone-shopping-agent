@@ -317,6 +317,11 @@ class ComparisonAnswer(WireModel):
                 for cell in row.cells:
                     member = members_by_id.get(cell.member_id)
                     fact = facts_by_id.get(cell.fact_id)
+                    expected_freshness = (
+                        fact.freshness.verdict
+                        if fact is not None and fact.freshness
+                        else None
+                    )
                     if (
                         member is None
                         or fact is None
@@ -324,9 +329,14 @@ class ComparisonAnswer(WireModel):
                         or fact.field_key != row.field_key
                         or fact.binding.evidence_id != cell.evidence_id
                         or fact.binding.scope != cell.scope
+                        or cell.value != fact.fact.value
+                        or cell.unit != fact.fact.unit
+                        or cell.state.value != fact.state.value
+                        or cell.source_class != fact.source_class
+                        or cell.freshness != expected_freshness
                     ):
                         raise ValueError(
-                            "comparison row cell is not bound to its member fact"
+                            "comparison row cell does not match its bound member fact"
                         )
         return self
 

@@ -1,5 +1,6 @@
 """S04-T03 static comparison facts stay bound to their owning members."""
 
+from dataclasses import replace
 from datetime import UTC, datetime
 
 import pytest
@@ -62,3 +63,62 @@ def test_catalog_fact_builder_never_reuses_another_members_scope() -> None:
     assert ("member-2", "travel-pack") in fact_scopes
     assert ("member-1", "travel-pack") not in fact_scopes
     assert ("member-2", "travel-lite") not in fact_scopes
+
+
+def test_catalog_fact_builder_rejects_cross_member_source_locator() -> None:
+    snapshot = DeterministicCatalogFixture(
+        observed_at=datetime(2026, 9, 2, 9, 0, tzinfo=UTC)
+    ).load_store(store_id=PRIMARY_STORE_ID)
+    target = TurnTarget(
+        kind=TurnTargetKind.COMPARISON_SET,
+        comparison_members=(
+            ComparisonMember(
+                scope=ObjectScope(
+                    store_id=PRIMARY_STORE_ID,
+                    product_id="drone-travel",
+                    variant_id="travel-lite",
+                ),
+                provenance=ResolutionSource.EXPLICIT,
+            ),
+            ComparisonMember(
+                scope=ObjectScope(
+                    store_id=PRIMARY_STORE_ID,
+                    product_id="drone-travel",
+                    variant_id="travel-pack",
+                ),
+                provenance=ResolutionSource.EXPLICIT,
+            ),
+        ),
+    )
+    resolution = ComparisonSetResolver(
+        snapshot=snapshot,
+        catalog_revision="catalog-s04-t03-source-guard",
+    ).materialize(target=target, correlation_id="cmp-s04-t03-source-guard")
+    assert resolution.comparison_set is not None
+
+    variants = list(snapshot.variants)
+    first_index = next(
+        index
+        for index, variant in enumerate(variants)
+        if variant.variant_id == "travel-lite"
+    )
+    second = next(
+        variant for variant in variants if variant.variant_id == "travel-pack"
+    )
+    first = variants[first_index]
+    variants[first_index] = first.model_copy(
+        update={
+            "variant_attributes": {
+                **first.variant_attributes,
+                "battery_count": second.variant_attributes["battery_count"],
+            }
+        }
+    )
+    tampered_snapshot = replace(snapshot, variants=tuple(variants))
+
+    with pytest.raises(ValueError, match="source does not belong"):
+        build_static_comparison_facts(
+            comparison_set=resolution.comparison_set,
+            snapshot=tampered_snapshot,
+            field_keys=("battery_count",),
+        )

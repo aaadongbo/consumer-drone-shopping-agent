@@ -209,6 +209,12 @@ def build_static_comparison_facts(
             )
             if fact is None:
                 continue
+            if not _catalog_source_matches_member(
+                fact.source_ref, member=member, field_key=field_key
+            ):
+                raise ValueError(
+                    "Catalog fact source does not belong to comparison member"
+                )
             fact_id = f"{comparison_set.correlation_id}-{member.member_id}-{field_key}"
             scope = ObjectScope(
                 store_id=member.scope.store_id,
@@ -451,7 +457,7 @@ def _dynamic_facts_from_result(
         if (
             fact.status is not AttributeStatus.KNOWN
             or fact.observed_at != result.observed_at
-            or not fact.source_ref.startswith(f"{result.source}#")
+            or fact.source_ref != f"{result.source}#commerce.{field_key}"
         ):
             facts.extend(
                 _unavailable_dynamic_facts(
@@ -555,3 +561,17 @@ def _catalog_fact(
     if variant_fact is not None:
         return variant_fact
     return product_attributes.get(field_key)
+
+
+def _catalog_source_matches_member(source_ref: str, *, member, field_key: str) -> bool:
+    """Accept only the current member's product- or Variant-scoped locator."""
+    variant_id = member.scope.variant_id
+    if variant_id is None:
+        return False
+    product_source = (
+        f"fixture://{member.scope.store_id}/products/{member.scope.product_id}"
+    )
+    return source_ref in {
+        f"{product_source}#{field_key}",
+        f"{product_source}/variants/{variant_id}#{field_key}",
+    }

@@ -194,6 +194,41 @@ def test_mismatched_tool_result_identity_is_unavailable() -> None:
     )
 
 
+class MismatchedFieldLocatorPort:
+    def __init__(self) -> None:
+        self._fixture = fixture()
+
+    def refresh_commerce_state(
+        self, *, store_id: str, product_id: str, variant_id: str
+    ) -> ToolResult:
+        result = self._fixture.refresh_commerce_state(
+            store_id=store_id,
+            product_id=product_id,
+            variant_id=variant_id,
+        )
+        assert result.data is not None
+        data = dict(result.data)
+        data["price"] = data["inventory"]
+        return result.model_copy(update={"data": data})
+
+
+def test_mismatched_dynamic_field_locator_is_unavailable() -> None:
+    facts = build_dynamic_comparison_facts(
+        comparison_set=comparison_set(),
+        shopify=MismatchedFieldLocatorPort(),
+        now=NOW,
+        field_keys=("price",),
+    )
+
+    assert len(facts.facts) == 2
+    assert all(
+        fact.state is ComparisonFactState.UNAVAILABLE
+        and fact.degradation_reason is ComparisonDegradationReason.IDENTITY_MISMATCH
+        and fact.fact.value is None
+        for fact in facts.facts
+    )
+
+
 def test_partial_dynamic_result_only_exposes_present_fields() -> None:
     facts = build_dynamic_comparison_facts(
         comparison_set=comparison_set(),

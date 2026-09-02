@@ -194,3 +194,28 @@
   - The first changed-test format check exited 1 because the matrix test needed mechanical formatting; after correction, the full policy-selected format check above exited 0 (`87 files already formatted`).
 - **Result**：Added the S04-A01～S04-A11 completion matrix over bounded identity, Product/Variant ownership, provenance/context isolation, same-Product scope, explicit fact states, Evidence injection rejection, fresh/stale dynamic reads, actionable fallback, zero-write behavior and correlation trace. The matrix uses deterministic fixtures only; no real external service, Shopify write, public schema, recommendation, RAG or later-Slice behavior was added.
 - **Review / snapshot**：HIGH task under current Human authorization; the full suite and matrix passed. A local immutable T06 snapshot will be created from the exact clean Slice range before the required independent Slice review. This is not integration or push authority.
+
+### S04 completion-review repair — P1 evidence identity guards
+
+- **Status**：DONE
+- **Implementation base**：`dbab97d6fa61b29f236838ebec85bf7b0b694c91`
+- **Changed paths**：
+  - `backend/evidence/comparison.py`
+  - `backend/application/comparison.py`
+  - `changes/slice-04-variant-comparison/tasks.md`
+  - `tests/integration/test_s04_t03_comparison_fact_binding.py`
+  - `tests/integration/test_s04_t04_dynamic_comparison_facts.py`
+  - `tests/contract/test_s04_t05_comparison_answer_contract.py`
+- **Reproduction evidence**：On the implementation base, three focused reproductions each exited 1: cross-member static `source_ref` reuse was accepted; an `inventory` locator injected into requested `price` was accepted; and a tampered answer row value was accepted. These reproductions were run before the fixes.
+- **Result**：Static catalog facts now accept only the current member's canonical product/Variant field locator; dynamic facts require an exact `source#commerce.<field>` locator; and answer row cells are checked against their bound fact for value, unit, state, source class and freshness. Minimal contract/integration negative regressions cover all three findings, including all four row-cell payload fields.
+- **Verification commands**：
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T03 --pretty` exit 0; workflow-selected targeted verification passed.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T04 --pretty` exit 0; workflow-selected targeted verification passed with `8 passed`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T05 --pretty` exit 0; workflow-selected targeted verification passed with `14 passed`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run pytest -m 'unit or contract or integration or e2e' tests/contract/test_s04_t03_comparison_facts_contract.py tests/integration/test_s04_t03_comparison_fact_binding.py tests/integration/test_s04_t04_dynamic_comparison_facts.py tests/contract/test_s04_t05_comparison_answer_contract.py tests/integration/test_s04_t05_comparison_flow.py -q` exit 0; `25 passed`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen ruff check .` exit 0; all checks passed.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen ruff format --check .` exit 0; `87 files already formatted`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache uv run --frozen uv lock --check` exit 0; dependencies resolved without changes.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen pytest -q` exit 0; `418 passed`.
+  - `git diff --check` exit 0.
+- **Review / snapshot**：HIGH repair under the current Human authorization; a new local immutable detached snapshot will be created from this exact clean repair range for independent AI re-review. This is not integration or push authority.
