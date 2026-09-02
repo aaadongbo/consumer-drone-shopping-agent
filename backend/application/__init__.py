@@ -19,6 +19,10 @@ from backend.application.comparison import (
     ComparisonTraceEventType,
     ComparisonTraceResult,
 )
+from backend.application.product_rag import (
+    ProductRagApplicationService,
+    ProductRagQuestionInterpreter,
+)
 from backend.application.slice_1 import (
     DeterministicQuestionInterpreter,
     InMemoryTraceSink,
@@ -32,6 +36,8 @@ from backend.application.target_fact_adapter import (
 __all__ = [
     "DeterministicQuestionInterpreter",
     "InMemoryTraceSink",
+    "ProductRagApplicationService",
+    "ProductRagQuestionInterpreter",
     "Slice1ApplicationService",
     "TargetFactIdentityAdapter",
     "TargetFactIdentityError",

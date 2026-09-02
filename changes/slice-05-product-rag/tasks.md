@@ -25,7 +25,7 @@ Provisional budget config:
 | T03 | Metadata-filtered baseline retrieval | DONE | T02 |
 | T04 | Evidence quality and claim coverage gate | DONE | T03 |
 | T05 | Bounded Product RAG action loop | DONE | T04 |
-| T06 | Product RAG answer/fallback walking skeleton | NOT_STARTED | T05 |
+| T06 | Product RAG answer/fallback walking skeleton | DONE | T05 |
 | T07 | Slice 5 evaluation matrix and completion evidence | NOT_STARTED | T06 |
 
 ## T01 — Document manifest and ingestion contract
@@ -141,6 +141,17 @@ Execution Record:
 - **Verification**：Contract + Integration + E2E.
 - **Dependencies**：T05.
 - **Out of Scope**：多商品推荐、比较表、正式 Widget、真实外部服务、Slice 6 recommendation。
+
+Execution Record:
+
+- Start commit: `758258ddd722be8d87ee12f0443d5fe69c253f09`.
+- Implemented `ProductRagApplicationService` and a deliberately narrow deterministic question interpreter for the approved FAQ, package-list, manual and policy fixture examples. It accepts an existing Slice 3 `TargetResolution`, so the resolved Turn Target—not Page Context—selects all retrieval, Evidence and output identity.
+- Reused the existing public `AnswerEnvelope`, Claim/Evidence/binding and Trace schemas without modification. The current public Evidence type remains `TOOL`; this skeleton uses it for the typed local retrieval result and preserves the `rag://` locator. A RAG-specific public Evidence type remains a separate Contract proposal.
+- Static document claims become ANSWER only after the bounded loop returns accepted Evidence. Missing source, unrecognized question, exhausted budget and identity failure produce a claim-free fallback. Price/inventory/availability use the explicit real-time-commerce handoff fallback and never form a document claim. No Shopify operation is invoked.
+- Added focused contract, integration and in-process E2E coverage for Envelope round-trip, static document answer/fallback behavior, all four authorized source classes, target identity overriding Page Context, correlation and zero Shopify trace events.
+- Initial targeted tests passed; Ruff then reported only import order in the application package, which was mechanically fixed before the final passing rerun.
+- Verification: `pytest tests/contract/test_s05_t06_product_rag_contract.py tests/integration/test_s05_t06_product_rag_flow.py tests/e2e/test_s05_t06_product_rag_journey.py -q` passed with `8 passed`; targeted Ruff lint/format, `git diff --check`, and `check_scope.py S05-T06` passed.
+- Public Contract, Architecture, Workflow, dependency, external-service, multi-product retrieval, commerce refresh, Derived Evidence, HARD recheck and Shopify-write changes: none.
 
 ## T07 — Slice 5 evaluation matrix and completion evidence
 
