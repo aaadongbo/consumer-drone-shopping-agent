@@ -9,6 +9,11 @@ from backend.conversation.comparison import (
     MemberProvenance,
     MemberSourceKind,
 )
+from backend.conversation.comparison_resolution import (
+    ComparisonFallbackReason,
+    ComparisonSetResolution,
+    ComparisonSetResolver,
+)
 from backend.conversation.constraints import (
     ConstraintField,
     ConstraintHardness,
@@ -83,10 +88,13 @@ __all__ = [
     "normalize_constraint_patches",
     "parse_constraint_patches",
     "reduce_conversation_state",
+    "ComparisonFallbackReason",
     "ComparisonMember",
     "ComparisonSetMember",
     "ComparisonScopeStatus",
     "ComparisonSet",
+    "ComparisonSetResolution",
+    "ComparisonSetResolver",
     "MemberProvenance",
     "MemberSourceKind",
     "ContextAction",

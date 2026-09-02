@@ -19,6 +19,7 @@ class MemberSourceKind(StrEnum):
 class ComparisonScopeStatus(StrEnum):
     READY = "READY"
     NEEDS_CLARIFICATION = "NEEDS_CLARIFICATION"
+    TYPED_DEFERRAL = "TYPED_DEFERRAL"
     FALLBACK = "FALLBACK"
 
 
