@@ -1,0 +1,130 @@
+[
+  {
+    "case_id": "two-explicit-variants",
+    "expected_comparison_set": {
+      "schema_version": "1.0",
+      "correlation_id": "cmp-s04-001",
+      "store_id": "store-drone-cn",
+      "members": [
+        {
+          "member_id": "member-1",
+          "scope": {
+            "store_id": "store-drone-cn",
+            "product_id": "9278439686282",
+            "variant_id": "51492095623306"
+          },
+          "provenance": {
+            "source_kind": "EXPLICIT",
+            "original_reference": "9278439686282",
+            "resolver_outcome": "unique_variant_reference"
+          },
+          "resolution_reason": "explicit variant resolved by approved S04 mapping",
+          "catalog_revision": "s04-planning-baseline-5af0296",
+          "display_name": "9278439686282 / Default Title"
+        },
+        {
+          "member_id": "member-2",
+          "scope": {
+            "store_id": "store-drone-cn",
+            "product_id": "9278460821642",
+            "variant_id": "51492157456522"
+          },
+          "provenance": {
+            "source_kind": "EXPLICIT",
+            "original_reference": "9278460821642",
+            "resolver_outcome": "unique_variant_reference"
+          },
+          "resolution_reason": "explicit variant resolved by approved S04 mapping",
+          "catalog_revision": "s04-planning-baseline-5af0296",
+          "display_name": "9278460821642 / Default Title"
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "explicit-plus-confirmed-context-variant",
+    "expected_comparison_set": {
+      "schema_version": "1.0",
+      "correlation_id": "cmp-s04-002",
+      "store_id": "store-drone-cn",
+      "members": [
+        {
+          "member_id": "confirmed",
+          "scope": {
+            "store_id": "store-drone-cn",
+            "product_id": "9278439686282",
+            "variant_id": "51492095623306"
+          },
+          "provenance": {
+            "source_kind": "CONFIRMED_CONTEXT",
+            "context_revision": 7,
+            "resolver_outcome": "confirmed_context_variant"
+          },
+          "resolution_reason": "confirmed single-object context admitted as one member",
+          "catalog_revision": "s04-planning-baseline-5af0296",
+          "display_name": "9278439686282 / Default Title"
+        },
+        {
+          "member_id": "explicit",
+          "scope": {
+            "store_id": "store-drone-cn",
+            "product_id": "9278439719050",
+            "variant_id": "51492095721610"
+          },
+          "provenance": {
+            "source_kind": "EXPLICIT",
+            "original_reference": "9278439719050",
+            "resolver_outcome": "unique_variant_reference"
+          },
+          "resolution_reason": "explicit variant resolved by approved S04 mapping",
+          "catalog_revision": "s04-planning-baseline-5af0296",
+          "display_name": "9278439719050 / Default Title"
+        }
+      ]
+    }
+  },
+  {
+    "case_id": "typed-fallback-cross-product",
+    "expected_comparison_set": {
+      "schema_version": "1.0",
+      "correlation_id": "cmp-s04-003",
+      "store_id": "store-drone-cn",
+      "scope_status": "FALLBACK",
+      "fallback_reason": "CROSS_PRODUCT_DEFERRED",
+      "members": [
+        {
+          "member_id": "member-1",
+          "scope": {
+            "store_id": "store-drone-cn",
+            "product_id": "9278439686282",
+            "variant_id": "51492095623306"
+          },
+          "provenance": {
+            "source_kind": "EXPLICIT",
+            "original_reference": "9278439686282",
+            "resolver_outcome": "unique_variant_reference"
+          },
+          "resolution_reason": "explicit variant resolved by approved S04 mapping",
+          "catalog_revision": "s04-planning-baseline-5af0296",
+          "display_name": "9278439686282 / Default Title"
+        },
+        {
+          "member_id": "member-2",
+          "scope": {
+            "store_id": "store-drone-cn",
+            "product_id": "9278439719050",
+            "variant_id": "51492095721610"
+          },
+          "provenance": {
+            "source_kind": "EXPLICIT",
+            "original_reference": "9278439719050",
+            "resolver_outcome": "unique_variant_reference"
+          },
+          "resolution_reason": "explicit variant resolved by approved S04 mapping",
+          "catalog_revision": "s04-planning-baseline-5af0296",
+          "display_name": "9278439719050 / Default Title"
+        }
+      ]
+    }
+  }
+]

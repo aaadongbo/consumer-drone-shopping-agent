@@ -1,17 +1,17 @@
-# Slice 4 Ordered Planning Tasks — Variant 比较
+# Slice 4 Ordered Implementation Tasks — Variant 比较
 
-> 状态：DRAFT / Non-executable roadmap planning
+> 状态：IMPLEMENTATION AUTHORIZED / Formal Slice task table
 >
-> 本表故意使用 `PLANNED`，而不是 workflow 的 formal Task state（`NOT_STARTED` / `IN_PROGRESS` / `BLOCKED` / `DONE`）。它不授权 `S04-T01` 或任何后续任务。进入实施前必须经过 Human Review、planning baseline、policy activation 和单独 implementation authority。
+> Human 已在当前上下文授权将 S04 planning baseline `5af0296e7a55ad7a08587772929e3f37e2f420a7` 转为正式执行；本表使用 workflow formal Task state（`NOT_STARTED` / `IN_PROGRESS` / `BLOCKED` / `DONE`）。实现仍须按单 Task、scope、verification、review 和 Human escalation gates 执行。
 
-| Planned Task | Title | Planned state | Risk | Dependencies |
-|---|---|---|---|---|
-| T01 | Comparison set identity and provenance contract | PLANNED | HIGH | Slice 3 completion + Slice 4 planning approval + stable Shopify Variant ID mapping |
-| T02 | Bounded member validation and resolution | PLANNED | HIGH | T01 |
-| T03 | Per-member normalized facts and Evidence binding | PLANNED | HIGH | T02 |
-| T04 | Read-only dynamic facts and freshness guard | PLANNED | HIGH | T02, T03 |
-| T05 | Comparison answer / fallback walking skeleton | PLANNED | HIGH | T03, T04 |
-| T06 | Slice 4 verification matrix and completion evidence | PLANNED | HIGH | T05 |
+| Task | Title | Status | Dependencies |
+|---|---|---|---|
+| T01 | Comparison set identity and provenance contract | DONE | Slice 3 completion + Slice 4 planning approval + stable Shopify Variant ID mapping |
+| T02 | Bounded member validation and resolution | NOT_STARTED | T01 |
+| T03 | Per-member normalized facts and Evidence binding | NOT_STARTED | T02 |
+| T04 | Read-only dynamic facts and freshness guard | NOT_STARTED | T02, T03 |
+| T05 | Comparison answer / fallback walking skeleton | NOT_STARTED | T03, T04 |
+| T06 | Slice 4 verification matrix and completion evidence | NOT_STARTED | T05 |
 
 ## T01 — Comparison set identity and provenance contract
 
@@ -84,3 +84,25 @@
 所有任务均为 HIGH：它们触及比较 Product Behavior、identity / Evidence safety boundary、Shopify dynamic read 或最终 answer boundary。实施时每项都必须先获得当前上下文 Human decision；不得从 HIGH 自动推进。每个任务要运行 policy-selected targeted verification；T06 额外运行 full suite。公共 Contract、Product Behavior、Architecture、Acceptance、Accepted Decision、external service、Shopify write、dependency 或安全边界变更无论配置如何都必须 Human escalation。
 
 计划中的命令、测试名与通过数量不是执行证据；Execution Record 只能记录实际运行的命令、exit code 与结果。
+
+## Execution Records
+
+### S04-T01 — Comparison set identity and provenance contract
+
+- **Status**：DONE
+- **Implementation base**：`833b53fed1b76690f9dc4908306fb1cb768f8cc0`
+- **Changed paths**：
+  - `backend/conversation/__init__.py`
+  - `backend/conversation/comparison.py`
+  - `changes/slice-04-variant-comparison/tasks.md`
+  - `tests/contract/test_s04_t01_comparison_contract.py`
+  - `tests/fixtures/s04_t01_comparison_contract_golden.json`
+  - `tests/unit/test_s04_t01_comparison_identity.py`
+- **Scope result**：`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S04-T01` exit 0; no disallowed paths, no core artifact changes, no dependency changes.
+- **Verification commands**：
+  - `uv run pytest -m 'unit or contract' -q` exit 0; `303 passed, 66 deselected in 0.32s`.
+  - `uv run ruff check backend/conversation/comparison.py backend/conversation/__init__.py tests/contract/test_s04_t01_comparison_contract.py tests/unit/test_s04_t01_comparison_identity.py` exit 0; all checks passed.
+  - `git diff --check` exit 0.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T01 --pretty` exit 0; workflow-selected verification complete, including compile, ruff check, ruff format check, targeted pytest, diff/core/dependency gates; targeted pytest result `7 passed in 0.05s`.
+- **Result**：Introduced Slice-local internal `ComparisonSet`, concrete Variant `ComparisonMember`, `MemberProvenance`, scope status and fallback reason contracts; added golden matrix with the approved stable Variant ID mapping; preserved public wire schemas and existing S03 handoff behavior.
+- **Review / snapshot**：HIGH task under current Human authorization; no immutable snapshot created at this task boundary.

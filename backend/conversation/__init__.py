@@ -1,5 +1,14 @@
 """Conversation-local constraint parsing for Slice 2."""
 
+from backend.conversation.comparison import (
+    ComparisonMember as ComparisonSetMember,
+)
+from backend.conversation.comparison import (
+    ComparisonScopeStatus,
+    ComparisonSet,
+    MemberProvenance,
+    MemberSourceKind,
+)
 from backend.conversation.constraints import (
     ConstraintField,
     ConstraintHardness,
@@ -75,6 +84,11 @@ __all__ = [
     "parse_constraint_patches",
     "reduce_conversation_state",
     "ComparisonMember",
+    "ComparisonSetMember",
+    "ComparisonScopeStatus",
+    "ComparisonSet",
+    "MemberProvenance",
+    "MemberSourceKind",
     "ContextAction",
     "ResolutionSource",
     "TargetResolution",
