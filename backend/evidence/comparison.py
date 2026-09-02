@@ -93,6 +93,26 @@ class ComparisonFact(WireModel):
             raise ValueError("Evidence binding locator must match the fact source")
         if self.binding.source_class != self.source_class:
             raise ValueError("Evidence binding source must match the fact source")
+        if not _source_locator_matches_scope(
+            self.fact.source_ref,
+            scope=self.binding.scope,
+            source_class=self.source_class,
+            field_key=self.field_key,
+        ):
+            raise ValueError(
+                "Evidence locator does not belong to its comparison member"
+            )
+        if self.fact.observed_at != self.observed_at:
+            raise ValueError(
+                "Comparison fact observation must match its AttributeValue"
+            )
+        if (
+            self.freshness is not None
+            and self.freshness.observed_at != self.observed_at
+        ):
+            raise ValueError(
+                "Comparison freshness observation must match its ComparisonFact"
+            )
 
         if self.source_class == "CATALOG":
             if self.state != self.fact.status:
@@ -420,7 +440,7 @@ def _source_matches_scope(source: str, scope: ObjectScope) -> bool:
         expected = _commerce_source(scope)
     except ValueError:
         return False
-    return source.split("#", 1)[0].rstrip("/") == expected
+    return source == expected
 
 
 def _dynamic_facts_from_result(
@@ -517,6 +537,10 @@ def _unavailable_dynamic_facts(
     freshness: ComparisonFreshness,
     reason: ComparisonDegradationReason,
 ) -> list[ComparisonFact]:
+    observation = _aware_datetime(observed_at)
+    if observation is None:
+        raise ValueError("Unavailable dynamic facts require an aware observation")
+    bound_freshness = freshness.model_copy(update={"observed_at": observation})
     facts: list[ComparisonFact] = []
     for field_key in field_keys:
         fact_id = f"{member.member_id}-{field_key}"
@@ -524,6 +548,7 @@ def _unavailable_dynamic_facts(
         unavailable = AttributeValue(
             status=AttributeStatus.UNKNOWN,
             source_ref=source_locator,
+            observed_at=observation,
         )
         binding = ComparisonEvidenceBinding(
             comparison_fact_id=fact_id,
@@ -543,8 +568,8 @@ def _unavailable_dynamic_facts(
                 state=ComparisonFactState.UNAVAILABLE,
                 source_class="SHOPIFY_COMMERCE",
                 catalog_revision=member.catalog_revision,
-                observed_at=observed_at,
-                freshness=freshness,
+                observed_at=observation,
+                freshness=bound_freshness,
                 degradation_reason=reason,
                 binding=binding,
             )
@@ -565,13 +590,35 @@ def _catalog_fact(
 
 def _catalog_source_matches_member(source_ref: str, *, member, field_key: str) -> bool:
     """Accept only the current member's product- or Variant-scoped locator."""
-    variant_id = member.scope.variant_id
+    return _catalog_source_matches_scope(
+        source_ref, scope=member.scope, field_key=field_key
+    )
+
+
+def _catalog_source_matches_scope(
+    source_ref: str, *, scope: ObjectScope, field_key: str
+) -> bool:
+    variant_id = scope.variant_id
     if variant_id is None:
         return False
-    product_source = (
-        f"fixture://{member.scope.store_id}/products/{member.scope.product_id}"
-    )
+    product_source = f"fixture://{scope.store_id}/products/{scope.product_id}"
     return source_ref in {
         f"{product_source}#{field_key}",
         f"{product_source}/variants/{variant_id}#{field_key}",
     }
+
+
+def _source_locator_matches_scope(
+    source_ref: str,
+    *,
+    scope: ObjectScope,
+    source_class: str,
+    field_key: str,
+) -> bool:
+    if source_class == "CATALOG":
+        return _catalog_source_matches_scope(
+            source_ref, scope=scope, field_key=field_key
+        )
+    if scope.variant_id is None:
+        return False
+    return source_ref == f"{_commerce_source(scope)}#commerce.{field_key}"

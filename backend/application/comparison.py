@@ -172,6 +172,22 @@ class ComparisonDifferenceMember(WireModel):
     member_id: str = Field(min_length=1)
     fact_id: str = Field(min_length=1)
     value: JsonValue
+    unit: str | None = None
+    state: ComparisonState
+    source_class: SourceClass
+    freshness: ComparisonFreshnessVerdict | None = None
+
+    @model_validator(mode="after")
+    def validate_difference_member(self) -> ComparisonDifferenceMember:
+        if self.state.value != AttributeStatus.KNOWN.value:
+            raise ValueError("comparison difference members must be known")
+        if self.value is None:
+            raise ValueError("known comparison difference members require a value")
+        if self.source_class == "CATALOG" and self.freshness is not None:
+            raise ValueError("catalog difference members cannot carry freshness")
+        if self.source_class == "SHOPIFY_COMMERCE" and self.freshness is None:
+            raise ValueError("commerce difference members require freshness")
+        return self
 
 
 class ComparisonDifference(WireModel):
@@ -186,7 +202,9 @@ class ComparisonDifference(WireModel):
         if len(set(member_ids)) != len(member_ids):
             raise ValueError("comparison difference members must be unique")
         first_value = self.members[0].value
-        if all(member.value == first_value for member in self.members[1:]):
+        if all(
+            _json_values_equal(member.value, first_value) for member in self.members[1:]
+        ):
             raise ValueError("comparison difference requires distinct values")
         return self
 
@@ -309,7 +327,11 @@ class ComparisonAnswer(WireModel):
                     raise ValueError(
                         "fact evidence scope must match its comparison member"
                     )
+            rows_by_field: dict[str, ComparisonRow] = {}
             for row in self.rows:
+                if row.field_key in rows_by_field:
+                    raise ValueError("comparison rows must have unique field keys")
+                rows_by_field[row.field_key] = row
                 if {cell.member_id for cell in row.cells} != set(members_by_id):
                     raise ValueError(
                         "comparison row must include every resolved member"
@@ -317,11 +339,6 @@ class ComparisonAnswer(WireModel):
                 for cell in row.cells:
                     member = members_by_id.get(cell.member_id)
                     fact = facts_by_id.get(cell.fact_id)
-                    expected_freshness = (
-                        fact.freshness.verdict
-                        if fact is not None and fact.freshness
-                        else None
-                    )
                     if (
                         member is None
                         or fact is None
@@ -329,15 +346,41 @@ class ComparisonAnswer(WireModel):
                         or fact.field_key != row.field_key
                         or fact.binding.evidence_id != cell.evidence_id
                         or fact.binding.scope != cell.scope
-                        or cell.value != fact.fact.value
-                        or cell.unit != fact.fact.unit
-                        or cell.state.value != fact.state.value
-                        or cell.source_class != fact.source_class
-                        or cell.freshness != expected_freshness
+                        or not _cell_matches_fact(cell, fact)
                     ):
                         raise ValueError(
                             "comparison row cell does not match its bound member fact"
                         )
+                expected_difference = _difference(row.field_key, row.cells)
+                if row.difference is None:
+                    if expected_difference is not None:
+                        raise ValueError("comparison row is missing its difference")
+                else:
+                    _validate_difference_payload(
+                        row.difference,
+                        cells_by_member={cell.member_id: cell for cell in row.cells},
+                        facts_by_id=facts_by_id,
+                    )
+                    if expected_difference is None:
+                        raise ValueError("comparison row contains a forged difference")
+
+            row_differences = {
+                row.field_key: row.difference
+                for row in self.rows
+                if row.difference is not None
+            }
+            answer_differences: dict[str, ComparisonDifference] = {}
+            for difference in self.differences:
+                if difference.field_key in answer_differences:
+                    raise ValueError("comparison differences must have unique fields")
+                answer_differences[difference.field_key] = difference
+            if set(answer_differences) != set(row_differences):
+                raise ValueError("comparison differences must match row differences")
+            for field_key, row_difference in row_differences.items():
+                if not _differences_equal(
+                    answer_differences[field_key], row_difference
+                ):
+                    raise ValueError("comparison difference payload does not match row")
         return self
 
 
@@ -902,7 +945,7 @@ def _difference(
     ):
         return None
     first = cells[0].value
-    if all(cell.value == first for cell in cells[1:]):
+    if all(_json_values_equal(cell.value, first) for cell in cells[1:]):
         return None
     return ComparisonDifference(
         field_key=field_key,
@@ -911,9 +954,88 @@ def _difference(
                 member_id=cell.member_id,
                 fact_id=cell.fact_id,
                 value=cell.value,
+                unit=cell.unit,
+                state=cell.state,
+                source_class=cell.source_class,
+                freshness=cell.freshness,
             )
             for cell in cells
         ),
+    )
+
+
+def _json_values_equal(left: object, right: object) -> bool:
+    """Compare JSON values without Python's bool/int equality coercion."""
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            _json_values_equal(left_item, right_item)
+            for left_item, right_item in zip(left, right, strict=True)
+        )
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            _json_values_equal(left[key], right[key]) for key in left
+        )
+    return left == right
+
+
+def _cell_matches_fact(cell: ComparisonFactCell, fact: ComparisonFact) -> bool:
+    expected_freshness = fact.freshness.verdict if fact.freshness is not None else None
+    return (
+        _json_values_equal(cell.value, fact.fact.value)
+        and cell.unit == fact.fact.unit
+        and cell.state.value == fact.state.value
+        and cell.source_class == fact.source_class
+        and cell.freshness == expected_freshness
+    )
+
+
+def _validate_difference_payload(
+    difference: ComparisonDifference,
+    *,
+    cells_by_member: dict[str, ComparisonFactCell],
+    facts_by_id: dict[str, ComparisonFact],
+) -> None:
+    if {member.member_id for member in difference.members} != set(cells_by_member):
+        raise ValueError("comparison difference must include every resolved member")
+    for difference_member in difference.members:
+        cell = cells_by_member.get(difference_member.member_id)
+        fact = facts_by_id.get(difference_member.fact_id)
+        if (
+            cell is None
+            or fact is None
+            or cell.fact_id != difference_member.fact_id
+            or fact.member_id != difference_member.member_id
+            or fact.field_key != difference.field_key
+            or fact.state.value != AttributeStatus.KNOWN.value
+            or not _json_values_equal(difference_member.value, fact.fact.value)
+            or difference_member.unit != fact.fact.unit
+            or difference_member.state.value != fact.state.value
+            or difference_member.source_class != fact.source_class
+            or difference_member.freshness
+            != (fact.freshness.verdict if fact.freshness is not None else None)
+            or not _cell_matches_fact(cell, fact)
+        ):
+            raise ValueError("comparison difference is not bound to its member fact")
+
+
+def _differences_equal(
+    left: ComparisonDifference, right: ComparisonDifference | None
+) -> bool:
+    if right is None or left.field_key != right.field_key:
+        return False
+    if len(left.members) != len(right.members):
+        return False
+    return all(
+        left_member.member_id == right_member.member_id
+        and left_member.fact_id == right_member.fact_id
+        and _json_values_equal(left_member.value, right_member.value)
+        and left_member.unit == right_member.unit
+        and left_member.state.value == right_member.state.value
+        and left_member.source_class == right_member.source_class
+        and left_member.freshness == right_member.freshness
+        for left_member, right_member in zip(left.members, right.members, strict=True)
     )
 
 

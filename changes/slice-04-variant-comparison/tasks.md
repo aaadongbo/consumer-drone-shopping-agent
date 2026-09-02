@@ -219,3 +219,24 @@
   - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen pytest -q` exit 0; `418 passed`.
   - `git diff --check` exit 0.
 - **Review / snapshot**：HIGH repair under the current Human authorization; a new local immutable detached snapshot will be created from this exact clean repair range for independent AI re-review. This is not integration or push authority.
+
+### S04 Completion Re-review repair — P1 identity, freshness, and difference guards
+
+- **Status**：DONE
+- **Implementation base**：`1c99afcb5058d6543c4454d263bcd0c60e69affa`
+- **Changed paths**：
+  - `backend/evidence/comparison.py`
+  - `backend/application/comparison.py`
+  - `tests/integration/test_s04_t04_dynamic_comparison_facts.py`
+  - `tests/contract/test_s04_t05_comparison_answer_contract.py`
+  - `changes/slice-04-variant-comparison/tasks.md`
+- **Reproduction evidence**：On the implementation base, four focused reproductions exited 1 after proving acceptance of simultaneous cross-member fact/binding locator tampering, nested dynamic locators, inconsistent observation timestamps, and `False`/`0` plus forged difference payloads.
+- **Result**：`ComparisonFact` now binds canonical source locators to member scope and keeps AttributeValue/ComparisonFact/freshness observations equal; dynamic ToolResults require an exact canonical Variant commerce source; row values use type-sensitive JSON equality; and row/top-level differences carry and validate value, unit, state, source class, freshness, member and fact identity against the corresponding facts.
+- **Verification commands**：
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run pytest -m 'unit or contract or integration or e2e' tests/contract/test_s04_t03_comparison_facts_contract.py tests/integration/test_s04_t03_comparison_fact_binding.py tests/integration/test_s04_t04_dynamic_comparison_facts.py tests/contract/test_s04_t05_comparison_answer_contract.py tests/integration/test_s04_t05_comparison_flow.py tests/e2e/test_s04_t06_completion_matrix.py -q` exit 0; `56 passed`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen pytest -q` exit 0; `436 passed`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen ruff check .` exit 0; all checks passed.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen ruff format --check .` exit 0; `87 files already formatted`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache uv run --frozen uv lock --check` exit 0; dependencies resolved without changes.
+  - `git diff --check` exit 0.
+- **Review / snapshot**：HIGH repair under current Human authorization; a new local immutable detached snapshot will be created from this exact clean range for independent AI re-review. This is not integration or push authority.
