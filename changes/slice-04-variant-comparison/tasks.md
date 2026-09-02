@@ -8,7 +8,7 @@
 |---|---|---|---|
 | T01 | Comparison set identity and provenance contract | DONE | Slice 3 completion + Slice 4 planning approval + stable Shopify Variant ID mapping |
 | T02 | Bounded member validation and resolution | DONE | T01 |
-| T03 | Per-member normalized facts and Evidence binding | NOT_STARTED | T02 |
+| T03 | Per-member normalized facts and Evidence binding | DONE | T02 |
 | T04 | Read-only dynamic facts and freshness guard | NOT_STARTED | T02, T03 |
 | T05 | Comparison answer / fallback walking skeleton | NOT_STARTED | T03, T04 |
 | T06 | Slice 4 verification matrix and completion evidence | NOT_STARTED | T05 |
@@ -120,8 +120,28 @@
   - `tests/integration/test_s04_t02_comparison_handoff_boundary.py`
   - `tests/unit/test_s04_t02_comparison_resolution.py`
 - **Verification commands**：
-  - `uv run pytest -m 'unit or integration' tests/unit/test_s04_t02_comparison_resolution.py tests/integration/test_s04_t02_comparison_handoff_boundary.py -q` exit 0; `10 passed in 0.06s`.
-  - `uv run ruff check --fix backend/conversation/comparison.py backend/conversation/comparison_resolution.py backend/conversation/__init__.py tests/unit/test_s04_t02_comparison_resolution.py tests/integration/test_s04_t02_comparison_handoff_boundary.py` exit 0; one mechanical fix applied, then clean.
-  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T02 --pretty` exit 0; workflow-selected verification complete, including compile, ruff check, ruff format check, targeted pytest, diff/core/dependency gates; targeted pytest result `10 passed in 0.08s`.
+  - `uv run --frozen pytest tests/unit/test_s04_t02_comparison_resolution.py tests/integration/test_s04_t02_comparison_handoff_boundary.py -q` exit 0; `10 passed in 0.09s`.
+  - `uv run --frozen ruff check backend/conversation/comparison.py backend/conversation/comparison_resolution.py backend/conversation/__init__.py tests/unit/test_s04_t02_comparison_resolution.py tests/integration/test_s04_t02_comparison_handoff_boundary.py` exit 0; all checks passed.
+  - `uv run --frozen ruff format --check backend/conversation/comparison.py backend/conversation/comparison_resolution.py backend/conversation/__init__.py tests/unit/test_s04_t02_comparison_resolution.py tests/integration/test_s04_t02_comparison_handoff_boundary.py` exit 0; `5 files already formatted`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S04-T02` exit 0; no disallowed paths, no core artifact changes, no dependency changes.
+  - `git diff --check` exit 0.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T02` exit 0; workflow-selected verification complete, including compile, ruff check, ruff format check, targeted pytest, diff/core/dependency gates; targeted pytest result `10 passed in 0.07s`.
 - **Result**：Materialized S3 `COMPARISON_SET` handoff into a bounded same-store, same-Product concrete Variant `ComparisonSet`; Product-only, Page Context member provenance, foreign-store, ownership mismatch, unresolved Variant and cross-Product requests fail closed with typed clarification/deferral before fact or dynamic reads.
 - **Review / snapshot**：HIGH task under current Human authorization; local immutable WIP snapshot will be created before S04-T03 because T03 scope excludes T02 conversation files. This is not integration or push authority.
+
+### S04-T03 — Per-member normalized facts and Evidence binding
+
+- **Status**：DONE
+- **Implementation base**：`0005ea81e61e414ba3d5b5f42ca7df110f62693f`
+- **Changed paths**：
+  - `backend/evidence/__init__.py`
+  - `backend/evidence/comparison.py`
+  - `changes/slice-04-variant-comparison/tasks.md`
+  - `tests/contract/test_s04_t03_comparison_facts_contract.py`
+  - `tests/integration/test_s04_t03_comparison_fact_binding.py`
+- **Scope result**：`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S04-T03` exit 0; no disallowed paths, no core artifact changes, no dependency changes.
+- **Verification commands**：
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T03 --pretty` exit 0; workflow-selected verification complete, including compile, changed-file ruff check, changed-file ruff format check, targeted pytest, diff/core/dependency gates; targeted pytest result `6 passed`.
+  - `uv run ruff format --check ...` initially exit 1 because two changed files needed formatting; formatting was corrected mechanically, and the policy-selected rerun above exited 0.
+- **Result**：Added internal static `ComparisonFact`, `ComparisonFactSet` and `ComparisonEvidenceBinding` contracts with per-member catalog scope, revision, source locator and explicit `KNOWN` / `UNKNOWN` / `NOT_APPLICABLE` state preservation. Non-ready comparison sets, missing or inconsistent catalog identity, duplicate fields, non-concrete bindings, mismatched fact locators and cross-member evidence bindings fail closed; dynamic commerce fields remain outside this Task.
+- **Review / snapshot**：HIGH task under current Human authorization; targeted verification passed. A local immutable WIP snapshot will be created now for the T03 handoff boundary. This is not integration or push authority.
