@@ -1,8 +1,8 @@
 # Slice 5 Ordered Planning Tasks — Product RAG
 
-> 状态：DRAFT / Non-executable roadmap planning
+> 状态：APPROVED / Non-executable pending workflow policy and implementation authority
 >
-> 本文件故意不创建正式 Task status table。以下任务均为 `PLANNED`，不是 `NOT_STARTED`，因此不得被 workflow 视为当前可执行 Slice。正式进入 Slice 5 前，需要 Human Review、planning baseline、workflow policy 激活和单独 Implementation authority。
+> 本文件故意不创建正式 Task status table。以下任务均为 `PLANNED`，不是 `NOT_STARTED`，因此不得被 workflow 视为当前可执行 Slice。Human 已接受规划；正式进入 Slice 5 前仍需 planning baseline、workflow policy 激活和单独 Implementation authority。
 
 Slice 5 只实现单一 Store/Product/optional Variant 范围内的 Product RAG、Evidence Gate、同商品定向补检和澄清。`refresh_commerce_state`、Derived Evidence 复算和 HARD eligibility recheck 可作为全局 action type 被文档命名，但不在 Slice 5 执行；它们由 Slice 6 承接。
 

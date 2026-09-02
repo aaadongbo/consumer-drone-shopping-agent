@@ -28,4 +28,4 @@
 | [DEC-010](./adr/DEC-010-deterministic-hard-constraints-at-variant-level.md) | ACCEPTED | HARD Constraint 由谁判断？ | 由确定性 Variant 级代码判断 |
 | [DEC-011](./adr/DEC-011-protocol-independent-internal-tool-contract.md) | ACCEPTED | 内部 Tool Contract 是否依赖 MCP？ | 协议无关；MCP 仅是可选 adapter |
 | [DEC-012](./adr/DEC-012-separate-page-context-turn-target-and-conversation-context.md) | PROPOSED / PENDING HUMAN REVIEW / CANDIDATE DECISION | 商品页、单轮目标与长期会话对象如何分工？ | Candidate Decision：Page Context 提供默认，Turn Target 约束本轮，只有确认切换更新 Conversation Context |
-| [DEC-013](./adr/DEC-013-bounded-agentic-rag-only.md) | PROPOSED / PENDING HUMAN REVIEW / CANDIDATE DECISION | V1 是否采用 Agentic RAG？ | Candidate Decision：只采用单编排器内受限 ActionPlan，不采用开放式 ReAct / 多 Agent |
+| [DEC-013](./adr/DEC-013-bounded-agentic-rag-only.md) | ACCEPTED | V1 是否采用 Agentic RAG？ | 只采用单编排器内受限 ActionPlan，不采用开放式 ReAct / 多 Agent |

@@ -1,8 +1,8 @@
 # Slice 5 Planning — Product RAG with Bounded Evidence Loop
 
-> 状态：DRAFT / Non-executable roadmap planning
+> 状态：APPROVED / Non-executable pending workflow policy and implementation authority
 >
-> 本文件提前规划 Slice 5 的 Product RAG 边界。它不授权 Implementation、Task 状态推进、snapshot、commit、push 或外部服务配置。正式进入 Slice 5 前，必须在 Slice 3/4 完成后重新进行 Readiness、Human Review 和 workflow policy 激活。
+> Human 已接受 Slice 5 的 Goal、Scope、Acceptance 及 DEC-013。它仍不授权 Implementation、Task 状态推进、snapshot、commit、push 或外部服务配置。正式进入 Slice 5 前，必须完成 planning baseline、workflow policy 激活和单独 Implementation authority。
 
 ## 1. Goal
 
