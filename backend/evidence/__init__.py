@@ -20,6 +20,7 @@ from backend.evidence.rag_quality import (
     RagFallback,
     RagFallbackReason,
     gate_retrieval_evidence,
+    reject_for_budget,
 )
 from backend.evidence.recommendation import (
     RecommendationCandidate,
@@ -50,4 +51,5 @@ __all__ = [
     "build_recommendation_candidates",
     "read_dynamic_comparison_facts",
     "gate_retrieval_evidence",
+    "reject_for_budget",
 ]

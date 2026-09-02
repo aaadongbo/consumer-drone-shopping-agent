@@ -24,7 +24,7 @@ Provisional budget config:
 | T02 | Scoped chunking and locator baseline | DONE | T01 |
 | T03 | Metadata-filtered baseline retrieval | DONE | T02 |
 | T04 | Evidence quality and claim coverage gate | DONE | T03 |
-| T05 | Bounded Product RAG action loop | NOT_STARTED | T04 |
+| T05 | Bounded Product RAG action loop | DONE | T04 |
 | T06 | Product RAG answer/fallback walking skeleton | NOT_STARTED | T05 |
 | T07 | Slice 5 evaluation matrix and completion evidence | NOT_STARTED | T06 |
 
@@ -120,6 +120,16 @@ Execution Record:
 - **Verification**：Unit state table + Integration trace.
 - **Dependencies**：T04.
 - **Out of Scope**：无限 ReAct、多 Agent、开放工具 dispatcher、commerce refresh、Derived Evidence、HARD eligibility recheck。
+
+Execution Record:
+
+- Start commit: `f9594ec521c074448a9ec74a0fb92b4ecdba406a`.
+- Implemented an internal `BoundedProductRagLoop`: one baseline retrieval plus at most one same-target targeted retrieval or clarification action. Its strict `ProductRagBudget` keeps the approved limits at two rounds/two tool calls, 8s, 4k retrieval tokens and 1.2k model tokens.
+- Added replayable `ActionPlan`, `ActionRoundTrace`, observation, verification and budget-consumption models. The loop accepts no generic operation and only calls a typed RAG `retrieve()` capability; it cannot mutate Store/Product/Variant scope.
+- Integrated the T04 Evidence Gate. Dynamic facts stop as `DYNAMIC_FACT_REQUIRED`; deadline and retrieval-token exhaustion downgrade otherwise accepted evidence to `BUDGET_EXHAUSTED`, so a later answer layer cannot expose it.
+- Initial targeted tests exposed two trace/safety defects: the baseline trace was omitted when a second retrieval ran, and token-budget exhaustion retained accepted evidence. Both were fixed before the passing rerun. One import-order diagnostic was automatically fixed by Ruff.
+- Verification: `pytest tests/unit/test_s05_t05_bounded_rag_loop.py tests/integration/test_s05_t05_rag_loop.py -q` passed with `9 passed`; targeted Ruff lint/format, `git diff --check`, and `check_scope.py S05-T05` passed.
+- Public Contract, Architecture, Workflow, dependency, external-service, commerce refresh, Derived Evidence, HARD recheck and Shopify-write changes: none.
 
 ## T06 — Product RAG answer/fallback walking skeleton
 

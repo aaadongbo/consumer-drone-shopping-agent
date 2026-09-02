@@ -37,6 +37,7 @@ class RagFallbackReason(StrEnum):
     DYNAMIC_FACT_REQUIRED = "DYNAMIC_FACT_REQUIRED"
     STALE_VERSION = "STALE_VERSION"
     CONFLICTING_EVIDENCE = "CONFLICTING_EVIDENCE"
+    BUDGET_EXHAUSTED = "BUDGET_EXHAUSTED"
 
 
 class RagClaim(RagModel):
@@ -131,6 +132,32 @@ def gate_retrieval_evidence(
     return EvidenceGateResult(
         retrieval=bundle,
         quality=tuple(_evaluate_claim(bundle, claim) for claim in claims),
+    )
+
+
+def reject_for_budget(gate: EvidenceGateResult) -> EvidenceGateResult:
+    """Downgrade otherwise supported claims when the turn budget is exhausted."""
+    return EvidenceGateResult(
+        retrieval=gate.retrieval,
+        quality=tuple(
+            EvidenceQuality(
+                claim_id=item.claim_id,
+                verdict=EvidenceQualityVerdict.REJECTED,
+                scope_match=item.scope_match,
+                locator_present=item.locator_present,
+                version_match=item.version_match,
+                claim_covered=item.claim_covered,
+                conflict=item.conflict,
+                evidence_locators=item.evidence_locators,
+                fallback=RagFallback(
+                    claim_id=item.claim_id,
+                    reason=RagFallbackReason.BUDGET_EXHAUSTED,
+                ),
+            )
+            if item.verdict is EvidenceQualityVerdict.ACCEPTED
+            else item
+            for item in gate.quality
+        ),
     )
 
 
@@ -259,4 +286,5 @@ __all__ = [
     "RagFallback",
     "RagFallbackReason",
     "gate_retrieval_evidence",
+    "reject_for_budget",
 ]
