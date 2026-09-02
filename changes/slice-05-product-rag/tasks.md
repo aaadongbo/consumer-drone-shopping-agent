@@ -1,8 +1,8 @@
-# Slice 5 Ordered Planning Tasks — Product RAG
+# Slice 5 Ordered Implementation Tasks — Product RAG
 
-> 状态：APPROVED / Non-executable pending workflow policy and implementation authority
+> 状态：IMPLEMENTATION AUTHORIZED / Formal Slice task table
 >
-> 本文件故意不创建正式 Task status table。以下任务均为 `PLANNED`，不是 `NOT_STARTED`，因此不得被 workflow 视为当前可执行 Slice。Human 已接受规划；正式进入 Slice 5 前仍需 planning baseline、workflow policy 激活和单独 Implementation authority。
+> Human 已接受 Slice 5 的 Goal、Scope、Acceptance 及 bounded Agentic RAG 决策；planning baseline 与 S05 Workflow Policy 已集成。以下任务使用正式 workflow Task state（`NOT_STARTED` / `IN_PROGRESS` / `BLOCKED` / `DONE`），按依赖和任务表顺序执行。
 
 Slice 5 只实现单一 Store/Product/optional Variant 范围内的 Product RAG、Evidence Gate、同商品定向补检和澄清。`refresh_commerce_state`、Derived Evidence 复算和 HARD eligibility recheck 可作为全局 action type 被文档命名，但不在 Slice 5 执行；它们由 Slice 6 承接。
 
@@ -18,15 +18,15 @@ Provisional budget config:
 
 `max_action_rounds = 2 total` means round 1 is baseline retrieval; only one corrective round is allowed.
 
-| Planned Task | Title | Planned state | Dependencies |
+| Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Document manifest and ingestion contract | PLANNED | Slice 4 completion + Slice 5 planning approval |
-| T02 | Scoped chunking and locator baseline | PLANNED | T01 |
-| T03 | Metadata-filtered baseline retrieval | PLANNED | T02 |
-| T04 | Evidence quality and claim coverage gate | PLANNED | T03 |
-| T05 | Bounded Product RAG action loop | PLANNED | T04 |
-| T06 | Product RAG answer/fallback walking skeleton | PLANNED | T05 |
-| T07 | Slice 5 evaluation matrix and completion evidence | PLANNED | T06 |
+| T01 | Document manifest and ingestion contract | NOT_STARTED | Slice 4 completion + Slice 5 planning approval |
+| T02 | Scoped chunking and locator baseline | NOT_STARTED | T01 |
+| T03 | Metadata-filtered baseline retrieval | NOT_STARTED | T02 |
+| T04 | Evidence quality and claim coverage gate | NOT_STARTED | T03 |
+| T05 | Bounded Product RAG action loop | NOT_STARTED | T04 |
+| T06 | Product RAG answer/fallback walking skeleton | NOT_STARTED | T05 |
+| T07 | Slice 5 evaluation matrix and completion evidence | NOT_STARTED | T06 |
 
 ## T01 — Document manifest and ingestion contract
 
