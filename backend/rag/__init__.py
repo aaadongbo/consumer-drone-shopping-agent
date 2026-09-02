@@ -11,6 +11,12 @@ from backend.rag.manifest import (
     chunk_document_source,
     chunk_manifest,
 )
+from backend.rag.retrieval import (
+    InMemoryProductRetriever,
+    RetrievalRequest,
+    RetrievalResult,
+    RetrievalStrategy,
+)
 
 __all__ = [
     "AuthorizationState",
@@ -22,4 +28,8 @@ __all__ = [
     "build_authorized_manifest",
     "chunk_document_source",
     "chunk_manifest",
+    "InMemoryProductRetriever",
+    "RetrievalRequest",
+    "RetrievalResult",
+    "RetrievalStrategy",
 ]

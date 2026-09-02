@@ -22,7 +22,7 @@ Provisional budget config:
 |---|---|---|---|
 | T01 | Document manifest and ingestion contract | DONE | Slice 4 completion + Slice 5 planning approval |
 | T02 | Scoped chunking and locator baseline | DONE | T01 |
-| T03 | Metadata-filtered baseline retrieval | NOT_STARTED | T02 |
+| T03 | Metadata-filtered baseline retrieval | DONE | T02 |
 | T04 | Evidence quality and claim coverage gate | NOT_STARTED | T03 |
 | T05 | Bounded Product RAG action loop | NOT_STARTED | T04 |
 | T06 | Product RAG answer/fallback walking skeleton | NOT_STARTED | T05 |
@@ -78,6 +78,16 @@ Execution Record:
 - **Verification**：Unit + Integration + retrieval eval baseline.
 - **Dependencies**：T02.
 - **Out of Scope**：multi-product retrieval quota、Milvus 硬依赖、reranker 固化、开放网络检索。
+
+Execution Record:
+
+- Start commit: `d28386ad2dd6508ced7d9fc404acb6f663f60ac5`.
+- Implemented internal `RetrievalRequest`, `RetrievalResult`, `RetrievalStrategy`, and deterministic `InMemoryProductRetriever`.
+- Retrieval applies store/product/optional variant metadata filtering before ranking and returns scoped `DocumentChunk` evidence with index version and missing reason.
+- Added unit and integration coverage for known static retrieval, metadata filter before ranking, cross-product rejection, product-shared chunks under a variant target, and scoped fixture retrieval for FAQ/package/manual/policy questions.
+- First restored draft test run passed, then Ruff found two line-length formatting issues in T03 tests; formatting fixed them and targeted tests still passed.
+- Verification: targeted `pytest tests/unit/test_s05_t03_retrieval.py tests/integration/test_s05_t03_retrieval_scope.py -q` passed with `8 passed`; targeted Ruff lint and format checks passed.
+- Multi-product retrieval quota, Milvus dependency, reranker, open network, public Contract, Architecture, Workflow, dependency and external-service changes: none.
 
 ## T04 — Evidence quality and claim coverage gate
 
