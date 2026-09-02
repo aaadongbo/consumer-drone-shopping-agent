@@ -11,7 +11,7 @@
 | T03 | Per-member normalized facts and Evidence binding | DONE | T02 |
 | T04 | Read-only dynamic facts and freshness guard | DONE | T02, T03 |
 | T05 | Comparison answer / fallback walking skeleton | DONE | T03, T04 |
-| T06 | Slice 4 verification matrix and completion evidence | NOT_STARTED | T05 |
+| T06 | Slice 4 verification matrix and completion evidence | DONE | T05 |
 
 ## T01 — Comparison set identity and provenance contract
 
@@ -178,3 +178,19 @@
   - The first changed-file lint check exited 1 for import ordering, line length and formatting; those mechanical fixes were applied before the policy-selected verification above.
 - **Result**：Added an internal-only comparison application boundary that consumes a COMPARISON typed handoff, materializes the bounded same-Product Variant set, assembles per-member static and read-only dynamic fact rows with Evidence/freshness bindings, computes only known-value differences, preserves explicit/confirmed-context provenance, and emits a correlation-linked trace. Invalid handoffs, cross-Product deferrals, missing static Evidence and dynamic failures remain fail-closed with actionable fallback; degraded dynamic reads retain rows with `UNAVAILABLE` state and never substitute stale values. The existing public `AnswerEnvelope` and Widget-facing schema were not modified, and no ConversationState or Shopify write capability was introduced.
 - **Review / snapshot**：HIGH task under current Human authorization; targeted verification passed. A local immutable T05 snapshot will be created from the exact clean Task range before T06 begins. This is not integration or push authority.
+
+### S04-T06 — Slice 4 verification matrix and completion evidence
+
+- **Status**：DONE
+- **Implementation base**：`30140ab61370e31e58cb40d55c90ba16b6223371`
+- **Changed paths**：
+  - `changes/slice-04-variant-comparison/tasks.md`
+  - `tests/e2e/test_s04_t06_completion_matrix.py`
+- **Scope result**：The policy-selected full verification reported only the two T06 paths, both within the T06 `tests/` / active-task-record scope; no core Artifact, dependency, forbidden-path or other Slice changes were present.
+- **Verification commands**：
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen pytest tests/e2e/test_s04_t06_completion_matrix.py -q` initially exited 1 with `1 failed, 12 passed`; the failure was a test assertion that assumed a fixed difference-field subset, and it was corrected to assert complete member identity instead.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache uv run --frozen pytest tests/e2e/test_s04_t06_completion_matrix.py -q` rerun exited 0 with `13 passed`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T06 --full --pretty` exited 0; full policy-selected verification passed compile, `uv lock --check`, repository ruff check, repository format check, full pytest (`412 passed`), diff checks, core Artifact checks and dependency checks.
+  - The first changed-test format check exited 1 because the matrix test needed mechanical formatting; after correction, the full policy-selected format check above exited 0 (`87 files already formatted`).
+- **Result**：Added the S04-A01～S04-A11 completion matrix over bounded identity, Product/Variant ownership, provenance/context isolation, same-Product scope, explicit fact states, Evidence injection rejection, fresh/stale dynamic reads, actionable fallback, zero-write behavior and correlation trace. The matrix uses deterministic fixtures only; no real external service, Shopify write, public schema, recommendation, RAG or later-Slice behavior was added.
+- **Review / snapshot**：HIGH task under current Human authorization; the full suite and matrix passed. A local immutable T06 snapshot will be created from the exact clean Slice range before the required independent Slice review. This is not integration or push authority.
