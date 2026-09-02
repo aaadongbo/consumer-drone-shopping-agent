@@ -1,8 +1,8 @@
 # Slice 6 Planning — Multi-product Evidence-based Recommendation
 
-> 状态：DRAFT / Non-executable roadmap planning
+> 状态：APPROVED PLANNING BASELINE / Implementation not yet authorized
 >
-> 本文件提前规划 Slice 6 的多商品证据推荐。它不授权 Implementation、Task 状态推进、snapshot、commit、push 或真实外部服务配置。
+> 本文件定义已批准的 Slice 6 多商品证据推荐范围。它不单独授权 Implementation、snapshot、commit、push 或真实外部服务配置；开始 S06-T01 仍需单独的 Slice Implementation 授权。
 
 ## 1. Goal
 

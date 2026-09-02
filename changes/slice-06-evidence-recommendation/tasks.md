@@ -1,8 +1,8 @@
-# Slice 6 Ordered Planning Tasks — Evidence-based Recommendation
+# Slice 6 Ordered Implementation Tasks — Evidence-based Recommendation
 
-> 状态：DRAFT / Non-executable roadmap planning
+> 状态：APPROVED PLANNING BASELINE / Implementation not yet authorized
 >
-> 本文件故意不创建正式 Task status table。以下任务均为 `PLANNED`，不是 `NOT_STARTED`，因此不得被 workflow 视为当前可执行 Slice。正式进入 Slice 6 前，需要 Human Review、planning baseline、workflow policy 激活和单独 Implementation authority。
+> Slice 6 的目标、Scope、Acceptance、预算与 Task 表已经过 Human Planning Review。下表现在使用正式 Task 状态；S06 workflow policy 已预配置并随本 baseline 激活。`NOT_STARTED` 不构成 Implementation authority：开始 S06-T01 前仍须取得单独的 Slice Implementation 授权。
 
 Slice 6 承接 Slice 5 未执行的 multi-product evidence collection、commerce refresh、HARD recheck 和 Derived Evidence。它仍使用 `max_action_rounds = 2 total`：第 1 轮包含初始候选证据读取；最多第 2 轮执行一个 allowlisted corrective action。
 
@@ -16,15 +16,15 @@ Provisional budget config:
 | `max_retrieval_tokens` | `4000` per turn | `RETRIEVAL_TOKEN_BUDGET` |
 | `max_model_tokens` | `1200` per turn | `MODEL_TOKEN_BUDGET` |
 
-| Planned Task | Title | Planned state | Dependencies |
+| Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Candidate evidence bundle contract | PLANNED | Slice 5 completion + Slice 6 planning approval |
-| T02 | Per-product RAG evidence collection plan | PLANNED | T01 |
-| T03 | Commerce refresh and HARD recheck plan | PLANNED | T01 |
-| T04 | Derived Evidence computation | PLANNED | T02, T03 |
-| T05 | Recommendation explanation and degradation | PLANNED | T04 |
-| T06 | Multi-product recommendation walking skeleton | PLANNED | T05 |
-| T07 | Slice 6 verification matrix and completion evidence | PLANNED | T06 |
+| T01 | Candidate evidence bundle contract | NOT_STARTED | Slice 5 completion + Slice 6 planning baseline |
+| T02 | Per-product RAG evidence collection plan | NOT_STARTED | T01 |
+| T03 | Commerce refresh and HARD recheck plan | NOT_STARTED | T01 |
+| T04 | Derived Evidence computation | NOT_STARTED | T02, T03 |
+| T05 | Recommendation explanation and degradation | NOT_STARTED | T04 |
+| T06 | Multi-product recommendation walking skeleton | NOT_STARTED | T05 |
+| T07 | Slice 6 verification matrix and completion evidence | NOT_STARTED | T06 |
 
 ## T01 — Candidate evidence bundle contract
 
