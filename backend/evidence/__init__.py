@@ -1,4 +1,4 @@
-"""Evidence helpers for recommendation assembly."""
+"""Evidence helpers for recommendation assembly and Product RAG gates."""
 
 from backend.evidence.comparison import (
     ComparisonDegradationReason,
@@ -11,6 +11,15 @@ from backend.evidence.comparison import (
     build_dynamic_comparison_facts,
     build_static_comparison_facts,
     read_dynamic_comparison_facts,
+)
+from backend.evidence.rag_quality import (
+    EvidenceGateResult,
+    EvidenceQuality,
+    EvidenceQualityVerdict,
+    RagClaim,
+    RagFallback,
+    RagFallbackReason,
+    gate_retrieval_evidence,
 )
 from backend.evidence.recommendation import (
     RecommendationCandidate,
@@ -27,6 +36,12 @@ __all__ = [
     "ComparisonFactSet",
     "ComparisonFreshness",
     "ComparisonFreshnessVerdict",
+    "EvidenceGateResult",
+    "EvidenceQuality",
+    "EvidenceQualityVerdict",
+    "RagClaim",
+    "RagFallback",
+    "RagFallbackReason",
     "RecommendationCandidate",
     "RecommendationCandidateSet",
     "RecommendationReason",
@@ -34,4 +49,5 @@ __all__ = [
     "build_static_comparison_facts",
     "build_recommendation_candidates",
     "read_dynamic_comparison_facts",
+    "gate_retrieval_evidence",
 ]

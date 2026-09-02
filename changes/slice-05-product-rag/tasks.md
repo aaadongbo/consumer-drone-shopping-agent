@@ -23,7 +23,7 @@ Provisional budget config:
 | T01 | Document manifest and ingestion contract | DONE | Slice 4 completion + Slice 5 planning approval |
 | T02 | Scoped chunking and locator baseline | DONE | T01 |
 | T03 | Metadata-filtered baseline retrieval | DONE | T02 |
-| T04 | Evidence quality and claim coverage gate | NOT_STARTED | T03 |
+| T04 | Evidence quality and claim coverage gate | DONE | T03 |
 | T05 | Bounded Product RAG action loop | NOT_STARTED | T04 |
 | T06 | Product RAG answer/fallback walking skeleton | NOT_STARTED | T05 |
 | T07 | Slice 5 evaluation matrix and completion evidence | NOT_STARTED | T06 |
@@ -99,6 +99,16 @@ Execution Record:
 - **Verification**：Contract + Integration.
 - **Dependencies**：T03.
 - **Out of Scope**：推荐排序、自然语言文案优化、commerce refresh、Derived Evidence。
+
+Execution Record:
+
+- Start commit: `410a8f5fbd52014adeb12cc3f06aa99c20c02f8f`.
+- Implemented the internal, lossless `RetrievalEvidenceBundle` adapter and a fail-closed RAG Evidence Gate. It accepts only a verbatim static claim supported by the requested Store/Product/Variant scope, canonical locator and current document version.
+- Added typed internal `EvidenceQuality`, `RagClaim`, and `RagFallback` outcomes. Price, inventory and availability always return `DYNAMIC_FACT_REQUIRED`; missing support, foreign scope, stale source versions and conflicting locator content never produce an accepted claim.
+- Added focused contract and integration coverage for adapter round-trip, strict accepted-quality shape, dynamic-fact rejection, stale/conflicting sources, exact scoped support, injected foreign product evidence and unsupported text.
+- First direct verification could not initialize the sandboxed shared uv cache; the same command was rerun with an isolated temporary cache. The first test pass also exposed an invalid stale-chunk fixture that the lossless adapter correctly rejected before the gate; the fixture was rebuilt as a valid older document version, then the gate assertion passed. Ruff fixed import and formatting diagnostics without semantic change.
+- Verification: `pytest tests/contract/test_s05_t04_evidence_gate_contract.py tests/integration/test_s05_t04_evidence_quality.py -q` passed with `8 passed`; targeted Ruff lint/format, `git diff --check`, and `check_scope.py S05-T04` passed.
+- Public Contract, Architecture, Workflow, dependency, external-service, commerce refresh, Derived Evidence, HARD recheck and Shopify-write changes: none.
 
 ## T05 — Bounded Product RAG action loop
 
