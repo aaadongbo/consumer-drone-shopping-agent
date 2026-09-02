@@ -18,7 +18,7 @@
 | T04 | Turn Target precedence、临时问答与确认切换 | DONE | T02, T03 |
 | T05 | 单对象 Target Resolution 接入现有 Product Fact flow 的 Walking Skeleton | DONE | T04 |
 | T06 | 比较 / 推荐 / 全站支持 typed routing handoff | DONE | T05 |
-| T07 | Slice 3 Verification Matrix 与 Completion Evidence | NOT_STARTED | T06 |
+| T07 | Slice 3 Verification Matrix 与 Completion Evidence | DONE | T06 |
 
 风险层级只是 Planning proposal；Implementation 前必须由 Human 接受并写入 workflow Task policy。任何 Reviewer 识别出更高风险时向上升级。
 
@@ -118,6 +118,14 @@
 计划中的测试名称、命令和 pass count 都不是执行证据。Execution Record 只能填写实际运行的命令、exit code 与结果。
 
 ## 4. Execution Records
+
+### T07 — Slice 3 Verification Matrix 与 Completion Evidence
+
+- **Start baseline**：`e65db61d15ae178f057ccf11cb491f579e220f16` in the current detached Slice Implementation worktree；开始时 worktree clean，T06 snapshot 已通过 immutable evidence 与独立 `AI_REVIEW_PASS`。
+- **Authority**：当前 Human 明确授权仅执行 `S03-T07`；`inspect_state.py --authorize-task S03-T07 --approved-workflow-oid 0c4edd3f6674da985b49047fe40462c2b8eaf9b7` exit `0`，T07 是唯一 executable Task。
+- **Completion evidence**：既有 T01～T06 Contract/Unit/Integration/E2E evidence 覆盖 S3-A01～A14：T03/T04 覆盖 page/explicit/variant/confirmed/temporary/switch/ambiguity；T05 覆盖单对象 Target→Fact identity、Answer/Evidence/binding/freshness/read-ledger/zero-write；T06 覆盖 comparison per-member provenance、recommendation/support typed handoff 与 downstream=false。T02/T04 的 revision/idempotency/replay tests 与 T04 traceable state patch 覆盖 stale/duplicate/trace；所有 Slice 3 Shopify fixture paths 保持 write count=0，未修改 public Contract、Architecture、dependency 或 policy。
+- **Actual completion verification**：`uv run --frozen pytest -q` exit `0`，`362 passed`；`uv run --frozen ruff check backend/application backend/catalog backend/conversation tests` exit `0`；`uv run --frozen ruff format --check backend/application backend/catalog backend/conversation tests` exit `0`，`56 files already formatted`；`uv lock --check` exit `0`；`git diff --check` exit `0`。policy `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S03-T07` exit `1`，唯一失败为全仓 `uv run ruff format --check .` 对两个 pre-existing workflow scripts 报 `Would reformat`；同一失败在 T07 起始 base `57a72b21b4cb1c0a6a264339be804f66bd3ba65a` 的两个脚本上复现，且它们不在 T07 allowed paths。该继承性 gate failure 未由本 Slice 引入，也未修改 Workflow 文件。
+- **Result**：`DONE` with documented pre-existing workflow-format limitation; T07 仅记录 completion evidence，不新增业务行为。最终 Slice detached snapshot 与 independent Slice Review 仍待本边界建立/执行；未写 main、未 push。
 
 ### T06 — 比较 / 推荐 / 全站支持 typed routing handoff
 
