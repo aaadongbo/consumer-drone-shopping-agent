@@ -203,6 +203,17 @@ Slice 3 可用 in-memory repository / reducer 验证语义，不接入 durable d
 - 其他 target kinds 只产生 typed handoff / fallback，不执行 Slice 4+ 能力。
 - expected revision、target display、handoff、resulting revision、conflict 或 replay semantics 需要改变公共 TurnRequest / AnswerEnvelope / RouteDecision wire schema 时，Implementation 必须先提交最小版本化 Contract proposal 并停在 S03-T01 Human Review；当前 Planning 不修改公共 Contract，也不得隐含突破现有 `extra="forbid"`。
 
+### 7.8 Target→Fact identity adapter（T05 最小内部边界）
+
+T05 在既有 application / conversation 边界增加一个内部、显式且可审计的 **Target→Fact identity adapter**。它不是搜索、实体链接、路由或状态 reducer；其唯一职责是把 T04 已解析的 `TargetResolution.turn_target.object_scope` 传给现有 Product Fact flow，替代该流原先直接从 `TurnRequest.page_context` 取得的回答对象。
+
+- **允许输入与来源**：adapter 只接受同一 Turn 的 `TurnRequest`（保留用户文本、correlation 等请求元数据）和 T04 `TurnTargetResolver` 产生的 `TargetResolution` / outcome。事实对象的唯一 source of truth 是 `SINGLE_OBJECT.object_scope`；`TurnRequest.page_context` 只能保留为解析前默认或用于 trace 对照，绝不能回填、覆盖或补全 resolved identity。
+- **输出与 ownership guards**：adapter 只产生 application-local 的 fact invocation scope；它必须完整保留 `store_id + product_id + optional variant_id`，并在调用 Shopify 前验证 resolved `store_id == TurnRequest.store_id`、目标具有完整对象 identity，及已存在的 Product / Variant exact-match guards仍以该 scope 验证 ToolResult、Card、Evidence 和 bindings。adapter 不接受调用方临时构造的“猜测 target”，不跨 store 或 product 修复 variant ownership。
+- **失败语义**：非 `SINGLE_OBJECT`、缺失 object scope、store 不一致、无效 product/variant ownership，或 resolved scope 与后续事实/证据身份不一致时，必须在读取前或现有 identity gate 返回稳定的 fail-closed fallback（例如 `INTERNAL_CONSISTENCY_ERROR`）；不得回退到 Page Context、目录第一项、默认 Variant 或模糊候选。显式跨产品且 identity 有效时，Page Context 不同本身不是错误，但 Page Context 的事实、Evidence、Card 或 display 绝不能混入结果。
+- **测试注入与可审计性**：T05 测试以 fixture `TurnRequest`、T04 resolver outcome 和已有 deterministic Shopify fixture 显式注入两种不同 page/target identity；断言 read ledger、trace、Answer/Card/Evidence/bindings 均只使用 adapter 输出 scope。adapter 不读取 catalog 搜索、动态 state 或外部服务，也不拥有 state mutation、intent 分类或 Evidence composition。
+
+该边界复用既有 `ObjectScope`、`TargetResolution`、Shopify read port 和 AnswerEnvelope identity gates；不改变任何 public wire Contract、Accepted Decision、模块职责或 Product Behavior。
+
 ## 8. Ordered Implementation Tasks
 
 完整 Scope、risk、verification 与停止条件见 [tasks.md](./tasks.md)。顺序如下：
@@ -232,8 +243,8 @@ Slice 3 可用 in-memory repository / reducer 验证语义，不接入 durable d
 | 8b | confirmed/page context 为 Mini 时问“比较它和 Air 3S” | per-member provenance 可表达则 handoff；否则 NEEDS_CLARIFICATION | Router + E2E |
 | 9 | “预算 7000 推荐一款”位于 Mini 页面 | RECOMMENDATION_TASK；不加 Mini 过滤 | Router + E2E |
 | 10 | 全站售后/支持请求 | STORE_SUPPORT handoff / safe fallback | Router + E2E |
-| 11 | 跨产品动态事实 | ToolResult、Evidence、Answer、Card、binding、display 均为 Turn Target | Contract + Integration |
-| 12 | Page Context Evidence 注入跨产品答案 | INTERNAL_CONSISTENCY_ERROR；无事实 Answer | Unit + E2E |
+| 11 | 跨产品动态事实 | Target→Fact adapter 的 scope 是唯一事实输入；ToolResult、Evidence、Answer、Card、binding、display 均为 Turn Target | Contract + Integration + E2E |
+| 12 | Page Context Evidence 注入跨产品答案 | adapter 或既有 identity gate 返回 `INTERNAL_CONSISTENCY_ERROR`；无事实 Answer、无 Page Context fallback read | Integration + E2E |
 | 13 | stale revision / duplicate message | 可恢复冲突 / 幂等结果；不覆盖 confirmed context | Contract + Integration |
 | 14 | trace / zero-write / forbidden capability scan | 完整 target-resolution trace；zero writes；无后续 Slice 实现 | Operational + diff review |
 
