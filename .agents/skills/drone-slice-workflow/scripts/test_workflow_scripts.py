@@ -664,6 +664,38 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertFalse(evidence["ok"])
         self.assertIn("SLICE_NOT_COMPLETE", evidence["blocking_reasons"])
 
+    def test_slice_review_rejects_tasks_table_only_completion(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        repo.write_tasks(status_map(list(repo.titles), "T07"))
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S02): status-only completion")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence(
+            "S02-T07", base, snapshot, repo.root, mode="slice-review"
+        )
+
+        self.assertFalse(evidence["ok"])
+        self.assertIn(
+            "SLICE_COMPLETION_WITHOUT_IMPLEMENTATION_SCOPE",
+            evidence["blocking_reasons"],
+        )
+
+    def test_malformed_task_status_row_fails_closed(self) -> None:
+        holder, repo = self.repo()
+        self.addCleanup(holder.cleanup)
+        repo.tasks_path.write_text(
+            repo.tasks_path.read_text(encoding="utf-8")
+            + "| T10 | Malformed row | DONE | T09\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(Exception, "malformed Task status row"):
+            inspect(repo.root)
+
     def test_digest_binds_identity_mode_paths_metadata_and_contents(self) -> None:
         holder, repo = self.repo()
         self.addCleanup(holder.cleanup)

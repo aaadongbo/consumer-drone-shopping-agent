@@ -9,7 +9,7 @@ Review behavior before source shape. For a MEDIUM boundary, read the Task, relev
 - No staging, working-tree, extra-path, amended/rebased-snapshot, or different-mode residue is present.
 - The snapshot is not directly on a protected ref. `main` and `master` remain protected even when policy omits them.
 - Scope and deterministic verification output refer to the same immutable range; caller pass claims are not evidence.
-- Task review requires the selected MEDIUM Task to be `DONE`. Slice review requires every Task to be `DONE`, the Task identity to equal the explicit policy `completion_task`, and the complete range to pass the union of configured Task scopes plus core Artifact, dependency, forbidden-path, identity, and aggregate HIGH-risk gates.
+- Task review requires the selected MEDIUM Task to be `DONE`. Slice review requires every Task to be `DONE`, a well-formed formal Task-status table, the Task identity to equal the explicit policy `completion_task`, and an immutable range with implementation-scope changes beyond a tasks-table-only status update. The complete range must pass the union of configured Task scopes plus core Artifact, dependency, forbidden-path, identity, and aggregate HIGH-risk gates.
 - The reviewer did not modify or implement the snapshot and remains independent.
 - A MEDIUM review handoff is a schema-valid JSON summary, not a boolean or prose: `AI_REVIEW_PASS`, exact Slice/Task/base/snapshot/mode/digest, independent-child identity/session, detached clean worktree at the snapshot, `no_write: true`, empty findings, and each real verification command with exit code/result. Any absent or mismatched field fails closed.
 

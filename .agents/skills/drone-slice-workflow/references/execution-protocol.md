@@ -32,7 +32,7 @@ The reviewer is a fresh independent child in a separate clean detached Worktree 
 
 ## `slice-review` and `integrate-approved`
 
-After every configured Slice Task is `DONE`, run the full suite and independently review the complete Slice range using the union of all configured Task scopes. The supplied Task must exactly match the policy's explicit `completion_task`; any other Task identity fails closed. Continue to reject core Artifact changes, unauthorized dependencies, forbidden paths, identity mismatches, and aggregate HIGH-risk conditions. Direct integration or local main commits require explicit current-context Human authorization for the exact range and target.
+After every configured Slice Task is `DONE`, run the full suite and independently review the complete Slice range using the union of all configured Task scopes. The supplied Task must exactly match the policy's explicit `completion_task`; any other Task identity fails closed. The formal Task-status table must parse cleanly, and a tasks-table-only completion range fails closed: the range must also contain implementation-scope changes. Continue to reject core Artifact changes, unauthorized dependencies, forbidden paths, identity mismatches, and aggregate HIGH-risk conditions. Direct integration or local main commits require explicit current-context Human authorization for the exact range and target.
 
 ## `feature-delivery` proposal
 

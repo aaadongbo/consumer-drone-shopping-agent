@@ -134,9 +134,25 @@ def find_tasks_file(repo: Path) -> Path:
 
 def parse_tasks(path: Path) -> list[dict[str, Any]]:
     tasks: list[dict[str, Any]] = []
+    in_status_table = False
     for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip() == "| Task | Title | Status | Dependencies |":
+            in_status_table = True
+            continue
+        if in_status_table and not line.startswith("|"):
+            in_status_table = False
         match = TASK_ROW.match(line)
         if not match:
+            # A malformed formal Task row must not silently disappear from the
+            # state model.  In particular, a completion snapshot could
+            # otherwise remove an unfinished row simply by damaging its table
+            # formatting, causing the remaining parsed rows to look complete.
+            if in_status_table and re.match(r"^\|\s*T\d{2}\b", line):
+                raise InspectionError(f"malformed Task status row in {path}: {line}")
+            continue
+        if not in_status_table:
+            # Records and planning tables may use a Task-like first column;
+            # only the formal status table is executable workflow state.
             continue
         task_id, title, status, dependency_cell = match.groups()
         tasks.append(

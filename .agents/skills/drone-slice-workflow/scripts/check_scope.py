@@ -413,6 +413,11 @@ def check_slice_range(
         reasons.extend(task["implementation_gate"]["blocking_reasons"])
     if not paths:
         reasons.append("NO_SLICE_CHANGES")
+    if paths and set(paths) == {state["tasks_file"]}:
+        # Updating status cells is completion evidence, not implementation
+        # evidence.  The completion range must contain at least one change
+        # covered by the configured Task scopes beyond the task table itself.
+        reasons.append("SLICE_COMPLETION_WITHOUT_IMPLEMENTATION_SCOPE")
     if disallowed:
         reasons.append("PATH_OUTSIDE_SLICE_SCOPE")
     if core_changes:
