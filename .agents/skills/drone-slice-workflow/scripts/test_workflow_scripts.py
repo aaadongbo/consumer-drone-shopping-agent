@@ -90,6 +90,25 @@ SLICE_3_DEPENDENCIES = {
     "T06": "T05",
     "T07": "T06",
 }
+SLICE_4_TITLES = {
+    "T01": "Comparison set identity and provenance contract",
+    "T02": "Bounded member validation and resolution",
+    "T03": "Per-member normalized facts and Evidence binding",
+    "T04": "Read-only dynamic facts and freshness guard",
+    "T05": "Comparison answer / fallback walking skeleton",
+    "T06": "Slice 4 verification matrix and completion evidence",
+}
+SLICE_4_DEPENDENCIES = {
+    "T01": (
+        "Slice 3 completion + Slice 4 planning approval + stable Shopify Variant "
+        "ID mapping"
+    ),
+    "T02": "T01",
+    "T03": "T02",
+    "T04": "T02, T03",
+    "T05": "T03, T04",
+    "T06": "T05",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -189,6 +208,11 @@ class TemporaryRepository:
             self.titles, self.dependencies = (
                 dict(SLICE_3_TITLES),
                 dict(SLICE_3_DEPENDENCIES),
+            )
+        elif slice_name == "slice-04-variant-comparison":
+            self.titles, self.dependencies = (
+                dict(SLICE_4_TITLES),
+                dict(SLICE_4_DEPENDENCIES),
             )
         else:
             self.titles, self.dependencies = (
@@ -1164,6 +1188,214 @@ class WorkflowScriptTests(unittest.TestCase):
             dependency_scope["blocking_reasons"],
         )
 
+    def test_s04_tasks_are_configured_in_order_and_high_risk_only(self) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root)
+
+        self.assertEqual(
+            [task["canonical_id"] for task in state["tasks"]],
+            [
+                "S04-T01",
+                "S04-T02",
+                "S04-T03",
+                "S04-T04",
+                "S04-T05",
+                "S04-T06",
+            ],
+        )
+        self.assertEqual(state["ordered_candidate"], "S04-T01")
+        self.assertIsNone(state["executable_task"])
+        self.assertEqual(state["low_batch"]["stop_reason"], "NON_LOW_RISK_BOUNDARY")
+        self.assertEqual(state["low_batch"]["next_task"], "S04-T01")
+        self.assertIn(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+
+        slice_authorized = inspect(repo.root, implementation_authorized_slice="S04")
+        self.assertIsNone(slice_authorized["executable_task"])
+        self.assertIn(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED",
+            slice_authorized["tasks"][0]["execution_blockers"],
+        )
+
+        task_authorized = inspect(repo.root, implementation_authorized_task="S04-T01")
+        self.assertEqual(task_authorized["executable_task"], "S04-T01")
+        for task in task_authorized["tasks"]:
+            self.assertEqual(
+                task["automation_policy"]["review_cadence"], "human-decision"
+            )
+
+    def test_s04_scope_accepts_planned_paths_and_rejects_forbidden_paths(self) -> None:
+        allowed_cases = {
+            "T01": "backend/conversation/comparison_set.py",
+            "T02": "backend/catalog/variant_resolution.py",
+            "T03": "backend/evidence/comparison_binding.py",
+            "T04": "backend/shopify/dynamic_facts.py",
+            "T05": "backend/application/variant_comparison.py",
+            "T06": "tests/e2e/test_s04_comparison.py",
+        }
+        for task_id, changed_path in allowed_cases.items():
+            holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id=task_id, changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                f"S04-{task_id}",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertTrue(scoped["ok"], (task_id, changed_path, scoped))
+
+        guarded_cases = {
+            "docs/PROJECT_SPEC.md": "CORE_ARTIFACT_CHANGED",
+            "changes/slice-03-target-resolution/tasks.md": (
+                "FORBIDDEN_SLICE_PATH_CHANGED"
+            ),
+            "changes/slice-05-product-rag/tasks.md": "FORBIDDEN_SLICE_PATH_CHANGED",
+            "changes/slice-06-evidence-recommendation/tasks.md": (
+                "FORBIDDEN_SLICE_PATH_CHANGED"
+            ),
+            ".agents/skills/drone-slice-workflow/SKILL.md": (
+                "FORBIDDEN_SLICE_PATH_CHANGED"
+            ),
+            "backend/rag/future.py": "FORBIDDEN_SLICE_PATH_CHANGED",
+            "pyproject.toml": "DEPENDENCY_FILE_CHANGED_WITHOUT_TASK_POLICY",
+            "external/variant-id-staging/map.json": "PATH_OUTSIDE_TASK_SCOPE",
+        }
+        for changed_path, reason in guarded_cases.items():
+            holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id="T02", changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                "S04-T02",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertFalse(scoped["ok"], changed_path)
+            self.assertIn(reason, scoped["blocking_reasons"], changed_path)
+
+    def test_s04_public_contract_and_dependency_changes_fail_closed(self) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot(
+            task_id="T01", changed_path="backend/common/contracts.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("S04-T01", base, snapshot, repo.root)
+
+        self.assertFalse(evidence["ok"])
+        self.assertEqual(evidence["risk_policy"]["minimum_tier"], "HIGH")
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertEqual(
+            evidence["risk_policy"]["deterministic_escalation_paths"],
+            ["backend/common/contracts.py"],
+        )
+        self.assertIn("PATH_OUTSIDE_TASK_SCOPE", evidence["blocking_reasons"])
+
+        holder_dep, repo_dep = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder_dep.cleanup)
+        base_dep, snapshot_dep = repo_dep.snapshot(
+            task_id="T04", changed_path="uv.lock"
+        )
+        git(repo_dep.root, "switch", "--detach", snapshot_dep)
+        dependency_scope = check(
+            "S04-T04",
+            repo_dep.root,
+            base_head=base_dep,
+            snapshot_head=snapshot_dep,
+        )
+        self.assertFalse(dependency_scope["ok"])
+        self.assertIn(
+            "DEPENDENCY_FILE_CHANGED_WITHOUT_TASK_POLICY",
+            dependency_scope["blocking_reasons"],
+        )
+
+    def test_s04_slice_review_uses_t06_union_scope_and_high_gate(self) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder.cleanup)
+        base = git(repo.root, "rev-parse", "HEAD")
+        repo.write_tasks(status_map(list(repo.titles), "T06"))
+        changes = {
+            "backend/conversation/comparison_set.py": "SET = 1\n",
+            "backend/catalog/variant_resolution.py": "RESOLUTION = 1\n",
+            "backend/evidence/comparison_binding.py": "EVIDENCE = 1\n",
+            "backend/shopify/dynamic_facts.py": "DYNAMIC = 1\n",
+            "backend/application/variant_comparison.py": "APP = 1\n",
+            "tests/e2e/test_s04_comparison.py": "VALUE = 1\n",
+            "eval/datasets/s04_matrix.json": "{}\n",
+        }
+        for relative, content in changes.items():
+            path = repo.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "wip(S04): complete slice snapshot")
+        snapshot = git(repo.root, "rev-parse", "HEAD")
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence(
+            "S04-T06", base, snapshot, repo.root, mode="slice-review"
+        )
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["scope"]["scope_kind"], "slice-range")
+        self.assertEqual(evidence["scope"]["completion_task"], "T06")
+        self.assertEqual(
+            evidence["scope"]["configured_tasks"],
+            ["T01", "T02", "T03", "T04", "T05", "T06"],
+        )
+        self.assertEqual(evidence["risk_policy"]["minimum_tier"], "HIGH")
+        self.assertFalse(evidence["risk_policy"]["automation"]["auto_advance"])
+        self.assertTrue(evidence["risk_policy"]["human_decision_required"])
+
+        wrong_task = immutable_evidence(
+            "S04-T05", base, snapshot, repo.root, mode="slice-review"
+        )
+        self.assertFalse(wrong_task["ok"])
+        self.assertIn(
+            "SLICE_REVIEW_TASK_IDENTITY_MISMATCH",
+            wrong_task["blocking_reasons"],
+        )
+
+    def test_workflow_s04_policy_identity_accepts_only_workflow_paths(self) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.workflow_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("WORKFLOW-S04-POLICY", base, snapshot, repo.root)
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["task"], "WORKFLOW-S04-POLICY")
+        self.assertEqual(evidence["scope"]["scope_kind"], "workflow-policy")
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertFalse(evidence["integration_authorized"])
+        self.assertFalse(evidence["push_authorized"])
+
+        extra_holder, extra_repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(extra_holder.cleanup)
+        extra_base, extra_snapshot = extra_repo.workflow_policy_snapshot(
+            extra_path="README.md"
+        )
+        git(extra_repo.root, "switch", "--detach", extra_snapshot)
+
+        extra = immutable_evidence(
+            "WORKFLOW-S04-POLICY", extra_base, extra_snapshot, extra_repo.root
+        )
+        self.assertFalse(extra["ok"])
+        self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
+
     def test_s03_task_review_requires_done_status(self) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")
         self.addCleanup(holder.cleanup)
@@ -1595,7 +1827,10 @@ class WorkflowScriptTests(unittest.TestCase):
         verification = successful_verification("S02-T02", base, snapshot)
         with patch("verify_commit_readiness.verify_task", return_value=verification):
             blocked = checkpoint_readiness(
-                "S02-T02", repo.root, base_revision=base, snapshot_revision=snapshot,
+                "S02-T02",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
                 reviewed_digest=immutable["digest"],
                 reviewed_risk_tier="MEDIUM",
             )
@@ -1603,8 +1838,12 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertIn("REVIEWER_EVIDENCE_REQUIRED", blocked["blocking_reasons"])
         with patch("verify_commit_readiness.verify_task", return_value=verification):
             ready = checkpoint_readiness(
-                "S02-T02", repo.root, base_revision=base, snapshot_revision=snapshot,
-                reviewed_digest=immutable["digest"], reviewed_risk_tier="MEDIUM",
+                "S02-T02",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=immutable["digest"],
+                reviewed_risk_tier="MEDIUM",
                 reviewer_evidence=reviewer_evidence(immutable),
             )
         self.assertTrue(ready["ok"])

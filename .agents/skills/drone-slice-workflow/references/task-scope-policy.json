@@ -327,6 +327,106 @@
         }
       }
     },
+    "changes/slice-04-variant-comparison/tasks.md": {
+      "completion_task": "T06",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "boundary-and-slice",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
+        }
+      },
+      "implementation_gate": {
+        "type": "protected-workflow-baseline"
+      },
+      "core_artifacts": [
+        "changes/slice-04-variant-comparison/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "changes/slice-03-target-resolution/",
+        "changes/slice-05-product-rag/",
+        "changes/slice-06-evidence-recommendation/",
+        "backend/rag/",
+        "backend/evaluation/",
+        "storefront/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "backend/shopify/",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["backend/conversation/", "tests/unit/", "tests/contract/", "tests/fixtures/", "changes/slice-04-variant-comparison/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "ComparisonSet, ComparisonMember, provenance, identity, and context-isolation contracts",
+          "risk_tier": "HIGH"
+        },
+        "T02": {
+          "allowed_paths": ["backend/conversation/", "backend/catalog/", "tests/unit/", "tests/integration/", "tests/fixtures/", "changes/slice-04-variant-comparison/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "bounded same-store and same-Product Variant member resolution with fail-closed fallbacks",
+          "risk_tier": "HIGH"
+        },
+        "T03": {
+          "allowed_paths": ["backend/catalog/", "backend/evidence/", "tests/unit/", "tests/contract/", "tests/integration/", "tests/fixtures/", "changes/slice-04-variant-comparison/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "per-member normalized facts, fact states, and Evidence binding guards",
+          "risk_tier": "HIGH"
+        },
+        "T04": {
+          "allowed_paths": ["backend/shopify/", "backend/evidence/", "tests/unit/", "tests/integration/", "tests/fixtures/", "changes/slice-04-variant-comparison/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "read-only member-scoped dynamic facts, freshness, degradation, and zero-write guard",
+          "risk_tier": "HIGH"
+        },
+        "T05": {
+          "allowed_paths": ["backend/application/", "backend/conversation/", "backend/catalog/", "backend/evidence/", "tests/unit/", "tests/contract/", "tests/integration/", "tests/e2e/", "tests/fixtures/", "changes/slice-04-variant-comparison/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration or e2e",
+          "verification_rationale": "internal comparison answer and fallback walking skeleton without public wire schema expansion",
+          "risk_tier": "HIGH"
+        },
+        "T06": {
+          "allowed_paths": ["tests/", "eval/datasets/", "changes/slice-04-variant-comparison/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "Slice 4 Acceptance matrix and completion evidence require the full suite",
+          "risk_tier": "HIGH"
+        }
+      }
+    },
     "changes/slice-05-product-rag/tasks.md": {
       "completion_task": "T07",
       "execution_policy": {

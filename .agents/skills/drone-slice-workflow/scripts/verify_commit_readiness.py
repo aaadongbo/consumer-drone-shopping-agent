@@ -27,8 +27,14 @@ from inspect_state import (
 )
 from verify_task import verify as verify_task
 
+WORKFLOW_POLICY_REPAIR_IDENTITIES = {
+    "WORKFLOW-S03-POLICY": "changes/slice-03-target-resolution/tasks.md",
+    "WORKFLOW-S04-POLICY": "changes/slice-04-variant-comparison/tasks.md",
+}
 WORKFLOW_POLICY_REPAIR_IDENTITY = "WORKFLOW-S03-POLICY"
-WORKFLOW_POLICY_REPAIR_TASKS_FILE = "changes/slice-03-target-resolution/tasks.md"
+WORKFLOW_POLICY_REPAIR_TASKS_FILE = WORKFLOW_POLICY_REPAIR_IDENTITIES[
+    WORKFLOW_POLICY_REPAIR_IDENTITY
+]
 WORKFLOW_POLICY_REPAIR_PATHS = {
     "AGENTS.md",
     ".agents/skills/drone-slice-workflow/SKILL.md",
@@ -67,19 +73,27 @@ def validate_reviewer_evidence(
         if payload.get(key) != expected:
             reasons.append(f"REVIEWER_EVIDENCE_{key.upper()}_MISMATCH")
     reviewer = payload.get("reviewer")
-    if not isinstance(reviewer, dict) or not all(
-        isinstance(reviewer.get(key), str) and reviewer[key].strip()
-        for key in ("identity", "session")
-    ) or reviewer.get("kind") != "independent-child":
+    if (
+        not isinstance(reviewer, dict)
+        or not all(
+            isinstance(reviewer.get(key), str) and reviewer[key].strip()
+            for key in ("identity", "session")
+        )
+        or reviewer.get("kind") != "independent-child"
+    ):
         reasons.append("REVIEWER_IDENTITY_OR_INDEPENDENCE_INVALID")
     worktree = payload.get("review_worktree")
-    if not isinstance(worktree, dict) or not all(
-        worktree.get(key) is expected
-        for key, expected in (("detached", True), ("clean", True))
-    ) or (
-        worktree.get("head") != (evidence or {}).get("snapshot_head")
-        or not isinstance(worktree.get("path"), str)
-        or not worktree["path"].strip()
+    if (
+        not isinstance(worktree, dict)
+        or not all(
+            worktree.get(key) is expected
+            for key, expected in (("detached", True), ("clean", True))
+        )
+        or (
+            worktree.get("head") != (evidence or {}).get("snapshot_head")
+            or not isinstance(worktree.get("path"), str)
+            or not worktree["path"].strip()
+        )
     ):
         reasons.append("REVIEWER_WORKTREE_INVALID")
     if payload.get("no_write") is not True:
@@ -88,14 +102,18 @@ def validate_reviewer_evidence(
         reasons.append("REVIEWER_FINDINGS_NOT_EMPTY")
     verification = payload.get("verification")
     commands = verification.get("commands") if isinstance(verification, dict) else None
-    if not isinstance(commands, list) or not commands or any(
-        not isinstance(item, dict)
-        or not isinstance(item.get("command"), str)
-        or not item["command"].strip()
-        or item.get("exit_code") != 0
-        or not isinstance(item.get("result"), str)
-        or not item["result"].strip()
-        for item in commands
+    if (
+        not isinstance(commands, list)
+        or not commands
+        or any(
+            not isinstance(item, dict)
+            or not isinstance(item.get("command"), str)
+            or not item["command"].strip()
+            or item.get("exit_code") != 0
+            or not isinstance(item.get("result"), str)
+            or not item["result"].strip()
+            for item in commands
+        )
     ):
         reasons.append("REVIEWER_VERIFICATION_RECORD_INVALID")
     return payload, list(dict.fromkeys(reasons))
@@ -219,12 +237,10 @@ def commit_range_sha256(
 
 def canonical_review_identity(task_ref: str, state: dict[str, Any]) -> str:
     identity = (task_ref or state["slice_id"] + "-T00").strip().upper()
-    if identity == WORKFLOW_POLICY_REPAIR_IDENTITY:
-        if state["tasks_file"] != WORKFLOW_POLICY_REPAIR_TASKS_FILE:
-            raise InspectionError(
-                f"{WORKFLOW_POLICY_REPAIR_IDENTITY} requires active "
-                f"{WORKFLOW_POLICY_REPAIR_TASKS_FILE}"
-            )
+    if identity in WORKFLOW_POLICY_REPAIR_IDENTITIES:
+        tasks_file = WORKFLOW_POLICY_REPAIR_IDENTITIES[identity]
+        if state["tasks_file"] != tasks_file:
+            raise InspectionError(f"{identity} requires active {tasks_file}")
         return identity
     _, canonical_task = normalize_task_ref(identity, state["slice_id"])
     return canonical_task
@@ -235,11 +251,13 @@ def workflow_policy_repair_scope(
     state: dict[str, Any],
     base: str,
     snapshot: str,
+    identity: str = WORKFLOW_POLICY_REPAIR_IDENTITY,
 ) -> dict[str, Any]:
     paths = range_paths(repo, base, snapshot)
     disallowed = [path for path in paths if path not in WORKFLOW_POLICY_REPAIR_PATHS]
+    tasks_file = WORKFLOW_POLICY_REPAIR_IDENTITIES[identity]
     reasons: list[str] = []
-    if state["tasks_file"] != WORKFLOW_POLICY_REPAIR_TASKS_FILE:
+    if state["tasks_file"] != tasks_file:
         reasons.append("WORKFLOW_POLICY_IDENTITY_SLICE_MISMATCH")
     if not paths:
         reasons.append("NO_WORKFLOW_POLICY_CHANGES")
@@ -251,7 +269,7 @@ def workflow_policy_repair_scope(
         "repository_root": str(repo),
         "active_slice_tasks_file": state["tasks_file"],
         "slice": state["slice_id"],
-        "task": WORKFLOW_POLICY_REPAIR_IDENTITY,
+        "task": identity,
         "local_task": None,
         "immutable_range": True,
         "base_head": base,
@@ -269,7 +287,7 @@ def workflow_policy_repair_scope(
             "allowed_by_task_policy": False,
             "manual_confirmation_required": False,
             "condition": (
-                "Only the explicit S03 workflow policy repair identity may change "
+                "Only explicit workflow policy repair identities may change "
                 "the predefined workflow policy files."
             ),
         },
@@ -314,9 +332,9 @@ def immutable_evidence(
     repo = repository_root(repo_arg)
     state = inspect(repo)
     requested_identity = task_ref.strip().upper()
-    workflow_policy_repair = requested_identity == WORKFLOW_POLICY_REPAIR_IDENTITY
+    workflow_policy_repair = requested_identity in WORKFLOW_POLICY_REPAIR_IDENTITIES
     if workflow_policy_repair:
-        local_task, canonical_task = None, WORKFLOW_POLICY_REPAIR_IDENTITY
+        local_task, canonical_task = None, requested_identity
     else:
         local_task, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
     base = resolve_commit(repo, base_revision)
@@ -351,10 +369,14 @@ def immutable_evidence(
     if mode not in {"task-review", "slice-review"}:
         blockers.append("INVALID_REVIEW_MODE")
     if workflow_policy_repair and mode != "task-review":
-        scope = workflow_policy_repair_scope(repo, state, base, snapshot)
+        scope = workflow_policy_repair_scope(
+            repo, state, base, snapshot, canonical_task
+        )
         blockers.append("INVALID_WORKFLOW_POLICY_REVIEW_MODE")
     elif workflow_policy_repair:
-        scope = workflow_policy_repair_scope(repo, state, base, snapshot)
+        scope = workflow_policy_repair_scope(
+            repo, state, base, snapshot, canonical_task
+        )
     elif mode == "slice-review":
         scope = check_slice_range(
             canonical_task,
@@ -714,9 +736,9 @@ def main() -> int:
                 reviewer_evidence=reviewer_evidence,
             )
             if reviewer_load_reasons:
-                payload["blocking_reasons"] = list(dict.fromkeys(
-                    payload["blocking_reasons"] + reviewer_load_reasons
-                ))
+                payload["blocking_reasons"] = list(
+                    dict.fromkeys(payload["blocking_reasons"] + reviewer_load_reasons)
+                )
                 payload["ok"] = False
                 payload["workflow_stage"] = "BLOCKED"
                 payload["status"] = "CHECKPOINT_NOT_READY"
@@ -752,9 +774,9 @@ def main() -> int:
                 reviewer_evidence=reviewer_evidence,
             )
             if reviewer_load_reasons:
-                payload["blocking_reasons"] = list(dict.fromkeys(
-                    payload["blocking_reasons"] + reviewer_load_reasons
-                ))
+                payload["blocking_reasons"] = list(
+                    dict.fromkeys(payload["blocking_reasons"] + reviewer_load_reasons)
+                )
                 payload["ok"] = False
                 payload["workflow_stage"] = "BLOCKED"
                 payload["status"] = "CHECKPOINT_NOT_READY"
