@@ -26,7 +26,7 @@ Provisional budget config:
 | T04 | Evidence quality and claim coverage gate | DONE | T03 |
 | T05 | Bounded Product RAG action loop | DONE | T04 |
 | T06 | Product RAG answer/fallback walking skeleton | DONE | T05 |
-| T07 | Slice 5 evaluation matrix and completion evidence | NOT_STARTED | T06 |
+| T07 | Slice 5 evaluation matrix and completion evidence | DONE | T06 |
 
 ## T01 — Document manifest and ingestion contract
 
@@ -163,6 +163,14 @@ Execution Record:
 - **Verification**：Static + Unit + Contract + Integration + E2E + full suite.
 - **Dependencies**：T06.
 - **Out of Scope**：Slice 6 implementation、fine-tuning、push、feature delivery workflow changes。
+
+Execution Record:
+
+- Start commit: `a50368558589eac74f862055710988356ef608ac`.
+- Added the Slice 5 completion matrix. It covers all four authorized static source classes, dynamic-fact handoff, cross-product injection, two-round exhaustion, conflicting source content, unauthorized manifest source, deferred Derived Evidence and metadata-secret non-disclosure.
+- Matrix #1–#12 pass through the prior T01–T06 focused tests plus `tests/e2e/test_s05_t07_completion_matrix.py` (`11 passed`). The final matrix explicitly confirms no product identity mutation, no multi-product acceptance, no Shopify operation in Product RAG traces and no secret-like metadata in trace or public output.
+- Completion verification (run once for this Slice): `uv lock --check` passed; full-repository Ruff lint/format passed; `pytest -q` passed with `493 passed`; `git diff --check` and `check_scope.py S05-T07` passed.
+- Public Contract, Architecture, Workflow, dependency, external-service, real-source smoke, open network, commerce refresh, Derived Evidence execution, HARD recheck, Shopify read/write and Slice 6 changes: none.
 
 ## Human Escalation
 
