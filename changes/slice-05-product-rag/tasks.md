@@ -20,7 +20,7 @@ Provisional budget config:
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Document manifest and ingestion contract | NOT_STARTED | Slice 4 completion + Slice 5 planning approval |
+| T01 | Document manifest and ingestion contract | DONE | Slice 4 completion + Slice 5 planning approval |
 | T02 | Scoped chunking and locator baseline | NOT_STARTED | T01 |
 | T03 | Metadata-filtered baseline retrieval | NOT_STARTED | T02 |
 | T04 | Evidence quality and claim coverage gate | NOT_STARTED | T03 |
@@ -38,6 +38,15 @@ Provisional budget config:
 - **Verification**：Static + Unit + Contract.
 - **Dependencies**：Slice 4 completion + Slice 5 planning approval.
 - **Out of Scope**：真实托管向量库、开放网络、LLM 清洗替代原文、生产文档导入。
+
+Execution Record:
+
+- Start commit: `ca34262a94b9e89b2670833371a7b0a764d905b1`.
+- Implemented internal `backend/rag` manifest value objects, canonical `rag://` source locators, authorized-source manifest validation, and a deterministic authorized product-doc fixture under `eval/datasets/`.
+- Added unit and contract coverage for authorized single-product scope, locator replay, strict field validation, unauthorized source rejection, scope/version mismatch rejection, and absence of secret/customer/open-network payloads.
+- First targeted run failed because one test used `model_copy()` as if it revalidated Pydantic invariants, and another expected `ValidationError` for an explicit `ValueError`; both tests were corrected without broadening implementation scope.
+- Verification: targeted `pytest tests/unit/test_s05_t01_document_manifest.py tests/contract/test_s05_t01_ingestion_contract.py -q` passed with `8 passed`; targeted Ruff lint and format checks passed.
+- Dependency, public Contract, Architecture, Workflow, Shopify, external service, and open-network changes: none.
 
 ## T02 — Scoped chunking and locator baseline
 

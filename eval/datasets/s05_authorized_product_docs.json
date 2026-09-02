@@ -1,0 +1,52 @@
+{
+  "manifest_id": "s05-drone-travel-docs-v1",
+  "store_id": "store-s02-alpha",
+  "product_id": "drone-travel",
+  "document_version": "docs-2026-09-01",
+  "sources": [
+    {
+      "store_id": "store-s02-alpha",
+      "product_id": "drone-travel",
+      "source_id": "drone-travel-faq",
+      "source_type": "FAQ",
+      "version": "docs-2026-09-01",
+      "canonical_locator": "rag://drone-travel-faq@docs-2026-09-01/faq",
+      "authorization_state": "AUTHORIZED",
+      "title": "Northwind Travel FAQ",
+      "text": "FAQ: The aircraft supports beginner flight modes and travel use."
+    },
+    {
+      "store_id": "store-s02-alpha",
+      "product_id": "drone-travel",
+      "source_id": "drone-travel-package-list",
+      "source_type": "PACKAGE_LIST",
+      "version": "docs-2026-09-01",
+      "canonical_locator": "rag://drone-travel-package-list@docs-2026-09-01/package-list",
+      "authorization_state": "AUTHORIZED",
+      "title": "Northwind Travel Package List",
+      "text": "Package list: Travel Lite includes one battery. Travel Pack includes three batteries."
+    },
+    {
+      "store_id": "store-s02-alpha",
+      "product_id": "drone-travel",
+      "source_id": "drone-travel-manual",
+      "source_type": "MANUAL",
+      "version": "docs-2026-09-01",
+      "canonical_locator": "rag://drone-travel-manual@docs-2026-09-01/manual/takeoff",
+      "authorization_state": "AUTHORIZED",
+      "title": "Northwind Travel Manual",
+      "text": "Manual: Before takeoff, unfold the arms, power on the controller, and check propellers."
+    },
+    {
+      "store_id": "store-s02-alpha",
+      "product_id": "drone-travel",
+      "source_id": "drone-travel-policy",
+      "source_type": "POLICY",
+      "version": "docs-2026-09-01",
+      "canonical_locator": "rag://drone-travel-policy@docs-2026-09-01/policy/care",
+      "authorization_state": "AUTHORIZED",
+      "title": "Northwind Travel Care Policy",
+      "text": "Policy: Care coverage is available only for supported store regions."
+    }
+  ]
+}
