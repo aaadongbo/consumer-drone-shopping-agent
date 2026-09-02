@@ -224,6 +224,8 @@
 
 - **Status**：DONE
 - **Implementation base**：`1c99afcb5058d6543c4454d263bcd0c60e69affa`
+- **Immutable review binding**：the corrected implementation range is `base_head..snapshot_head` = `1c99afcb5058d6543c4454d263bcd0c60e69affa..e15f3beef689d987380e85bf1463afdb43bdcf91`; the digest supplied for that exact range is `3a86e74865480b16cd53cecd650c542286f24471efd879845920f9f5674d0e1f`.
+- **Evidence reconciliation**：the earlier local digest `0dbd8e4c97a23bfe337cf905b1c0a2b95e4ba8563f1b19c90f838cb7e8107a67` was produced for the incorrect `833b53fed1b76690f9dc4908306fb1cb768f8cc0..e15f3beef689d987380e85bf1463afdb43bdcf91` range and is superseded. Re-running `python .agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py S04-T06 --evidence --base-head 1c99afcb5058d6543c4454d263bcd0c60e69affa --snapshot-head e15f3beef689d987380e85bf1463afdb43bdcf91 --mode slice-review --pretty` exited `0` and produced the supplied digest for the corrected range.
 - **Changed paths**：
   - `backend/evidence/comparison.py`
   - `backend/application/comparison.py`
