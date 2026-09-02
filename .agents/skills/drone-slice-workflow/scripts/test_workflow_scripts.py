@@ -369,6 +369,62 @@ class TemporaryRepository:
         git(self.root, "commit", "-qm", "wip(WORKFLOW-S03-POLICY): snapshot")
         return base, git(self.root, "rev-parse", "HEAD")
 
+    def write_planned_s05(self) -> None:
+        plan = self.root / "changes/slice-05-product-rag/plan.md"
+        plan.parent.mkdir(parents=True, exist_ok=True)
+        plan.write_text(
+            "# Slice 5 Planning\n\n"
+            "> 状态：APPROVED / Non-executable pending workflow policy and "
+            "implementation authority\n",
+            encoding="utf-8",
+        )
+        rows = [
+            "| Planned Task | Title | Planned state | Dependencies |",
+            "|---|---|---|---|",
+        ]
+        rows.extend(
+            f"| {task_id} | {SLICE_5_TITLES[task_id]} | PLANNED | "
+            f"{SLICE_5_DEPENDENCIES[task_id]} |"
+            for task_id in SLICE_5_TITLES
+        )
+        tasks = self.root / "changes/slice-05-product-rag/tasks.md"
+        tasks.write_text("\n".join(rows) + "\n", encoding="utf-8")
+
+    def commit_planned_s05(self) -> None:
+        self.write_planned_s05()
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "planning(S05): planned nonexecutable")
+
+    def s05_pre_activation_policy_snapshot(
+        self, *, extra_path: str | None = None
+    ) -> tuple[str, str]:
+        base = git(self.root, "rev-parse", "HEAD")
+        changes = {
+            ".agents/skills/drone-slice-workflow/references/task-scope-policy.json": (
+                (
+                    self.root / ".agents/skills/drone-slice-workflow/references/"
+                    "task-scope-policy.json"
+                ).read_text(encoding="utf-8")
+                + "\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/check_scope.py": (
+                "# s05 policy fixture\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/"
+            "test_workflow_scripts.py": "# s05 regression fixture\n",
+            ".agents/skills/drone-slice-workflow/scripts/"
+            "verify_commit_readiness.py": "# s05 evidence fixture\n",
+        }
+        if extra_path:
+            changes[extra_path] = "extra\n"
+        for relative, content in changes.items():
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "wip(WORKFLOW-S05-POLICY): snapshot")
+        return base, git(self.root, "rev-parse", "HEAD")
+
 
 class WorkflowScriptTests(unittest.TestCase):
     def repo(
@@ -1697,24 +1753,53 @@ class WorkflowScriptTests(unittest.TestCase):
         ):
             self.assertIn(action, slice_policy["forbidden_actions"])
 
-    def test_workflow_s05_policy_identity_accepts_only_workflow_paths(self) -> None:
-        holder, repo = self.repo(slice_name="slice-05-product-rag")
+    def test_workflow_s05_policy_pre_activation_evidence_accepts_exact_paths(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
         self.addCleanup(holder.cleanup)
-        base, snapshot = repo.workflow_policy_snapshot()
+        repo.write_tasks(status_map(list(repo.titles), "T06"))
+        repo.commit_planned_s05()
+        base, snapshot = repo.s05_pre_activation_policy_snapshot()
         git(repo.root, "switch", "--detach", snapshot)
 
         evidence = immutable_evidence("WORKFLOW-S05-POLICY", base, snapshot, repo.root)
 
         self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["slice"], "S05")
         self.assertEqual(evidence["task"], "WORKFLOW-S05-POLICY")
         self.assertEqual(evidence["scope"]["scope_kind"], "workflow-policy")
+        self.assertTrue(evidence["scope"]["pre_activation"])
+        self.assertEqual(
+            evidence["scope"]["planned_nonexecutable"]["tasks_file"],
+            "changes/slice-05-product-rag/tasks.md",
+        )
+        self.assertEqual(
+            evidence["changed_paths"],
+            [
+                ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+                ".agents/skills/drone-slice-workflow/scripts/check_scope.py",
+                ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
+                ".agents/skills/drone-slice-workflow/scripts/"
+                "verify_commit_readiness.py",
+            ],
+        )
         self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
         self.assertFalse(evidence["integration_authorized"])
         self.assertFalse(evidence["push_authorized"])
 
-        extra_holder, extra_repo = self.repo(slice_name="slice-05-product-rag")
+        state = inspect(repo.root)
+        self.assertEqual(
+            state["tasks_file"], "changes/slice-04-variant-comparison/tasks.md"
+        )
+        self.assertIsNone(state["executable_task"])
+
+    def test_workflow_s05_policy_pre_activation_rejects_extra_path(self) -> None:
+        extra_holder, extra_repo = self.repo(slice_name="slice-04-variant-comparison")
         self.addCleanup(extra_holder.cleanup)
-        extra_base, extra_snapshot = extra_repo.workflow_policy_snapshot(
+        extra_repo.write_tasks(status_map(list(extra_repo.titles), "T06"))
+        extra_repo.commit_planned_s05()
+        extra_base, extra_snapshot = extra_repo.s05_pre_activation_policy_snapshot(
             extra_path="README.md"
         )
         git(extra_repo.root, "switch", "--detach", extra_snapshot)
@@ -1724,6 +1809,50 @@ class WorkflowScriptTests(unittest.TestCase):
         )
         self.assertFalse(extra["ok"])
         self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
+
+    def test_workflow_s05_policy_pre_activation_rejects_wrong_identity(self) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder.cleanup)
+        repo.write_tasks(status_map(list(repo.titles), "T06"))
+        repo.commit_planned_s05()
+        base, snapshot = repo.s05_pre_activation_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+
+        wrong = immutable_evidence("WORKFLOW-S04-POLICY", base, snapshot, repo.root)
+
+        self.assertFalse(wrong["ok"])
+        self.assertIn(
+            "WORKFLOW_POLICY_IDENTITY_SLICE_MISMATCH",
+            wrong["blocking_reasons"],
+        )
+
+    def test_workflow_s05_policy_pre_activation_rejects_protected_ref(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder.cleanup)
+        git(repo.root, "switch", "main")
+        repo.write_tasks(status_map(list(repo.titles), "T06"))
+        repo.commit_planned_s05()
+        base, snapshot = repo.s05_pre_activation_policy_snapshot()
+
+        evidence = immutable_evidence("WORKFLOW-S05-POLICY", base, snapshot, repo.root)
+
+        self.assertFalse(evidence["ok"])
+        self.assertIn("SNAPSHOT_ON_PROTECTED_BRANCH", evidence["blocking_reasons"])
+
+    def test_normal_s05_task_evidence_fails_while_planned_pre_activation(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-04-variant-comparison")
+        self.addCleanup(holder.cleanup)
+        repo.write_tasks(status_map(list(repo.titles), "T06"))
+        repo.commit_planned_s05()
+        base, snapshot = repo.s05_pre_activation_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+
+        with self.assertRaisesRegex(Exception, "Task Slice mismatch"):
+            immutable_evidence("S05-T01", base, snapshot, repo.root)
 
     def test_s03_task_review_requires_done_status(self) -> None:
         holder, repo = self.repo(slice_name="slice-03-target-resolution")

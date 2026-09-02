@@ -32,6 +32,7 @@ WORKFLOW_POLICY_REPAIR_IDENTITIES = {
     "WORKFLOW-S04-POLICY": "changes/slice-04-variant-comparison/tasks.md",
     "WORKFLOW-S05-POLICY": "changes/slice-05-product-rag/tasks.md",
 }
+WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES = {"WORKFLOW-S05-POLICY"}
 WORKFLOW_POLICY_REPAIR_IDENTITY = "WORKFLOW-S03-POLICY"
 WORKFLOW_POLICY_REPAIR_TASKS_FILE = WORKFLOW_POLICY_REPAIR_IDENTITIES[
     WORKFLOW_POLICY_REPAIR_IDENTITY
@@ -47,6 +48,17 @@ WORKFLOW_POLICY_REPAIR_PATHS = {
     ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
     ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
     ".agents/skills/drone-slice-workflow/scripts/verify_task.py",
+}
+WORKFLOW_POLICY_PRE_ACTIVATION_PATHS = {
+    "WORKFLOW-S05-POLICY": {
+        ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+        ".agents/skills/drone-slice-workflow/scripts/check_scope.py",
+        ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
+        ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
+    }
+}
+WORKFLOW_POLICY_PRE_ACTIVATION_PLAN_FILES = {
+    "WORKFLOW-S05-POLICY": "changes/slice-05-product-rag/plan.md",
 }
 REVIEW_EVIDENCE_SCHEMA_VERSION = 1
 
@@ -179,6 +191,16 @@ def snapshot_content(repo: Path, revision: str, path: str) -> bytes:
     return result.stdout
 
 
+def revision_text(repo: Path, revision: str, path: str) -> str | None:
+    result = subprocess.run(
+        ["git", "-C", str(repo), "show", f"{revision}:{path}"],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout if result.returncode == 0 else None
+
+
 def range_manifest(
     repo: Path, base_revision: str, snapshot_revision: str
 ) -> list[dict[str, Any]]:
@@ -213,8 +235,13 @@ def commit_range_sha256(
     repo = repository_root(repo_arg)
     base = resolve_commit(repo, base_revision)
     snapshot = resolve_commit(repo, snapshot_revision)
-    state = inspect(repo)
-    canonical_task = canonical_review_identity(task_ref, state)
+    identity = task_ref.strip().upper()
+    if identity in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES:
+        state = pre_activation_workflow_state(repo, snapshot, identity)
+        canonical_task = identity
+    else:
+        state = inspect(repo)
+        canonical_task = canonical_review_identity(task_ref, state)
     manifest = range_manifest(repo, base, snapshot)
     hasher = hashlib.sha256()
     _frame(hasher, "digest-version", "immutable-review-v2")
@@ -247,6 +274,62 @@ def canonical_review_identity(task_ref: str, state: dict[str, Any]) -> str:
     return canonical_task
 
 
+def s05_planned_nonexecutable(
+    repo: Path, revision: str, identity: str
+) -> tuple[dict[str, Any], list[str]]:
+    tasks_file = WORKFLOW_POLICY_REPAIR_IDENTITIES[identity]
+    plan_file = WORKFLOW_POLICY_PRE_ACTIVATION_PLAN_FILES[identity]
+    tasks_text = revision_text(repo, revision, tasks_file)
+    plan_text = revision_text(repo, revision, plan_file)
+    reasons: list[str] = []
+    if plan_text is None:
+        reasons.append("PRE_ACTIVATION_PLAN_FILE_MISSING")
+    if tasks_text is None:
+        reasons.append("PRE_ACTIVATION_TASKS_FILE_MISSING")
+        tasks_text = ""
+    planned_ids = [f"T{number:02d}" for number in range(1, 8)]
+    if "| Planned Task | Title | Planned state | Dependencies |" not in tasks_text:
+        reasons.append("PRE_ACTIVATION_PLANNED_TABLE_MISSING")
+    if "| Task | Title | Status | Dependencies |" in tasks_text:
+        reasons.append("PRE_ACTIVATION_FORMAL_TASK_TABLE_PRESENT")
+    missing_planned = [
+        task_id
+        for task_id in planned_ids
+        if f"| {task_id} |" not in tasks_text or "| PLANNED |" not in tasks_text
+    ]
+    if missing_planned:
+        reasons.append("PRE_ACTIVATION_PLANNED_ROWS_INCOMPLETE")
+    return {
+        "plan_file": plan_file,
+        "tasks_file": tasks_file,
+        "planned_task_ids": planned_ids,
+        "missing_planned_task_ids": missing_planned,
+        "formal_task_table_present": "| Task | Title | Status | Dependencies |"
+        in tasks_text,
+    }, reasons
+
+
+def pre_activation_workflow_state(
+    repo: Path, revision: str, identity: str
+) -> dict[str, Any]:
+    tasks_file = WORKFLOW_POLICY_REPAIR_IDENTITIES[identity]
+    return {
+        "repository_root": str(repo),
+        "slice_id": "S05",
+        "tasks_file": tasks_file,
+        "tasks": [],
+        "other_active_worktrees": [],
+        "pre_activation": True,
+        "pre_activation_revision": revision,
+    }
+
+
+def workflow_policy_allowed_paths(identity: str) -> set[str]:
+    return WORKFLOW_POLICY_PRE_ACTIVATION_PATHS.get(
+        identity, WORKFLOW_POLICY_REPAIR_PATHS
+    )
+
+
 def workflow_policy_repair_scope(
     repo: Path,
     state: dict[str, Any],
@@ -255,11 +338,30 @@ def workflow_policy_repair_scope(
     identity: str = WORKFLOW_POLICY_REPAIR_IDENTITY,
 ) -> dict[str, Any]:
     paths = range_paths(repo, base, snapshot)
-    disallowed = [path for path in paths if path not in WORKFLOW_POLICY_REPAIR_PATHS]
+    allowed_paths = workflow_policy_allowed_paths(identity)
+    disallowed = [path for path in paths if path not in allowed_paths]
     tasks_file = WORKFLOW_POLICY_REPAIR_IDENTITIES[identity]
     reasons: list[str] = []
-    if state["tasks_file"] != tasks_file:
+    pre_activation = identity in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES
+    planned_state: dict[str, Any] | None = None
+    if pre_activation:
+        planned_state, planned_reasons = s05_planned_nonexecutable(
+            repo, snapshot, identity
+        )
+        reasons.extend(planned_reasons)
+    elif state["tasks_file"] != tasks_file:
         reasons.append("WORKFLOW_POLICY_IDENTITY_SLICE_MISMATCH")
+    else:
+        s05_allowed_paths = WORKFLOW_POLICY_PRE_ACTIVATION_PATHS["WORKFLOW-S05-POLICY"]
+        s05_planned_state, s05_planned_reasons = s05_planned_nonexecutable(
+            repo, snapshot, "WORKFLOW-S05-POLICY"
+        )
+        if (
+            not s05_planned_reasons
+            and set(paths).issubset(s05_allowed_paths)
+            and s05_planned_state["tasks_file"] != tasks_file
+        ):
+            reasons.append("WORKFLOW_POLICY_IDENTITY_SLICE_MISMATCH")
     if not paths:
         reasons.append("NO_WORKFLOW_POLICY_CHANGES")
     if disallowed:
@@ -272,10 +374,12 @@ def workflow_policy_repair_scope(
         "slice": state["slice_id"],
         "task": identity,
         "local_task": None,
+        "pre_activation": pre_activation,
+        "planned_nonexecutable": planned_state,
         "immutable_range": True,
         "base_head": base,
         "snapshot_head": snapshot,
-        "allowed_patterns": sorted(WORKFLOW_POLICY_REPAIR_PATHS),
+        "allowed_patterns": sorted(allowed_paths),
         "changed_paths": paths,
         "staged_paths": [],
         "unstaged_paths": [],
@@ -331,15 +435,21 @@ def immutable_evidence(
     mode: str = "task-review",
 ) -> dict[str, Any]:
     repo = repository_root(repo_arg)
-    state = inspect(repo)
     requested_identity = task_ref.strip().upper()
     workflow_policy_repair = requested_identity in WORKFLOW_POLICY_REPAIR_IDENTITIES
+    workflow_policy_pre_activation = (
+        requested_identity in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES
+    )
+    base = resolve_commit(repo, base_revision)
+    snapshot = resolve_commit(repo, snapshot_revision)
+    if workflow_policy_pre_activation:
+        state = pre_activation_workflow_state(repo, snapshot, requested_identity)
+    else:
+        state = inspect(repo)
     if workflow_policy_repair:
         local_task, canonical_task = None, requested_identity
     else:
         local_task, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
-    base = resolve_commit(repo, base_revision)
-    snapshot = resolve_commit(repo, snapshot_revision)
     current = resolve_commit(repo, "HEAD")
     policy, policy_error = load_revision_policy(repo, snapshot)
     policy = policy or {}
