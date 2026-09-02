@@ -10,7 +10,7 @@
 | T02 | Bounded member validation and resolution | DONE | T01 |
 | T03 | Per-member normalized facts and Evidence binding | DONE | T02 |
 | T04 | Read-only dynamic facts and freshness guard | DONE | T02, T03 |
-| T05 | Comparison answer / fallback walking skeleton | NOT_STARTED | T03, T04 |
+| T05 | Comparison answer / fallback walking skeleton | DONE | T03, T04 |
 | T06 | Slice 4 verification matrix and completion evidence | NOT_STARTED | T05 |
 
 ## T01 — Comparison set identity and provenance contract
@@ -161,3 +161,20 @@
   - `uv run pytest ...` initially exposed one incorrect mismatch-test fixture expectation (exit 1); the test double was corrected to return the opposite member for each requested member, then the policy-selected verification above exited 0.
 - **Result**：Added member-scoped dynamic commerce facts over the existing read-only `ShopifyReadPort`, with explicit fresh/stale/unavailable freshness, observation propagation, result/fact source identity guards, partial-field degradation and deterministic member order. Errors, stale results, mismatched identities and unavailable fields never become known facts; the fixture ledger proves zero writes. No real Shopify credentials or write operation was added.
 - **Review / snapshot**：HIGH task under current Human authorization; targeted verification passed. The immutable T04 snapshot is the next required handoff gate. This is not integration or push authority.
+
+### S04-T05 — Comparison answer / fallback walking skeleton
+
+- **Status**：DONE
+- **Implementation base**：`d7888b2af273d5ca7d7d0db076cb5d02191a290b`
+- **Changed paths**：
+  - `backend/application/__init__.py`
+  - `backend/application/comparison.py`
+  - `changes/slice-04-variant-comparison/tasks.md`
+  - `tests/contract/test_s04_t05_comparison_answer_contract.py`
+  - `tests/integration/test_s04_t05_comparison_flow.py`
+- **Verification commands**：
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T05 --pretty` exit 0; workflow-selected verification complete, including compile, changed-file ruff check, changed-file ruff format check, targeted pytest, diff/core/dependency gates; targeted pytest result `8 passed`.
+  - The first direct targeted run `uv run --frozen pytest tests/contract/test_s04_t05_comparison_answer_contract.py tests/integration/test_s04_t05_comparison_flow.py -q` exited 1 while exposing a disclosure member-type mismatch, an incomplete cross-Product test fixture, and an invalid dataclass copy; those issues were corrected and the targeted rerun passed `8 passed`.
+  - The first changed-file lint check exited 1 for import ordering, line length and formatting; those mechanical fixes were applied before the policy-selected verification above.
+- **Result**：Added an internal-only comparison application boundary that consumes a COMPARISON typed handoff, materializes the bounded same-Product Variant set, assembles per-member static and read-only dynamic fact rows with Evidence/freshness bindings, computes only known-value differences, preserves explicit/confirmed-context provenance, and emits a correlation-linked trace. Invalid handoffs, cross-Product deferrals, missing static Evidence and dynamic failures remain fail-closed with actionable fallback; degraded dynamic reads retain rows with `UNAVAILABLE` state and never substitute stale values. The existing public `AnswerEnvelope` and Widget-facing schema were not modified, and no ConversationState or Shopify write capability was introduced.
+- **Review / snapshot**：HIGH task under current Human authorization; targeted verification passed. A local immutable T05 snapshot will be created from the exact clean Task range before T06 begins. This is not integration or push authority.
