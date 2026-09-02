@@ -1,10 +1,16 @@
 """Evidence helpers for recommendation assembly."""
 
 from backend.evidence.comparison import (
+    ComparisonDegradationReason,
     ComparisonEvidenceBinding,
     ComparisonFact,
     ComparisonFactSet,
+    ComparisonFactState,
+    ComparisonFreshness,
+    ComparisonFreshnessVerdict,
+    build_dynamic_comparison_facts,
     build_static_comparison_facts,
+    read_dynamic_comparison_facts,
 )
 from backend.evidence.recommendation import (
     RecommendationCandidate,
@@ -14,12 +20,18 @@ from backend.evidence.recommendation import (
 )
 
 __all__ = [
+    "ComparisonDegradationReason",
     "ComparisonEvidenceBinding",
     "ComparisonFact",
+    "ComparisonFactState",
     "ComparisonFactSet",
+    "ComparisonFreshness",
+    "ComparisonFreshnessVerdict",
     "RecommendationCandidate",
     "RecommendationCandidateSet",
     "RecommendationReason",
+    "build_dynamic_comparison_facts",
     "build_static_comparison_facts",
     "build_recommendation_candidates",
+    "read_dynamic_comparison_facts",
 ]

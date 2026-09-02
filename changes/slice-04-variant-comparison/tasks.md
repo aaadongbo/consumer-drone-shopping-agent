@@ -9,7 +9,7 @@
 | T01 | Comparison set identity and provenance contract | DONE | Slice 3 completion + Slice 4 planning approval + stable Shopify Variant ID mapping |
 | T02 | Bounded member validation and resolution | DONE | T01 |
 | T03 | Per-member normalized facts and Evidence binding | DONE | T02 |
-| T04 | Read-only dynamic facts and freshness guard | NOT_STARTED | T02, T03 |
+| T04 | Read-only dynamic facts and freshness guard | DONE | T02, T03 |
 | T05 | Comparison answer / fallback walking skeleton | NOT_STARTED | T03, T04 |
 | T06 | Slice 4 verification matrix and completion evidence | NOT_STARTED | T05 |
 
@@ -144,4 +144,20 @@
   - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T03 --pretty` exit 0; workflow-selected verification complete, including compile, changed-file ruff check, changed-file ruff format check, targeted pytest, diff/core/dependency gates; targeted pytest result `6 passed`.
   - `uv run ruff format --check ...` initially exit 1 because two changed files needed formatting; formatting was corrected mechanically, and the policy-selected rerun above exited 0.
 - **Result**：Added internal static `ComparisonFact`, `ComparisonFactSet` and `ComparisonEvidenceBinding` contracts with per-member catalog scope, revision, source locator and explicit `KNOWN` / `UNKNOWN` / `NOT_APPLICABLE` state preservation. Non-ready comparison sets, missing or inconsistent catalog identity, duplicate fields, non-concrete bindings, mismatched fact locators and cross-member evidence bindings fail closed; dynamic commerce fields remain outside this Task.
-- **Review / snapshot**：HIGH task under current Human authorization; targeted verification passed. A local immutable WIP snapshot will be created now for the T03 handoff boundary. This is not integration or push authority.
+- **Review / snapshot**：HIGH task under current Human authorization; targeted verification passed. Local immutable WIP snapshot `5732f795a4b75b71975e9801527e99ff4c1fc31b` created for the T03 handoff boundary. This is not integration or push authority.
+
+### S04-T04 — Read-only dynamic facts and freshness guard
+
+- **Status**：DONE
+- **Implementation base**：`5732f795a4b75b71975e9801527e99ff4c1fc31b`
+- **Changed paths**：
+  - `backend/evidence/__init__.py`
+  - `backend/evidence/comparison.py`
+  - `changes/slice-04-variant-comparison/tasks.md`
+  - `tests/integration/test_s04_t04_dynamic_comparison_facts.py`
+- **Scope result**：`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S04-T04` exit 0; no disallowed paths, no core artifact changes, no dependency changes.
+- **Verification commands**：
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-s04-uv-cache RUFF_CACHE_DIR=/private/tmp/consumer-drone-s04-ruff-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S04-T04 --pretty` exit 0; workflow-selected verification complete, including compile, changed-file ruff check, changed-file ruff format check, targeted pytest, diff/core/dependency gates; targeted pytest result `5 passed`.
+  - `uv run pytest ...` initially exposed one incorrect mismatch-test fixture expectation (exit 1); the test double was corrected to return the opposite member for each requested member, then the policy-selected verification above exited 0.
+- **Result**：Added member-scoped dynamic commerce facts over the existing read-only `ShopifyReadPort`, with explicit fresh/stale/unavailable freshness, observation propagation, result/fact source identity guards, partial-field degradation and deterministic member order. Errors, stale results, mismatched identities and unavailable fields never become known facts; the fixture ledger proves zero writes. No real Shopify credentials or write operation was added.
+- **Review / snapshot**：HIGH task under current Human authorization; targeted verification passed. The immutable T04 snapshot is the next required handoff gate. This is not integration or push authority.
