@@ -4,6 +4,10 @@ import re
 from collections.abc import Callable
 from datetime import datetime
 
+from backend.application.target_fact_adapter import (
+    TargetFactIdentityAdapter,
+    TargetFactIdentityError,
+)
 from backend.common import (
     SCHEMA_VERSION,
     AnswerEnvelope,
@@ -22,6 +26,7 @@ from backend.common import (
     InternalDiagnosticCode,
     MinimalRouteDecision,
     ObjectScope,
+    PageContext,
     ProductCard,
     ProductRecord,
     RouteAction,
@@ -38,6 +43,7 @@ from backend.common import (
     TurnRequest,
     VariantRecord,
 )
+from backend.conversation import TargetResolution
 from backend.shopify.port import ShopifyReadPort
 
 _BATTERY_QUESTION = "这个套装有几块电池？"
@@ -212,6 +218,48 @@ class Slice1ApplicationService:
         if decision.field_scope is FieldScope.DYNAMIC_VARIANT:
             return self._answer_dynamic_fact(request, correlation_id, decision)
         return self._answer_variant_fact(request, correlation_id, decision)
+
+    def answer_resolved(
+        self,
+        request: TurnRequest,
+        resolution: TargetResolution,
+        *,
+        target_adapter: TargetFactIdentityAdapter | None = None,
+    ) -> AnswerEnvelope:
+        """Answer through the existing flow using only a resolved Turn Target.
+
+        The public request schema is intentionally unchanged.  The copy is an
+        application-local invocation detail that prevents Page Context from
+        selecting the fact-read identity after Slice 3 resolution.
+        """
+        adapter = target_adapter or TargetFactIdentityAdapter()
+        try:
+            target_scope = adapter.resolve_scope(request=request, resolution=resolution)
+        except TargetFactIdentityError:
+            correlation_id = _safe_trace_value(self._correlation_id_factory())
+            request_scope = _request_scope(request)
+            self._trace(
+                correlation_id,
+                TraceEventType.TURN_REQUEST_ACCEPTED,
+                TraceResult.ACCEPTED,
+                scope=request_scope,
+            )
+            return self._fallback(
+                request,
+                correlation_id,
+                request_scope,
+                FallbackReasonCode.INTERNAL_CONSISTENCY_ERROR,
+            )
+
+        fact_request = request.model_copy(
+            update={
+                "page_context": PageContext(
+                    product_id=target_scope.product_id,
+                    variant_id=target_scope.variant_id,
+                )
+            }
+        )
+        return self.answer(fact_request)
 
     def _answer_product_fact(
         self,

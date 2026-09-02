@@ -16,7 +16,7 @@
 | T02 | 最小 confirmed context、revision 与 idempotent reducer | DONE | T01 |
 | T03 | store-scoped 显式 Product / Variant reference resolution | DONE | T01 |
 | T04 | Turn Target precedence、临时问答与确认切换 | DONE | T02, T03 |
-| T05 | 单对象 Target Resolution 接入现有 Product Fact flow 的 Walking Skeleton | NOT_STARTED | T04 |
+| T05 | 单对象 Target Resolution 接入现有 Product Fact flow 的 Walking Skeleton | DONE | T04 |
 | T06 | 比较 / 推荐 / 全站支持 typed routing handoff | NOT_STARTED | T05 |
 | T07 | Slice 3 Verification Matrix 与 Completion Evidence | NOT_STARTED | T06 |
 
@@ -118,6 +118,15 @@
 计划中的测试名称、命令和 pass count 都不是执行证据。Execution Record 只能填写实际运行的命令、exit code 与结果。
 
 ## 4. Execution Records
+
+### T05 — Target→Fact identity adapter 与单对象 Product Fact walking skeleton
+
+- **Start baseline**：`a49d474e350e24cd96078c40609ece8378a06a3a` in the current detached Slice Implementation worktree；它包含已验证的 T04 WIP boundary 和已批准的 T05 planning snapshot，开始时 worktree clean。
+- **Authority**：当前 Human 明确授权仅执行 `S03-T05`；`inspect_state.py --authorize-task S03-T05 --approved-workflow-oid 0c4edd3f6674da985b49047fe40462c2b8eaf9b7` 显示 `S03-T05` 是唯一 executable Task。未执行 T06/T07。
+- **Implementation**：新增 internal `TargetFactIdentityAdapter`，只接受同一 Turn 的 `TargetResolution.SINGLE_OBJECT.object_scope` 且要求 store 与 request 匹配；non-single、缺失 scope、foreign store 均在 Shopify read 前 fail closed。`Slice1ApplicationService.answer_resolved` 仅在 adapter 成功后以 target scope 调用既有 Product Fact flow，避免 Page Context 在解析后覆盖事实对象；Product/Variant ownership 和 ToolResult/Evidence/binding exact-match guard 继续由现有 flow 负责。未修改任何 public wire Contract、Architecture、依赖、policy 或外部服务。
+- **Changed paths**：`backend/application/target_fact_adapter.py`、`backend/application/slice_1.py`、`backend/application/__init__.py`、`tests/contract/test_s03_t05_target_fact_adapter_contract.py`、`tests/integration/test_s03_t05_target_fact_flow.py`、`tests/e2e/test_s03_t05_single_object_journeys.py`、本文件。
+- **Actual verification**：`uv run --frozen pytest tests/contract/test_s03_t05_target_fact_adapter_contract.py tests/integration/test_s03_t05_target_fact_flow.py tests/e2e/test_s03_t05_single_object_journeys.py -q` exit `0`，`8 passed`；对应 Ruff check / format check exit `0`；`python .agents/skills/drone-slice-workflow/scripts/check_scope.py S03-T05` exit `0`；`git diff --check` exit `0`。policy-selected `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S03-T05` exit `0`，其 compile、Ruff、targeted Contract/Integration/E2E（`8 passed`）、diff、core-artifact 与 dependency gates 均通过。
+- **Result**：`DONE` pending local immutable WIP snapshot / HIGH-risk semantic boundary; 未 integration、未写 main、未 push；T06/T07 保持 `NOT_STARTED`。
 
 ### T04 — Turn Target precedence、临时问答与确认切换
 
