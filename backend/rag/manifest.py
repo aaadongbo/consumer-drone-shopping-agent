@@ -115,6 +115,31 @@ class DocumentManifest(RagModel):
         return None
 
 
+class DocumentChunk(RagModel):
+    """One ordered, replayable chunk derived from an authorized source."""
+
+    store_id: NonEmptyString
+    product_id: NonEmptyString
+    variant_id: NonEmptyString | None = None
+    source_id: NonEmptyString
+    source_type: DocumentSourceType
+    version: NonEmptyString
+    chunk_id: NonEmptyString
+    order: int = Field(ge=0)
+    locator: SourceLocator
+    heading_path: tuple[NonEmptyString, ...]
+    text: NonEmptyString
+    metadata: dict[NonEmptyString, NonEmptyString] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def validate_chunk_locator(self) -> "DocumentChunk":
+        if self.locator.source_id != self.source_id:
+            raise ValueError("chunk locator source_id must match chunk source_id")
+        if self.locator.version != self.version:
+            raise ValueError("chunk locator version must match chunk version")
+        return self
+
+
 def build_authorized_manifest(
     *,
     manifest_id: str,
@@ -133,3 +158,66 @@ def build_authorized_manifest(
         document_version=document_version,
         sources=sources,
     )
+
+
+def chunk_manifest(manifest: DocumentManifest) -> tuple[DocumentChunk, ...]:
+    """Chunk all manifest sources in deterministic source order."""
+    chunks: list[DocumentChunk] = []
+    for source in manifest.sources:
+        chunks.extend(chunk_document_source(source, start_order=len(chunks)))
+    return tuple(chunks)
+
+
+def chunk_document_source(
+    source: DocumentSource, *, start_order: int = 0
+) -> tuple[DocumentChunk, ...]:
+    """Create stable paragraph/list/table chunks while preserving locators."""
+    heading_path: list[str] = [source.title]
+    chunks: list[DocumentChunk] = []
+    pending: list[str] = []
+    section_index = 0
+
+    def flush() -> None:
+        nonlocal section_index
+        text = "\n".join(pending).strip()
+        if not text:
+            pending.clear()
+            return
+        chunk_order = start_order + len(chunks)
+        chunks.append(
+            DocumentChunk(
+                store_id=source.store_id,
+                product_id=source.product_id,
+                variant_id=source.variant_id,
+                source_id=source.source_id,
+                source_type=source.source_type,
+                version=source.version,
+                chunk_id=f"{source.source_id}:c{section_index:03d}",
+                order=chunk_order,
+                locator=source.locator(f"chunk/{section_index:03d}"),
+                heading_path=tuple(heading_path),
+                text=text,
+                metadata={
+                    **source.metadata,
+                    "source_type": source.source_type.value,
+                    "document_version": source.version,
+                },
+            )
+        )
+        section_index += 1
+        pending.clear()
+
+    for raw_line in source.text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            flush()
+            continue
+        if line.startswith("#"):
+            flush()
+            heading = line.lstrip("#").strip()
+            if heading:
+                heading_path[:] = [source.title, heading]
+            continue
+        pending.append(line)
+    flush()
+    return tuple(chunks)

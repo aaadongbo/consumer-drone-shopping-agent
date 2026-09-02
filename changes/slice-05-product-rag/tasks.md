@@ -21,7 +21,7 @@ Provisional budget config:
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
 | T01 | Document manifest and ingestion contract | DONE | Slice 4 completion + Slice 5 planning approval |
-| T02 | Scoped chunking and locator baseline | NOT_STARTED | T01 |
+| T02 | Scoped chunking and locator baseline | DONE | T01 |
 | T03 | Metadata-filtered baseline retrieval | NOT_STARTED | T02 |
 | T04 | Evidence quality and claim coverage gate | NOT_STARTED | T03 |
 | T05 | Bounded Product RAG action loop | NOT_STARTED | T04 |
@@ -58,6 +58,15 @@ Execution Record:
 - **Verification**：Unit + golden source fixtures.
 - **Dependencies**：T01.
 - **Out of Scope**：semantic chunking 固化、训练数据生成、reranker、索引引擎选择。
+
+Execution Record:
+
+- Start commit: `fc60c917d9e53c8b41b9ede8989737815a568568`.
+- Implemented internal `DocumentChunk`, deterministic `chunk_manifest()` and `chunk_document_source()` helpers with stable ordering, canonical source locators, heading paths, and source metadata propagation.
+- Added unit coverage for scope/source/version preservation, deterministic fresh values, heading boundaries, list/table row grouping, and locator identity validation.
+- First targeted test run passed; first Ruff run reported import/line-length formatting issues in the new T02 test file, then the test text fixtures were split and formatting passed.
+- Verification: targeted `pytest tests/unit/test_s05_t02_chunking.py -q` passed with `5 passed`; targeted Ruff lint and format checks passed.
+- Semantic chunking, training-data generation, reranker, retrieval engine selection, public Contract, Architecture, Workflow, dependency and external-service changes: none.
 
 ## T03 — Metadata-filtered baseline retrieval
 
