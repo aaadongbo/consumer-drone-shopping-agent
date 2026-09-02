@@ -43,6 +43,11 @@ from backend.conversation.turn_target_resolver import (
     TurnTargetResolutionOutcome,
     TurnTargetResolver,
 )
+from backend.conversation.typed_handoff import (
+    HandoffRoute,
+    TypedHandoff,
+    TypedHandoffRouter,
+)
 
 __all__ = [
     "ConstraintField",
@@ -80,4 +85,7 @@ __all__ = [
     "TurnTargetResolutionInput",
     "TurnTargetResolutionOutcome",
     "TurnTargetResolver",
+    "HandoffRoute",
+    "TypedHandoff",
+    "TypedHandoffRouter",
 ]

@@ -17,7 +17,7 @@
 | T03 | store-scoped 显式 Product / Variant reference resolution | DONE | T01 |
 | T04 | Turn Target precedence、临时问答与确认切换 | DONE | T02, T03 |
 | T05 | 单对象 Target Resolution 接入现有 Product Fact flow 的 Walking Skeleton | DONE | T04 |
-| T06 | 比较 / 推荐 / 全站支持 typed routing handoff | NOT_STARTED | T05 |
+| T06 | 比较 / 推荐 / 全站支持 typed routing handoff | DONE | T05 |
 | T07 | Slice 3 Verification Matrix 与 Completion Evidence | NOT_STARTED | T06 |
 
 风险层级只是 Planning proposal；Implementation 前必须由 Human 接受并写入 workflow Task policy。任何 Reviewer 识别出更高风险时向上升级。
@@ -118,6 +118,15 @@
 计划中的测试名称、命令和 pass count 都不是执行证据。Execution Record 只能填写实际运行的命令、exit code 与结果。
 
 ## 4. Execution Records
+
+### T06 — 比较 / 推荐 / 全站支持 typed routing handoff
+
+- **Start baseline**：`57a72b21b4cb1c0a6a264339be804f66bd3ba65a` in the current detached Slice Implementation worktree；开始时 worktree clean，包含已完成的 T05 snapshot。
+- **Authority**：当前 Human 明确授权仅执行 `S03-T06`；`inspect_state.py --authorize-task S03-T06 --approved-workflow-oid 0c4edd3f6674da985b49047fe40462c2b8eaf9b7` 将 T06 标记为唯一 executable Task。未执行 T07。
+- **Implementation**：新增 internal `TypedHandoffRouter`、`TypedHandoff` 与 `HandoffRoute`，对 `COMPARISON_SET`、`RECOMMENDATION_TASK`、`STORE_SUPPORT` 和 `NEEDS_CLARIFICATION` 产生 distinct typed handoff。比较目标保留每个 member 的独立 provenance；推荐保持全店任务语义；支持不伪装商品事实；`SINGLE_OBJECT` 明确拒绝进入 handoff，所有 handoff 固定 `downstream_execution_allowed=false`。未修改公共 Contract、Architecture、依赖或外部服务。
+- **Changed paths**：`backend/conversation/typed_handoff.py`、`backend/conversation/__init__.py`、`tests/unit/test_s03_t06_typed_handoff.py`、`tests/contract/test_s03_t06_typed_handoff_contract.py`、`tests/e2e/test_s03_t06_handoff_boundaries.py`、本文件。
+- **Actual verification**：`uv run --frozen pytest tests/unit/test_s03_t06_typed_handoff.py tests/contract/test_s03_t06_typed_handoff_contract.py tests/e2e/test_s03_t06_handoff_boundaries.py -q` exit `0`，`7 passed`；对应 Ruff check / format check exit `0`；`python .agents/skills/drone-slice-workflow/scripts/verify_task.py S03-T06` exit `0`，其 compile、Ruff、targeted Contract/Unit/E2E（`7 passed`）、diff、core-artifact 与 dependency gates 均通过；`git diff --check` exit `0`。
+- **Result**：`DONE`；后续建立 MEDIUM immutable snapshot 并等待 fresh independent child AI Review。未 integration、未写 main、未 push；T07 保持 `NOT_STARTED`。
 
 ### T05 — Target→Fact identity adapter 与单对象 Product Fact walking skeleton
 
