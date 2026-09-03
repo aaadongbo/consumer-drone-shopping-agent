@@ -9,7 +9,7 @@
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
 | T01 | Storefront view-model and fallback adapter | DONE | Slice 6 completion + Slice 7 planning approval |
-| T02 | Trace aggregation and redaction | NOT_STARTED | T01 |
+| T02 | Trace aggregation and redaction | DONE | T01 |
 | T03 | Minimal storefront shell | NOT_STARTED | T01 |
 | T04 | API/storefront integration harness | NOT_STARTED | T02, T03 |
 | T05 | Journey and quality baseline | NOT_STARTED | T04 |
@@ -139,3 +139,19 @@ S07 planning baseline 和 Workflow Policy 已集成。下一步需要单独的 S
   - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S07-T01` → exit 0, targeted profile passed.
 - **Acceptance result**：PASS — internal StorefrontTurnView/ConstraintPresentationState are derived from existing public envelopes and local UI state only; Answer/Fallback map one-to-one; target, fallback scope, constraints, pending clarification and pending switch are preserved; internal diagnostic values fail closed before rendering; 422 transport rejection is represented as `TRANSPORT_REJECTION`, not a business fallback.
 - **Out-of-scope check**：No public Contract, Architecture, core docs, dependency, formal UI shell, trace aggregation, E2E harness, external service, Shopify write, push, or integration change.
+
+### S07-T02 — Trace aggregation and redaction
+
+- **Status**：DONE
+- **Implementation base**：`b3a4ae73f2e0a8a2b143bc01b1c2f432466bfb85`
+- **Pre-existing diff**：clean worktree at start.
+- **Started/completed**：2026-09-03
+- **Changed paths**：`backend/evaluation/__init__.py`, `backend/evaluation/trace_turn.py`, `tests/unit/test_s07_t02_trace_turn.py`, `changes/slice-07-storefront-closure/tasks.md`
+- **Verification**：
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S07-T02` → exit 0.
+  - `uv run ruff check backend/evaluation tests/unit/test_s07_t02_trace_turn.py` → exit 0.
+  - `uv run ruff format --check backend/evaluation tests/unit/test_s07_t02_trace_turn.py` → exit 0.
+  - `uv run pytest -m 'unit or integration' tests/unit/test_s07_t02_trace_turn.py -q` → exit 0, `5 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S07-T02` → exit 0, targeted profile passed.
+- **Acceptance result**：PASS — existing summary-only `TraceEvent` values aggregate only when they share one correlation; trace projections contain no request payload, header, credential, token, or stack input. Sensitive correlation or scope attempts, mixed correlations and empty input fail closed before a record is emitted. The boundary is in-memory only and adds no observability service or persistence.
+- **Out-of-scope check**：No public Contract, Architecture, dependency, external service, persistent sink, Shopify write, push, or integration change.
