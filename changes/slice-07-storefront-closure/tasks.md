@@ -11,7 +11,7 @@
 | T01 | Storefront view-model and fallback adapter | DONE | Slice 6 completion + Slice 7 planning approval |
 | T02 | Trace aggregation and redaction | DONE | T01 |
 | T03 | Minimal storefront shell | DONE | T01 |
-| T04 | API/storefront integration harness | NOT_STARTED | T02, T03 |
+| T04 | API/storefront integration harness | DONE | T02, T03 |
 | T05 | Journey and quality baseline | NOT_STARTED | T04 |
 | T06 | Slice completion evidence | NOT_STARTED | T05 |
 
@@ -177,3 +177,19 @@ S07 planning baseline 和 Workflow Policy 已集成。下一步需要单独的 S
   - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S07-T03` → exit 0, targeted profile passed.
 - **Acceptance result**：PASS — the local shell clears a previous result while loading, renders only the T01 server-confirmed view-model, preserves target/constraints/pending clarification for display, and queues only explicit user actions. Retry requires a server-marked retryable fallback; no client state or fact mutation occurs.
 - **Out-of-scope check**：No public wire fields, frontend dependency, persistence, API integration, external service, Shopify write, push, or integration change.
+
+### S07-T04 — API/storefront integration harness
+
+- **Status**：DONE
+- **Implementation base**：`81cf0b2e1f496e16f51454af1a636ac45a62ecea`
+- **Pre-existing diff**：clean detached worktree at start.
+- **Started/completed**：2026-09-03
+- **Changed paths**：`backend/common/contracts.py`, `storefront/view_model.py`, `tests/contract/test_s07_t04_conversation_state_contract.py`, `tests/integration/test_s07_t04_storefront_api_harness.py`, `changes/slice-07-storefront-closure/tasks.md`
+- **Verification**：
+  - `uv run ruff check backend/common/contracts.py storefront/view_model.py tests/contract/test_s07_t04_conversation_state_contract.py tests/integration/test_s07_t04_storefront_api_harness.py` → exit 0.
+  - `uv run ruff format --check backend/common/contracts.py storefront/view_model.py tests/contract/test_s07_t04_conversation_state_contract.py tests/integration/test_s07_t04_storefront_api_harness.py` → exit 0.
+  - `uv run pytest -m 'integration or e2e' tests/contract/test_s07_t04_conversation_state_contract.py tests/integration/test_s07_t04_storefront_api_harness.py -q` → exit 0, `3 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S07-T04` → exit 0.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S07-T04` → exit 0, targeted profile passed.
+- **Acceptance result**：PASS — the existing Conversation API/client and T01/T03 presentation flow replay only the optional server-authoritative `conversation_state` projection. Its fields are limited to `active_constraints`, `pending_clarification`, `pending_switch`, and `revision`; absence remains wire-compatible. The deterministic harness proves add, modify, withdraw, skip, pending switch, up to two clarifications, Answer/Fallback, target, correlation, and revision remain consistent; invalid wire input remains rejected before downstream calls by the existing transport gate.
+- **Out-of-scope check**：No endpoint, bypass DTO, dependency, persistence, external service, Shopify write, architecture/core-doc, push, or integration change.

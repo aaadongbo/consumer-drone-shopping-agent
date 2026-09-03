@@ -19,7 +19,7 @@ from backend.common import (
     StandardFallback,
     TurnRequestValidationResponse,
 )
-from backend.common.contracts import WireModel
+from backend.common.contracts import ConversationStateProjection, WireModel
 from backend.conversation import (
     NormalizedConstraint,
     PendingTargetSwitch,
@@ -57,6 +57,7 @@ class ConstraintPresentationState(WireModel):
     active_constraints: tuple[NormalizedConstraint, ...] = ()
     pending_clarification: StorefrontPendingClarification | None = None
     pending_target_switch: PendingTargetSwitch | None = None
+    revision: int = Field(default=0, ge=0)
     submitting: bool = False
 
 
@@ -119,11 +120,9 @@ def build_storefront_turn_view(
     """Derive the local storefront view from a public accepted-turn envelope."""
     payload = envelope.root
     state = ui_state or StorefrontUiState()
-    constraint_state = ConstraintPresentationState(
-        active_constraints=state.active_constraints,
-        pending_clarification=state.pending_clarification,
-        pending_target_switch=state.pending_target_switch,
-        submitting=state.submitting,
+    constraint_state = _constraint_state_from_envelope(
+        payload.conversation_state,
+        fallback_state=state,
     )
     target = StorefrontTargetDisplay(
         scope=payload.resolved_scope,
@@ -178,6 +177,44 @@ def _fallback_view(payload: FallbackPayload) -> FallbackView:
         next_actions=tuple(fallback.next_actions),
         resolved_scope=fallback.resolved_scope,
     )
+
+
+def _constraint_state_from_envelope(
+    conversation_state: ConversationStateProjection | None,
+    *,
+    fallback_state: StorefrontUiState,
+) -> ConstraintPresentationState:
+    """Use accepted server state when supplied; UI state is legacy display-only."""
+    if conversation_state is None:
+        return ConstraintPresentationState(
+            active_constraints=fallback_state.active_constraints,
+            pending_clarification=fallback_state.pending_clarification,
+            pending_target_switch=fallback_state.pending_target_switch,
+            submitting=fallback_state.submitting,
+        )
+    try:
+        return ConstraintPresentationState(
+            active_constraints=tuple(
+                NormalizedConstraint.model_validate(item)
+                for item in conversation_state.active_constraints
+            ),
+            pending_clarification=(
+                StorefrontPendingClarification.model_validate(
+                    conversation_state.pending_clarification
+                )
+                if conversation_state.pending_clarification is not None
+                else None
+            ),
+            pending_target_switch=(
+                PendingTargetSwitch.model_validate(conversation_state.pending_switch)
+                if conversation_state.pending_switch is not None
+                else None
+            ),
+            revision=conversation_state.revision,
+            submitting=fallback_state.submitting,
+        )
+    except ValueError as error:
+        raise ValueError("invalid server conversation_state projection") from error
 
 
 def _assert_fallback_matches_payload(

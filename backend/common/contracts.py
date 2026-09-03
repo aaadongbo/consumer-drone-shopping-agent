@@ -268,6 +268,19 @@ class EnvelopeOutcome(StrEnum):
     FALLBACK = "FALLBACK"
 
 
+class ConversationStateProjection(WireModel):
+    """Optional server-authoritative state supplied with an accepted turn.
+
+    The projection intentionally contains only replay-safe state.  It is not a
+    request DTO and clients must not send it back as authoritative input.
+    """
+
+    active_constraints: tuple[JsonValue, ...] = ()
+    pending_clarification: JsonValue | None = None
+    pending_switch: JsonValue | None = None
+    revision: int = Field(ge=0)
+
+
 class EnvelopeBase(WireModel):
     schema_version: SchemaVersion
     conversation: ConversationRef
@@ -279,6 +292,7 @@ class EnvelopeBase(WireModel):
     evidence: list[Evidence] = Field(default_factory=list)
     bindings: list[ClaimEvidenceBinding] = Field(default_factory=list)
     freshness: FreshnessDisclosure | None = None
+    conversation_state: ConversationStateProjection | None = None
 
 
 class AnswerPayload(EnvelopeBase):
