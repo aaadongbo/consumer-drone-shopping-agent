@@ -9,6 +9,8 @@ from backend.catalog import DeterministicCatalogFixture
 from backend.catalog.fixture import CatalogFixtureSnapshot
 from backend.common import (
     SCHEMA_VERSION,
+    AttributeStatus,
+    AttributeValue,
     ConversationRef,
     PageContext,
     ToolResult,
@@ -171,3 +173,47 @@ def test_foreign_rag_result_is_discarded() -> None:
         item.final_stop_reason == "RAG_SCOPE_MISMATCH"
         for item in result.action_round_traces
     )
+
+
+def test_catalog_price_cannot_replace_current_commerce_price() -> None:
+    base = DeterministicCatalogFixture(observed_at=_NOW).load_store(store_id=_STORE_ID)
+    first = base.products[0]
+    priced = first.model_copy(
+        update={
+            "shared_attributes": {
+                **first.shared_attributes,
+                "price": AttributeValue(
+                    status=AttributeStatus.KNOWN,
+                    value=1,
+                    source_ref="fixture://catalog-price",
+                ),
+            }
+        }
+    )
+
+    class CatalogWithStaticPrice:
+        def load_store(self, *, store_id: str):  # type: ignore[no-untyped-def]
+            return CatalogFixtureSnapshot(
+                store_id=base.store_id,
+                products=(priced, *base.products[1:]),
+                variants=base.variants,
+                commerce=base.commerce,
+            )
+
+    result = MultiProductRecommendationService(
+        catalog=CatalogWithStaticPrice(),
+        shopify=CatalogCommerceReadDouble(),
+        correlation_id_factory=lambda: "s06-static-price",
+        clock=lambda: _NOW,
+    ).recommend(_request("适合旅行"))
+
+    assert result.candidates
+    for item in result.candidates:
+        assert all(
+            evidence.field != "price"
+            for evidence in item.evidence_bundle.catalog_evidence
+        )
+        assert any(
+            evidence.field == "price"
+            for evidence in item.evidence_bundle.commerce_evidence
+        )

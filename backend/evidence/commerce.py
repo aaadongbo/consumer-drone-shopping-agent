@@ -44,7 +44,10 @@ def _evidence_for(
         raise ValueError("commerce fact timestamp must match current ToolResult")
     if not _source_matches_candidate(source, candidate):
         raise ValueError("commerce evidence source does not match candidate identity")
-    if not fact.source_ref.startswith(f"{source}#"):
+    if fact.source_ref not in {
+        f"{source}#{field}",
+        f"{source}#commerce.{field}",
+    }:
         raise ValueError("commerce fact source does not match candidate identity")
     return CandidateEvidence(
         evidence_id=f"commerce-{candidate.product_id}-{candidate.variant_id}-{field}",

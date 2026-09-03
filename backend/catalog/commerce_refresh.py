@@ -1,7 +1,7 @@
 """Current commerce refresh and Variant-level HARD recheck adapter."""
 
 from collections.abc import Iterable
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from backend.catalog.eligibility import (
     EligibilityRejectionCode,
@@ -50,6 +50,7 @@ def refresh_and_recheck_candidate(
         product_id=variant.product_id,
         variant_id=variant.variant_id,
     )
+    constraints_tuple = tuple(constraints)
     result = shopify.refresh_commerce_state(
         store_id=candidate.store_id,
         product_id=candidate.product_id,
@@ -60,17 +61,17 @@ def refresh_and_recheck_candidate(
             candidate=candidate,
             result=result,
             variant=variant,
-            constraints=constraints,
+            constraints=constraints_tuple,
             message="Current commerce source does not match candidate identity.",
         )
-    reference_time = now or result.observed_at
+    reference_time = now or datetime.now(UTC)
     age = reference_time - result.observed_at
     if age < timedelta(0) or age > freshness_window:
         return _rejected_refresh(
             candidate=candidate,
             result=result,
             variant=variant,
-            constraints=constraints,
+            constraints=constraints_tuple,
             message="Current commerce result is outside the freshness window.",
         )
     snapshot = VariantCommerceSnapshot(
@@ -82,13 +83,23 @@ def refresh_and_recheck_candidate(
     eligibility = evaluate_variant_eligibility(
         variant=variant,
         commerce=snapshot,
-        constraints=constraints,
+        constraints=constraints_tuple,
     )
+    try:
+        evidence = build_commerce_evidence(candidate=candidate, result=result)
+    except ValueError:
+        return _rejected_refresh(
+            candidate=candidate,
+            result=result,
+            variant=variant,
+            constraints=constraints_tuple,
+            message="Current commerce fact source does not match candidate identity.",
+        )
     return CommerceRefreshResult(
         candidate=candidate,
         result=result,
         eligibility=eligibility,
-        evidence=build_commerce_evidence(candidate=candidate, result=result),
+        evidence=evidence,
     )
 
 

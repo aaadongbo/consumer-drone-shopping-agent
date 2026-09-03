@@ -58,6 +58,7 @@ _MAX_ACTION_ROUNDS = 2
 _MAX_TOOL_CALLS = 2
 _MAX_RETRIEVAL_TOKENS = 4000
 _TURN_DEADLINE = timedelta(milliseconds=8000)
+_DYNAMIC_FIELDS = frozenset({"price", "inventory", "availability"})
 
 
 class CatalogProvider(Protocol):
@@ -177,26 +178,22 @@ class MultiProductRecommendationService:
         action_rounds = 0
         for candidate, variant in selected:
             if _deadline_exceeded(started_at, self._clock()):
-                _append_budget_trace(
-                    action_traces,
-                    candidate=candidate,
-                    round_number=min(action_rounds + 1, 2),
-                    action=RecommendationEvidenceAction.REFRESH_COMMERCE,
-                    tool_calls=tool_calls,
-                    retrieval_tokens=retrieval_tokens,
-                    stop_reason="TURN_DEADLINE",
-                )
+                if action_traces:
+                    _mark_final_stop(action_traces, "TURN_DEADLINE")
+                else:
+                    _append_budget_trace(
+                        action_traces,
+                        candidate=candidate,
+                        round_number=1,
+                        action=RecommendationEvidenceAction.REFRESH_COMMERCE,
+                        tool_calls=tool_calls,
+                        retrieval_tokens=retrieval_tokens,
+                        stop_reason="TURN_DEADLINE",
+                    )
                 break
             if tool_calls >= _MAX_TOOL_CALLS or action_rounds >= _MAX_ACTION_ROUNDS:
-                _append_budget_trace(
-                    action_traces,
-                    candidate=candidate,
-                    round_number=min(action_rounds + 1, 2),
-                    action=RecommendationEvidenceAction.REFRESH_COMMERCE,
-                    tool_calls=tool_calls,
-                    retrieval_tokens=retrieval_tokens,
-                    stop_reason="TOOL_CALL_LIMIT",
-                )
+                if action_traces:
+                    _mark_final_stop(action_traces, "TOOL_CALL_LIMIT")
                 break
             traces.append(
                 _trace(
@@ -241,15 +238,7 @@ class MultiProductRecommendationService:
             rag_items: tuple[CandidateEvidence, ...] = ()
             if self._retriever is not None:
                 if tool_calls >= _MAX_TOOL_CALLS or action_rounds >= _MAX_ACTION_ROUNDS:
-                    _append_budget_trace(
-                        action_traces,
-                        candidate=candidate,
-                        round_number=2,
-                        action=RecommendationEvidenceAction.RETRIEVE_PRODUCT_EVIDENCE,
-                        tool_calls=tool_calls,
-                        retrieval_tokens=retrieval_tokens,
-                        stop_reason="TOOL_CALL_LIMIT",
-                    )
+                    _mark_final_stop(action_traces, "TOOL_CALL_LIMIT")
                 else:
                     try:
                         rag_items = self._rag_evidence(request, candidate)
@@ -427,6 +416,7 @@ class MultiProductRecommendationService:
                 *product.shared_attributes.items(),
                 *variant.variant_attributes.items(),
             )
+            if field not in _DYNAMIC_FIELDS
         )
         derived = self._derived_evidence(candidate, refreshed, constraints)
         required_fields = ("price", "use_case", "camera_resolution")
@@ -618,6 +608,13 @@ def _append_budget_trace(
         choice_reason="Stop before an action that would exceed the turn budget.",
         final_stop_reason=stop_reason,
     )
+
+
+def _mark_final_stop(
+    traces: list[RecommendationActionRoundTrace], stop_reason: str
+) -> None:
+    if traces and traces[-1].final_stop_reason is None:
+        traces[-1] = traces[-1].model_copy(update={"final_stop_reason": stop_reason})
 
 
 def _deadline_exceeded(started_at: datetime, now: datetime) -> bool:

@@ -26,7 +26,9 @@ def _variant() -> VariantRecord:
 
 def test_refresh_uses_current_tool_result_and_rechecks_variant() -> None:
     shopify = DeterministicShopifyFixture(clock=lambda: _NOW)
-    outcome = refresh_and_recheck_candidate(shopify=shopify, variant=_variant())
+    outcome = refresh_and_recheck_candidate(
+        shopify=shopify, variant=_variant(), now=_NOW
+    )
 
     assert outcome.result.status is ToolStatus.SUCCESS
     assert outcome.result.observed_at == _NOW
@@ -47,7 +49,9 @@ def test_refresh_failure_cannot_reuse_old_commerce_facts() -> None:
         clock=lambda: _NOW,
         forced_outcomes={TraceOperation.REFRESH_COMMERCE_STATE: FixtureOutcome.TIMEOUT},
     )
-    outcome = refresh_and_recheck_candidate(shopify=shopify, variant=_variant())
+    outcome = refresh_and_recheck_candidate(
+        shopify=shopify, variant=_variant(), now=_NOW
+    )
 
     assert outcome.result.status is ToolStatus.ERROR
     assert outcome.result.error_code.value == "TIMEOUT"

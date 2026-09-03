@@ -4,7 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
-from backend.catalog.fixture import PRIMARY_STORE_ID
+from backend.catalog.fixture import PRIMARY_STORE_ID, DeterministicCatalogFixture
 from backend.common import AttributeStatus, AttributeValue, ToolResult, ToolStatus
 from backend.evidence import CandidateIdentity, build_commerce_evidence
 
@@ -46,3 +46,20 @@ def test_fact_observation_must_match_current_tool_result() -> None:
     )
     with pytest.raises(ValueError, match="timestamp"):
         build_commerce_evidence(candidate=_candidate(), result=result)
+
+
+def test_fact_source_must_match_its_field() -> None:
+    snapshot = DeterministicCatalogFixture(observed_at=_NOW).load_store(
+        store_id=PRIMARY_STORE_ID
+    )
+    result = next(
+        item.result for item in snapshot.commerce if item.variant_id == "travel-pack"
+    )
+    assert result.data is not None
+    bad_price = result.data["price"].model_copy(
+        update={"source_ref": f"{result.source}#inventory"}
+    )
+    bad_result = result.model_copy(update={"data": {**result.data, "price": bad_price}})
+
+    with pytest.raises(ValueError, match="source"):
+        build_commerce_evidence(candidate=_candidate(), result=bad_result)
