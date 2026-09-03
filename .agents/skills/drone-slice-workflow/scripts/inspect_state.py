@@ -39,6 +39,7 @@ WORKFLOW_GATED_TASK_FILES = {
     "changes/slice-05-product-rag/tasks.md",
     "changes/slice-06-evidence-recommendation/tasks.md",
     "changes/slice-07-storefront-closure/tasks.md",
+    "changes/slice-08-data-backed-rag/tasks.md",
 }
 
 

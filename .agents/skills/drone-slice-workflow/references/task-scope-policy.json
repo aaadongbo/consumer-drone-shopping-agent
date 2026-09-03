@@ -821,6 +821,190 @@
           "risk_tier": "HIGH"
         }
       }
+    },
+    "changes/slice-08-data-backed-rag/tasks.md": {
+      "completion_task": "T06",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "boundary-and-slice",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "delivery": "feature-delivery-proposed-non-operational",
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
+        }
+      },
+      "implementation_gate": {
+        "type": "protected-workflow-baseline"
+      },
+      "activation_policy": {
+        "formal_task_table_required": true,
+        "planned_rows_non_executable": true,
+        "only_legal_activation_path": "Human-approved status reconciliation converts the approved Planned Task table into the formal Task status table; this policy alone must not rewrite PLANNED rows or make S08-T01 executable."
+      },
+      "scope_notes": {
+        "allowlist_precedence": "Task allowed_paths are evaluated before forbidden_path_prefixes, while semantic data-artifact and public-Contract rules remain blocking inside an allowed directory.",
+        "data_boundary": "backend/rag/ and backend/common/ may contain only repository-local metadata and internal adapters; raw PDFs, official text, Shopify exports, embeddings, indexes, Golden Set labels, and training files remain forbidden.",
+        "evaluation_boundary": "backend/evaluation/ may contain evaluation logic only; eval/datasets/, eval/golden/, and eval/training/ are excluded from S08 Task scope.",
+        "backend_common_boundary": "backend/common/ is internal S08 scope; backend/common/contracts.py is a public-Contract escalation requiring a current-context Human decision."
+      },
+      "forbidden_actions": [
+        "data_staging_mutation",
+        "copy_raw_pdf",
+        "copy_official_text",
+        "copy_shopify_export",
+        "create_embeddings",
+        "create_index",
+        "freeze_golden_set",
+        "add_training_files",
+        "open_web_retrieval",
+        "shopify_write",
+        "external_service_completion_gate",
+        "public_contract_change",
+        "workflow_policy_self_modification"
+      ],
+      "semantic_escalations": [
+        "public Contract change",
+        "Product Behavior change",
+        "Architecture boundary change",
+        "Acceptance or Accepted Decision change",
+        "major or cross-Slice dependency",
+        "raw PDF, official text, or Shopify export",
+        "embedding, index, Golden Set, or training artifact",
+        "real external service behavior",
+        "open-web or Shopify-write capability",
+        "Data-Staging mutation"
+      ],
+      "core_artifacts": [
+        "changes/slice-08-data-backed-rag/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "Data-Staging/",
+        "backend/agent/",
+        "backend/api/",
+        "backend/catalog/",
+        "backend/conversation/",
+        "backend/evidence/",
+        "backend/shopify/",
+        "changes/slice-01-product-facts/",
+        "changes/slice-02-single-turn-recommendation/",
+        "changes/slice-03-target-resolution/",
+        "changes/slice-04-variant-comparison/",
+        "changes/slice-05-product-rag/",
+        "changes/slice-06-evidence-recommendation/",
+        "changes/slice-07-storefront-closure/",
+        "docs/",
+        "eval/datasets/",
+        "eval/golden/",
+        "eval/training/",
+        "official-docs/",
+        "shopify_exports/",
+        "training/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "semantic_path_rules": [
+        {
+          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06"],
+          "path_patterns": [
+            "*.pdf",
+            "**/*.pdf",
+            "*raw*official*",
+            "**/*raw*official*",
+            "*official*text*",
+            "**/*official*text*",
+            "*shopify*export*",
+            "**/*shopify*export*",
+            "*embedding*",
+            "**/*embedding*",
+            "*index*",
+            "**/*index*",
+            "*golden*",
+            "**/*golden*",
+            "*training*",
+            "**/*training*"
+          ],
+          "behavior": "s08_forbidden_data_artifact",
+          "reason": "S08 must not copy raw PDFs, official text, Shopify exports, embeddings, indexes, Golden Set labels, or training files into the repository."
+        },
+        {
+          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06"],
+          "path_patterns": ["backend/common/contracts.py"],
+          "behavior": "public_contract_change",
+          "reason": "S08 backend/common changes must remain internal; public Contract changes require a current-context Human decision."
+        }
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["backend/rag/", "backend/common/", "tests/unit/", "changes/slice-08-data-backed-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit",
+          "verification_rationale": "external corpus readiness adapter and manifest validation",
+          "risk_tier": "HIGH"
+        },
+        "T02": {
+          "allowed_paths": ["backend/rag/", "backend/common/", "tests/unit/", "tests/contract/", "changes/slice-08-data-backed-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "locator and target-scope binding gate",
+          "risk_tier": "HIGH"
+        },
+        "T03": {
+          "allowed_paths": ["backend/rag/", "backend/common/", "backend/evaluation/", "tests/unit/", "tests/integration/", "changes/slice-08-data-backed-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "offline single-target retrieval walking skeleton",
+          "risk_tier": "MEDIUM"
+        },
+        "T04": {
+          "allowed_paths": ["backend/rag/", "backend/common/", "backend/evaluation/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-08-data-backed-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "static/dynamic fallback and stale-data guards",
+          "risk_tier": "HIGH"
+        },
+        "T05": {
+          "allowed_paths": ["backend/rag/", "backend/common/", "backend/evaluation/", "scripts/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-08-data-backed-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "data boundary and no-upload verification",
+          "risk_tier": "MEDIUM"
+        },
+        "T06": {
+          "allowed_paths": ["backend/rag/", "backend/common/", "backend/evaluation/", "scripts/", "tests/unit/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-08-data-backed-rag/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "S08 readiness evidence and Human handoff require Slice completion verification",
+          "risk_tier": "HIGH"
+        }
+      }
     }
   }
 }

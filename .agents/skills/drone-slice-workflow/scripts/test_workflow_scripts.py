@@ -143,6 +143,22 @@ SLICE_7_DEPENDENCIES = {
     "T05": "T04",
     "T06": "T05",
 }
+SLICE_8_TITLES = {
+    "T01": "External corpus readiness adapter",
+    "T02": "Locator and scope binding gate",
+    "T03": "Offline single-target retrieval walking skeleton",
+    "T04": "Static/dynamic fallback and stale-data guards",
+    "T05": "Data boundary and no-upload verification",
+    "T06": "Slice readiness evidence and Human handoff",
+}
+SLICE_8_DEPENDENCIES = {
+    "T01": "Human Review + planning baseline",
+    "T02": "T01",
+    "T03": "T02",
+    "T04": "T03",
+    "T05": "T04",
+    "T06": "T05",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -257,6 +273,11 @@ class TemporaryRepository:
             self.titles, self.dependencies = (
                 dict(SLICE_7_TITLES),
                 dict(SLICE_7_DEPENDENCIES),
+            )
+        elif slice_name == "slice-08-data-backed-rag":
+            self.titles, self.dependencies = (
+                dict(SLICE_8_TITLES),
+                dict(SLICE_8_DEPENDENCIES),
             )
         else:
             self.titles, self.dependencies = (
@@ -1623,6 +1644,168 @@ class WorkflowScriptTests(unittest.TestCase):
         )
         self.assertFalse(forbidden["ok"])
         self.assertIn("FORBIDDEN_SLICE_PATH_CHANGED", forbidden["blocking_reasons"])
+
+    def test_s08_policy_configures_formal_tasks_without_implementation_authority(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-08-data-backed-rag")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root)
+
+        self.assertEqual(
+            [task["canonical_id"] for task in state["tasks"]],
+            [f"S08-T{i:02d}" for i in range(1, 7)],
+        )
+        self.assertEqual(state["ordered_candidate"], "S08-T01")
+        self.assertIsNone(state["executable_task"])
+        self.assertIn(
+            "CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+        self.assertIn(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"]["changes/slice-08-data-backed-rag/tasks.md"]
+        self.assertEqual(slice_policy["completion_task"], "T06")
+        self.assertEqual(
+            [slice_policy["tasks"][f"T{i:02d}"]["risk_tier"] for i in range(1, 7)],
+            ["HIGH", "HIGH", "MEDIUM", "HIGH", "MEDIUM", "HIGH"],
+        )
+        self.assertTrue(slice_policy["execution_policy"]["automation"]["auto_advance"])
+        self.assertEqual(
+            slice_policy["execution_policy"]["review_cadence"]["HIGH"]["review"],
+            "human-decision",
+        )
+        self.assertTrue(slice_policy["activation_policy"]["formal_task_table_required"])
+        self.assertTrue(slice_policy["activation_policy"]["planned_rows_non_executable"])
+        self.assertIn("create_embeddings", slice_policy["forbidden_actions"])
+        self.assertIn("create_index", slice_policy["forbidden_actions"])
+        self.assertIn("workflow_policy_self_modification", slice_policy["forbidden_actions"])
+        self.assertIn(
+            ".agents/skills/drone-slice-workflow/",
+            slice_policy["forbidden_path_prefixes"],
+        )
+        for prefix in (
+            "Data-Staging/",
+            "eval/datasets/",
+            "eval/golden/",
+            "eval/training/",
+            "official-docs/",
+            "shopify_exports/",
+            "training/",
+        ):
+            self.assertIn(prefix, slice_policy["forbidden_path_prefixes"])
+        self.assertIn(
+            "backend/common/contracts.py", slice_policy["risk_escalation_paths"]
+        )
+        for task_policy in slice_policy["tasks"].values():
+            self.assertEqual(task_policy["dependency_policy"], "forbidden")
+
+    def test_s08_scope_allows_metadata_paths_but_blocks_data_artifacts_and_contracts(
+        self,
+    ) -> None:
+        allowed_cases = {
+            "T01": "backend/rag/manifest.py",
+            "T03": "backend/evaluation/retrieval_metrics.py",
+            "T05": "scripts/s08_no_upload_check.py",
+        }
+        for task_id, changed_path in allowed_cases.items():
+            holder, repo = self.repo(slice_name="slice-08-data-backed-rag")
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id=task_id, changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                f"S08-{task_id}",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertTrue(scoped["ok"], (task_id, changed_path, scoped))
+
+        forbidden_cases = {
+            "Data-Staging/rag-corpus-20260902-v0.1/manifest.json": (
+                "FORBIDDEN_SLICE_PATH_CHANGED",
+                None,
+            ),
+            "eval/datasets/s08_golden.json": (
+                "FORBIDDEN_SLICE_PATH_CHANGED",
+                None,
+            ),
+            "official-docs/manual.pdf": (
+                "FORBIDDEN_SLICE_PATH_CHANGED",
+                "s08_forbidden_data_artifact",
+            ),
+            "backend/rag/raw_official_text.txt": (
+                "SEMANTIC_SLICE_ACTION_FORBIDDEN",
+                "s08_forbidden_data_artifact",
+            ),
+            "backend/common/contracts.py": (
+                "SEMANTIC_SLICE_ACTION_FORBIDDEN",
+                "public_contract_change",
+            ),
+        }
+        for changed_path, (reason, behavior) in forbidden_cases.items():
+            holder, repo = self.repo(slice_name="slice-08-data-backed-rag")
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id="T03", changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                "S08-T03",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertFalse(scoped["ok"], changed_path)
+            self.assertIn(reason, scoped["blocking_reasons"], changed_path)
+            if behavior:
+                self.assertEqual(scoped["risk_policy"]["effective_tier"], "HIGH")
+                self.assertIn(
+                    behavior,
+                    [item["behavior"] for item in scoped["semantic_action_violations"]],
+                    changed_path,
+                )
+
+    def test_s08_policy_baseline_and_dirty_worktree_fail_closed(self) -> None:
+        holder, repo = self.repo(slice_name="slice-08-data-backed-rag")
+        self.addCleanup(holder.cleanup)
+        policy_path = (
+            repo.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        policy_path.write_text(
+            policy_path.read_text(encoding="utf-8") + "\n", encoding="utf-8"
+        )
+        dirty = inspect(repo.root)
+        self.assertEqual(dirty["ordered_candidate"], "S08-T01")
+        self.assertIsNone(dirty["executable_task"])
+        self.assertIn("CURRENT_WORKTREE_DIRTY", dirty["blocking_reasons"])
+        self.assertIn("CURRENT_WORKTREE_DIRTY", dirty["tasks"][0]["execution_blockers"])
+
+        holder_unintegrated, unintegrated = self.repo(
+            slice_name="slice-08-data-backed-rag", current_policy_at_head=False
+        )
+        self.addCleanup(holder_unintegrated.cleanup)
+        git(
+            unintegrated.root,
+            "add",
+            ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+        )
+        git(unintegrated.root, "commit", "-qm", "workflow: s08 policy unintegrated")
+        state = inspect(unintegrated.root)
+        self.assertEqual(state["ordered_candidate"], "S08-T01")
+        self.assertIsNone(state["executable_task"])
+        self.assertIn(
+            "WORKFLOW_BASELINE_NOT_PROTECTED_OR_HUMAN_APPROVED",
+            state["implementation_gate"]["blocking_reasons"],
+        )
 
     def test_s05_scope_keeps_rag_in_scope_and_agent_allowlist_precedence(self) -> None:
         allowed_cases = {

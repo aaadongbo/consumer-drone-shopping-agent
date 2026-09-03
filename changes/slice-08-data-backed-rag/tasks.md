@@ -1,22 +1,23 @@
 # Slice 8 Tasks - Data-backed Product RAG Readiness
 
-> Status: PLANNED / non-executable roadmap.
+> Status: APPROVED IMPLEMENTATION BASELINE / NOT_STARTED
 >
-> This file intentionally does not use the formal workflow Task states
-> `NOT_STARTED`, `IN_PROGRESS`, `BLOCKED`, or `DONE`. It is not an active workflow
-> policy and does not authorize implementation. Do not execute S08-T01 until Human
-> Review, planning baseline approval, and separate implementation authority exist.
+> Human has accepted this Task table, and S08 Workflow Policy exists for fail-closed
+> execution routing. The table below uses formal Task states; `NOT_STARTED` does not
+> by itself authorize implementation, snapshot, commit, push, external-service access,
+> Data-Staging mutation, embeddings, indexes, or training. Start S08-T01 only after
+> separate current-context implementation authority.
 
 ## Ordered Tasks
 
-| Task | Title | Roadmap state | Depends on |
+| Task | Title | Status | Dependencies |
 |---|---|---|---|
-| S08-T01 | External corpus readiness adapter | PLANNED | Human Review + planning baseline |
-| S08-T02 | Locator and scope binding gate | PLANNED | S08-T01 |
-| S08-T03 | Offline single-target retrieval walking skeleton | PLANNED | S08-T02 |
-| S08-T04 | Static/dynamic fallback and stale-data guards | PLANNED | S08-T03 |
-| S08-T05 | Data boundary and no-upload verification | PLANNED | S08-T04 |
-| S08-T06 | Slice readiness evidence and Human handoff | PLANNED | S08-T05 |
+| T01 | External corpus readiness adapter | NOT_STARTED | Human Review + planning baseline |
+| T02 | Locator and scope binding gate | NOT_STARTED | T01 |
+| T03 | Offline single-target retrieval walking skeleton | NOT_STARTED | T02 |
+| T04 | Static/dynamic fallback and stale-data guards | NOT_STARTED | T03 |
+| T05 | Data boundary and no-upload verification | NOT_STARTED | T04 |
+| T06 | Slice readiness evidence and Human handoff | NOT_STARTED | T05 |
 
 ## S08-T01 - External Corpus Readiness Adapter
 
