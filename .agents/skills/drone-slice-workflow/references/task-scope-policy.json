@@ -800,7 +800,7 @@
           "risk_tier": "MEDIUM"
         },
         "T04": {
-          "allowed_paths": ["backend/api/", "storefront/", "tests/integration/", "tests/e2e/", "changes/slice-07-storefront-closure/tasks.md"],
+          "allowed_paths": ["backend/api/", "backend/common/contracts.py", "storefront/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-07-storefront-closure/tasks.md"],
           "dependency_policy": "forbidden",
           "verification_marker": "integration or e2e",
           "verification_rationale": "API and storefront transport integration boundary",

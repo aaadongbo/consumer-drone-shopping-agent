@@ -66,12 +66,18 @@ Only the first dependency-ready row may be selected. These rows remain non-execu
 
 - **Goal**：将最小 storefront 与现有 Conversation API 连接并可回放。
 - **Why**：证明 transport、业务 fallback 和渲染边界在真实请求链路中没有混淆。
-- **Scope**：`backend/api/`、`storefront/`、integration/e2e tests；本任务表。
-- **Contract**：既有 `TurnRequest`、`AnswerEnvelope`、`Fallback`；禁止旁路 DTO。
-- **Acceptance**：合法请求形成完整链路；invalid input 下游零调用；Answer/Fallback/target/constraint state/correlation 一致；多轮新增、修改、撤回、跳过和最多两轮澄清可回放。
+- **Scope**：`backend/api/`、`backend/common/contracts.py`、`storefront/`、contract/integration/e2e tests；本任务表。
+- **Contract**：复用既有 `TurnRequest`、`AnswerEnvelope`、`Fallback`；本 Task 已获 Human 批准，在 `AnswerEnvelope` 中新增可选、版本化的服务端权威 `conversation_state`。该字段仅包含 `active_constraints`、`pending_clarification`、`pending_switch` 与 `revision`，以支持客户端回放；禁止新增 endpoint、旁路 DTO、持久化或外部状态服务。
+- **Acceptance**：合法请求形成完整链路；invalid input 下游零调用；Answer/Fallback/target/服务端确认的 conversation state/correlation 一致；新增字段向后兼容且不得让客户端成为状态权威；多轮新增、修改、撤回、跳过和最多两轮澄清可回放。
 - **Verification**：Integration + E2E + zero-write。
 - **Dependencies**：S07-T02、S07-T03。
-- **Out of Scope**：真实 Shopify/模型、外部客服、浏览器云 CI。
+- **Out of Scope**：真实 Shopify/模型、外部客服、浏览器云 CI、新 endpoint、状态持久化和外部状态服务。
+
+#### Approved Contract record
+
+- **Decision**：Human approved the minimal versioned `AnswerEnvelope.conversation_state` extension for S07-T04.
+- **Boundary**：optional and server-authoritative only; fields are limited to `active_constraints`, `pending_clarification`, `pending_switch`, and `revision`.
+- **Not approved**：new endpoint, new dependency, persistence, external service, Shopify write, or any other public Contract expansion.
 
 ### S07-T05 — Journey and quality baseline
 
