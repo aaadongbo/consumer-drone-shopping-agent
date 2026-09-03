@@ -12,7 +12,7 @@
 | T02 | Trace aggregation and redaction | DONE | T01 |
 | T03 | Minimal storefront shell | DONE | T01 |
 | T04 | API/storefront integration harness | DONE | T02, T03 |
-| T05 | Journey and quality baseline | NOT_STARTED | T04 |
+| T05 | Journey and quality baseline | DONE | T04 |
 | T06 | Slice completion evidence | NOT_STARTED | T05 |
 
 Only the first dependency-ready row may be selected. These rows remain non-executable until a Slice Implementation authorization is supplied.
@@ -193,3 +193,19 @@ S07 planning baseline 和 Workflow Policy 已集成。下一步需要单独的 S
   - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S07-T04` → exit 0, targeted profile passed.
 - **Acceptance result**：PASS — the existing Conversation API/client and T01/T03 presentation flow replay only the optional server-authoritative `conversation_state` projection. Its fields are limited to `active_constraints`, `pending_clarification`, `pending_switch`, and `revision`; absence remains wire-compatible. The deterministic harness proves add, modify, withdraw, skip, pending switch, up to two clarifications, Answer/Fallback, target, correlation, and revision remain consistent; invalid wire input remains rejected before downstream calls by the existing transport gate.
 - **Out-of-scope check**：No endpoint, bypass DTO, dependency, persistence, external service, Shopify write, architecture/core-doc, push, or integration change.
+
+### S07-T05 — Journey and quality baseline
+
+- **Status**：DONE
+- **Implementation base**：`7b3db3a75e0d9d2c33fe6b6c82f70781e665b1b8`
+- **Pre-existing diff**：clean detached snapshot at start.
+- **Started/completed**：2026-09-03
+- **Changed paths**：`changes/slice-07-storefront-closure/tasks.md`
+- **Verification**：
+  - `uv run ruff check .` → exit 0.
+  - `uv run ruff format --check .` → exit 0, `138 files already formatted`.
+  - `uv run pytest -q --durations=10` → exit 0, `551 passed in 0.74s`; slowest reported test call `0.01s`.
+  - `uv run pytest -m e2e -q --durations=10` → exit 0, `65 passed, 486 deselected in 0.31s`; slowest reported test call `0.01s`.
+  - `git diff --check` → exit 0; dependency lock/config and core-doc boundary checks → exit 0.
+- **Acceptance result**：PASS — the full Journey and E2E baseline covers success/fallback/transport paths, constraint update/withdraw/skip and the T04 replay route. Existing E2E assertions verify zero Shopify writes and sensitive source metadata does not enter output or trace. Measurements are recorded only; no provisional Spec gates or Acceptance were adjusted.
+- **Out-of-scope check**：No training, fine-tuning, long-lived metric platform, release automation, dependency/config, core-doc, external service, Shopify write, push, or integration change.
