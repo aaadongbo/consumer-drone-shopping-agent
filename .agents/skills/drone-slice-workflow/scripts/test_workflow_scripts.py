@@ -127,6 +127,22 @@ SLICE_5_DEPENDENCIES = {
     "T06": "T05",
     "T07": "T06",
 }
+SLICE_7_TITLES = {
+    "T01": "Storefront view-model and fallback adapter",
+    "T02": "Trace aggregation and redaction",
+    "T03": "Minimal storefront shell",
+    "T04": "API/storefront integration harness",
+    "T05": "Journey and quality baseline",
+    "T06": "Slice completion evidence",
+}
+SLICE_7_DEPENDENCIES = {
+    "T01": "Slice 6 completion + Slice 7 planning approval",
+    "T02": "T01",
+    "T03": "T01",
+    "T04": "T02, T03",
+    "T05": "T04",
+    "T06": "T05",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -236,6 +252,11 @@ class TemporaryRepository:
             self.titles, self.dependencies = (
                 dict(SLICE_5_TITLES),
                 dict(SLICE_5_DEPENDENCIES),
+            )
+        elif slice_name == "slice-07-storefront-closure":
+            self.titles, self.dependencies = (
+                dict(SLICE_7_TITLES),
+                dict(SLICE_7_DEPENDENCIES),
             )
         else:
             self.titles, self.dependencies = (
@@ -1531,6 +1552,65 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertEqual(
             authorized["tasks"][0]["implementation_authorized_via"], "slice"
         )
+
+    def test_s07_policy_configures_formal_tasks_without_implementation_authority(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-07-storefront-closure")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root)
+
+        self.assertEqual(state["ordered_candidate"], "S07-T01")
+        self.assertIsNone(state["executable_task"])
+        self.assertIn(
+            "CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"]["changes/slice-07-storefront-closure/tasks.md"]
+        self.assertEqual(slice_policy["completion_task"], "T06")
+        self.assertEqual(slice_policy["tasks"]["T01"]["risk_tier"], "HIGH")
+        self.assertEqual(slice_policy["tasks"]["T02"]["risk_tier"], "HIGH")
+        self.assertEqual(slice_policy["tasks"]["T03"]["risk_tier"], "MEDIUM")
+        self.assertEqual(slice_policy["tasks"]["T04"]["risk_tier"], "HIGH")
+        self.assertEqual(slice_policy["tasks"]["T05"]["risk_tier"], "MEDIUM")
+        self.assertEqual(slice_policy["tasks"]["T06"]["risk_tier"], "HIGH")
+        self.assertIn(
+            ".agents/skills/drone-slice-workflow/",
+            slice_policy["forbidden_path_prefixes"],
+        )
+        self.assertIn("storefront/", slice_policy["tasks"]["T03"]["allowed_paths"])
+
+    def test_s07_scope_allows_only_configured_storefront_task_paths(self) -> None:
+        holder, repo = self.repo(slice_name="slice-07-storefront-closure")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot(
+            task_id="T03", changed_path="storefront/shell.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+
+        allowed = check("S07-T03", repo.root, base_head=base, snapshot_head=snapshot)
+        self.assertTrue(allowed["ok"], allowed)
+
+        holder_forbidden, repo_forbidden = self.repo(
+            slice_name="slice-07-storefront-closure"
+        )
+        self.addCleanup(holder_forbidden.cleanup)
+        forbidden_base, forbidden_snapshot = repo_forbidden.snapshot(
+            task_id="T03", changed_path="backend/shopify/write.py"
+        )
+        git(repo_forbidden.root, "switch", "--detach", forbidden_snapshot)
+
+        forbidden = check(
+            "S07-T03",
+            repo_forbidden.root,
+            base_head=forbidden_base,
+            snapshot_head=forbidden_snapshot,
+        )
+        self.assertFalse(forbidden["ok"])
+        self.assertIn("FORBIDDEN_SLICE_PATH_CHANGED", forbidden["blocking_reasons"])
 
     def test_s05_scope_keeps_rag_in_scope_and_agent_allowlist_precedence(self) -> None:
         allowed_cases = {

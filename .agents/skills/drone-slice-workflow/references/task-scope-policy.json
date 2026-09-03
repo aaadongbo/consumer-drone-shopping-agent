@@ -715,6 +715,112 @@
           "risk_tier": "HIGH"
         }
       }
+    },
+    "changes/slice-07-storefront-closure/tasks.md": {
+      "completion_task": "T06",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "boundary-and-slice",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "delivery": "feature-delivery-proposed-non-operational",
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
+        }
+      },
+      "implementation_gate": {
+        "type": "protected-workflow-baseline"
+      },
+      "core_artifacts": [
+        "changes/slice-07-storefront-closure/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "backend/agent/",
+        "backend/catalog/",
+        "backend/conversation/",
+        "backend/evidence/",
+        "backend/rag/",
+        "backend/shopify/",
+        "changes/slice-01-product-facts/",
+        "changes/slice-02-single-turn-recommendation/",
+        "changes/slice-03-target-resolution/",
+        "changes/slice-04-variant-comparison/",
+        "changes/slice-05-product-rag/",
+        "changes/slice-06-evidence-recommendation/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["backend/api/", "storefront/", "tests/unit/", "tests/contract/", "changes/slice-07-storefront-closure/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "view-model and fallback adapter boundary",
+          "risk_tier": "HIGH"
+        },
+        "T02": {
+          "allowed_paths": ["backend/api/", "backend/application/", "backend/evaluation/", "tests/unit/", "tests/integration/", "changes/slice-07-storefront-closure/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "trace aggregation and redaction security boundary",
+          "risk_tier": "HIGH"
+        },
+        "T03": {
+          "allowed_paths": ["storefront/", "tests/unit/", "changes/slice-07-storefront-closure/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit",
+          "verification_rationale": "minimal storefront shell boundary",
+          "risk_tier": "MEDIUM"
+        },
+        "T04": {
+          "allowed_paths": ["backend/api/", "storefront/", "tests/integration/", "tests/e2e/", "changes/slice-07-storefront-closure/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "integration or e2e",
+          "verification_rationale": "API and storefront transport integration boundary",
+          "risk_tier": "HIGH"
+        },
+        "T05": {
+          "allowed_paths": ["tests/", "eval/", "scripts/", "changes/slice-07-storefront-closure/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "quality baseline is a Slice completion verification boundary",
+          "risk_tier": "MEDIUM"
+        },
+        "T06": {
+          "allowed_paths": ["tests/", "eval/", "changes/slice-07-storefront-closure/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "Slice 7 completion evidence requires the full suite",
+          "risk_tier": "HIGH"
+        }
+      }
     }
   }
 }
