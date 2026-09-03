@@ -10,7 +10,7 @@
 |---|---|---|---|
 | T01 | Storefront view-model and fallback adapter | DONE | Slice 6 completion + Slice 7 planning approval |
 | T02 | Trace aggregation and redaction | DONE | T01 |
-| T03 | Minimal storefront shell | NOT_STARTED | T01 |
+| T03 | Minimal storefront shell | DONE | T01 |
 | T04 | API/storefront integration harness | NOT_STARTED | T02, T03 |
 | T05 | Journey and quality baseline | NOT_STARTED | T04 |
 | T06 | Slice completion evidence | NOT_STARTED | T05 |
@@ -155,3 +155,19 @@ S07 planning baseline 和 Workflow Policy 已集成。下一步需要单独的 S
   - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S07-T02` → exit 0, targeted profile passed.
 - **Acceptance result**：PASS — existing summary-only `TraceEvent` values aggregate only when they share one correlation; trace projections contain no request payload, header, credential, token, or stack input. Sensitive correlation or scope attempts, mixed correlations and empty input fail closed before a record is emitted. The boundary is in-memory only and adds no observability service or persistence.
 - **Out-of-scope check**：No public Contract, Architecture, dependency, external service, persistent sink, Shopify write, push, or integration change.
+
+### S07-T03 — Minimal storefront shell
+
+- **Status**：DONE
+- **Implementation base**：`f5fcb9afe138b9bab64eaaa070515879b7f91d77`
+- **Pre-existing diff**：clean worktree at start.
+- **Started/completed**：2026-09-03
+- **Changed paths**：`storefront/__init__.py`, `storefront/shell.py`, `tests/unit/test_s07_t03_storefront_shell.py`, `changes/slice-07-storefront-closure/tasks.md`
+- **Verification**：
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S07-T03` → exit 0.
+  - `uv run ruff check storefront tests/unit/test_s07_t03_storefront_shell.py` → exit 0.
+  - `uv run ruff format --check storefront tests/unit/test_s07_t03_storefront_shell.py` → exit 0.
+  - `uv run pytest -m unit tests/unit/test_s07_t03_storefront_shell.py -q` → exit 0, `3 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S07-T03` → exit 0, targeted profile passed.
+- **Acceptance result**：PASS — the local shell clears a previous result while loading, renders only the T01 server-confirmed view-model, preserves target/constraints/pending clarification for display, and queues only explicit user actions. Retry requires a server-marked retryable fallback; no client state or fact mutation occurs.
+- **Out-of-scope check**：No public wire fields, frontend dependency, persistence, API integration, external service, Shopify write, push, or integration change.
