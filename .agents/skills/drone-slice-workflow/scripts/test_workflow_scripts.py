@@ -1582,11 +1582,18 @@ class WorkflowScriptTests(unittest.TestCase):
             slice_policy["forbidden_path_prefixes"],
         )
         self.assertIn("storefront/", slice_policy["tasks"]["T03"]["allowed_paths"])
-        self.assertIn(
-            "backend/common/contracts.py",
+        self.assertEqual(
             slice_policy["tasks"]["T04"]["allowed_paths"],
+            [
+                "backend/api/",
+                "backend/common/contracts.py",
+                "storefront/",
+                "tests/contract/",
+                "tests/integration/",
+                "tests/e2e/",
+                "changes/slice-07-storefront-closure/tasks.md",
+            ],
         )
-        self.assertIn("tests/contract/", slice_policy["tasks"]["T04"]["allowed_paths"])
 
     def test_s07_scope_allows_only_configured_storefront_task_paths(self) -> None:
         holder, repo = self.repo(slice_name="slice-07-storefront-closure")
