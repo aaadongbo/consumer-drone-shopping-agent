@@ -13,7 +13,7 @@
 | T03 | Minimal storefront shell | DONE | T01 |
 | T04 | API/storefront integration harness | DONE | T02, T03 |
 | T05 | Journey and quality baseline | DONE | T04 |
-| T06 | Slice completion evidence | NOT_STARTED | T05 |
+| T06 | Slice completion evidence | DONE | T05 |
 
 Only the first dependency-ready row may be selected. These rows remain non-executable until a Slice Implementation authorization is supplied.
 
@@ -209,3 +209,20 @@ S07 planning baseline 和 Workflow Policy 已集成。下一步需要单独的 S
   - `git diff --check` → exit 0; dependency lock/config and core-doc boundary checks → exit 0.
 - **Acceptance result**：PASS — the full Journey and E2E baseline covers success/fallback/transport paths, constraint update/withdraw/skip and the T04 replay route. Existing E2E assertions verify zero Shopify writes and sensitive source metadata does not enter output or trace. Measurements are recorded only; no provisional Spec gates or Acceptance were adjusted.
 - **Out-of-scope check**：No training, fine-tuning, long-lived metric platform, release automation, dependency/config, core-doc, external service, Shopify write, push, or integration change.
+
+### S07-T06 — Slice completion evidence
+
+- **Status**：DONE
+- **Implementation base**：`ce956925b2b8f6828254f4f0a0d6e736ea245c9a`
+- **Pre-existing diff**：clean detached T05 snapshot at start.
+- **Started/completed**：2026-09-03
+- **Changed paths**：`changes/slice-07-storefront-closure/tasks.md`
+- **Verification**：
+  - `uv lock --check` → exit 0, `Resolved 23 packages`.
+  - `uv run ruff check .` → exit 0.
+  - `uv run ruff format --check .` → exit 0, `138 files already formatted`.
+  - `uv run pytest -q` → exit 0, `551 passed in 0.47s`.
+  - `uv run pytest -m e2e -q` → exit 0, `65 passed, 486 deselected in 0.22s`.
+  - `git diff --check`, dependency lock/config, and core-doc scope boundary checks → all exit 0.
+- **Acceptance result**：PASS — Slice 7’s replayable state, Answer/Fallback/target/correlation, transport rejection, constraint update/withdraw/skip, two-clarification cap, trace redaction, sensitive-data checks, and zero-write assertions are covered by the completed targeted, full-suite, and E2E evidence. No unapproved dependency, external service, Shopify write, or Contract expansion beyond T04’s approved `conversation_state` projection was found.
+- **Out-of-scope check**：No Slice 8, production release, feature-delivery policy, main integration, merge, or push change.
