@@ -1,21 +1,21 @@
 # Slice 7 Ordered Tasks — Fallback, Trace and Storefront Closure
 
-> 状态：APPROVED PLANNING / NON-EXECUTABLE
+> 状态：APPROVED IMPLEMENTATION BASELINE / NOT_STARTED
 >
-> Human 已接受本 Task 表。Task 使用 `PLANNED` 标记，不构成 Implementation、snapshot、commit、push 或外部服务授权。正式执行前必须建立 baseline、激活 S07 Workflow Policy 并取得 Slice Implementation authorization。
+> Human 已接受本 Task 表，S07 Workflow Policy 已集成。下表使用正式 Task 状态；`NOT_STARTED` 仍不构成 Implementation、snapshot、commit、push 或外部服务授权。开始 S07-T01 前仍须取得单独的 Slice Implementation authorization。
 
 ## 1. Status and order
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| S07-T01 | Storefront view-model and fallback adapter | PLANNED | Slice 6 completion + Slice 7 planning approval |
-| S07-T02 | Trace aggregation and redaction | PLANNED | S07-T01 |
-| S07-T03 | Minimal storefront shell | PLANNED | S07-T01 |
-| S07-T04 | API/storefront integration harness | PLANNED | S07-T02, S07-T03 |
-| S07-T05 | Journey and quality baseline | PLANNED | S07-T04 |
-| S07-T06 | Slice completion evidence | PLANNED | S07-T05 |
+| T01 | Storefront view-model and fallback adapter | NOT_STARTED | Slice 6 completion + Slice 7 planning approval |
+| T02 | Trace aggregation and redaction | NOT_STARTED | T01 |
+| T03 | Minimal storefront shell | NOT_STARTED | T01 |
+| T04 | API/storefront integration harness | NOT_STARTED | T02, T03 |
+| T05 | Journey and quality baseline | NOT_STARTED | T04 |
+| T06 | Slice completion evidence | NOT_STARTED | T05 |
 
-Only the first dependency-ready row may be selected. These rows remain non-executable until S07 policy is activated.
+Only the first dependency-ready row may be selected. These rows remain non-executable until a Slice Implementation authorization is supplied.
 
 ## 2. Provisional budget
 
@@ -97,15 +97,15 @@ Only the first dependency-ready row may be selected. These rows remain non-execu
 
 ## 4. Workflow and escalation
 
-- 当前未激活 S07 policy；不得执行任何 S07 Task。
-- 规划接受后，应单独配置 S07 policy；Task 风险至少在 Contract、trace、安全和外部依赖处升级。
+- S07 Workflow Policy 已激活；不得在缺少 Slice Implementation authorization 时执行任何 S07 Task。
+- Task 风险至少在 Contract、trace、安全和外部依赖处升级。
 - 任何公共 Contract、主要依赖、真实外部服务、Shopify write、Product Behavior 或安全门禁变化都必须停止请求 Human。
 - Full suite 只在 S07-T05/T06 运行；普通 Task 使用 targeted verification。
 
 ## 5. Completion checklist
 
-- [ ] S07 planning review 通过并建立 baseline。
-- [ ] S07 Workflow Policy 单独审查并激活。
+- [x] S07 planning review 通过并建立 baseline。
+- [x] S07 Workflow Policy 单独审查并激活。
 - [ ] S07-T01～T06 按表顺序完成。
 - [ ] 每个 Task 有真实 targeted verification 和 Execution Record。
 - [ ] S7 Matrix、full suite、E2E、trace redaction、zero-write evidence 全部可回放。
@@ -114,7 +114,7 @@ Only the first dependency-ready row may be selected. These rows remain non-execu
 
 ## 6. Recommended next step
 
-Human 已接受 Goal、Scope、Acceptance、预算和 Task 表。下一步建立 Slice 7 planning baseline；此后才配置 S07 Workflow Policy，不得直接执行 S07-T01。
+S07 planning baseline 和 Workflow Policy 已集成。下一步需要单独的 Slice Implementation authorization；在此之前不得执行 S07-T01。
 
 ## 7. Planning approval record
 
