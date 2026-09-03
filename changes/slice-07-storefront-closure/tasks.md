@@ -8,7 +8,7 @@
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Storefront view-model and fallback adapter | NOT_STARTED | Slice 6 completion + Slice 7 planning approval |
+| T01 | Storefront view-model and fallback adapter | DONE | Slice 6 completion + Slice 7 planning approval |
 | T02 | Trace aggregation and redaction | NOT_STARTED | T01 |
 | T03 | Minimal storefront shell | NOT_STARTED | T01 |
 | T04 | API/storefront integration harness | NOT_STARTED | T02, T03 |
@@ -121,3 +121,21 @@ S07 planning baseline 和 Workflow Policy 已集成。下一步需要单独的 S
 - **Decision**：Human accepted Slice 7 Goal、Scope、Acceptance、provisional budget 和 S07-T01～T06 task table.
 - **Scope**：仅批准现有 `plan.md` 与 `tasks.md` 定义的正式店面闭环；不批准 public Contract、主要依赖、外部服务、Shopify write、Workflow Policy 或 Implementation。
 - **Next authority boundary**：Human 需单独批准 planning baseline commit；随后才可单独配置 S07 Workflow Policy。
+
+## 8. Task execution records
+
+### S07-T01 — Storefront view-model and fallback adapter
+
+- **Status**：DONE
+- **Implementation base**：`c9eb842ddf442f9c4e48928dbe271e49f7bcc8bb`
+- **Pre-existing diff**：clean worktree at start.
+- **Started**：2026-09-03
+- **Changed paths**：`storefront/__init__.py`, `storefront/view_model.py`, `tests/unit/test_s07_t01_storefront_view_model.py`, `tests/contract/test_s07_t01_storefront_adapter_contract.py`, `changes/slice-07-storefront-closure/tasks.md`
+- **Verification**：
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S07-T01` → exit 0.
+  - `uv run ruff check storefront tests/unit/test_s07_t01_storefront_view_model.py tests/contract/test_s07_t01_storefront_adapter_contract.py` → exit 0.
+  - `uv run ruff format --check storefront tests/unit/test_s07_t01_storefront_view_model.py tests/contract/test_s07_t01_storefront_adapter_contract.py` → exit 0.
+  - `uv run pytest tests/unit/test_s07_t01_storefront_view_model.py tests/contract/test_s07_t01_storefront_adapter_contract.py -q` → exit 0, `9 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S07-T01` → exit 0, targeted profile passed.
+- **Acceptance result**：PASS — internal StorefrontTurnView/ConstraintPresentationState are derived from existing public envelopes and local UI state only; Answer/Fallback map one-to-one; target, fallback scope, constraints, pending clarification and pending switch are preserved; internal diagnostic values fail closed before rendering; 422 transport rejection is represented as `TRANSPORT_REJECTION`, not a business fallback.
+- **Out-of-scope check**：No public Contract, Architecture, core docs, dependency, formal UI shell, trace aggregation, E2E harness, external service, Shopify write, push, or integration change.
