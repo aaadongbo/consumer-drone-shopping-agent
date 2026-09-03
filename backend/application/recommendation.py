@@ -1,13 +1,19 @@
 """Multi-product, evidence-based recommendation walking skeleton for Slice 6."""
 
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Protocol
 
 from pydantic import Field
 
 from backend.agent import (
+    EvidenceObjective,
+    PerProductEvidenceBudget,
+    RecommendationActionObservation,
+    RecommendationActionPlan,
+    RecommendationActionRoundTrace,
+    RecommendationEvidenceAction,
     RecommendationExplanationResult,
     RecommendationFallback,
     RecommendationFallbackReason,
@@ -47,6 +53,11 @@ from backend.evidence import (
 from backend.rag import RetrievalRequest
 from backend.rag.retrieval import RetrievalResult
 from backend.shopify import ShopifyReadPort
+
+_MAX_ACTION_ROUNDS = 2
+_MAX_TOOL_CALLS = 2
+_MAX_RETRIEVAL_TOKENS = 4000
+_TURN_DEADLINE = timedelta(milliseconds=8000)
 
 
 class CatalogProvider(Protocol):
@@ -96,6 +107,8 @@ class RecommendationFlowResult(WireModel):
     rejected_candidates: tuple[CandidateIdentity, ...] = ()
     fallback: RecommendationFallback | None = None
     trace: tuple[RecommendationTraceEvent, ...] = ()
+    action_plan: RecommendationActionPlan | None = None
+    action_round_traces: tuple[RecommendationActionRoundTrace, ...] = ()
 
 
 class MultiProductRecommendationService:
@@ -114,10 +127,11 @@ class MultiProductRecommendationService:
         self._shopify = shopify
         self._retriever = retriever
         self._correlation_id_factory = correlation_id_factory or _default_correlation_id
-        self._clock = clock or datetime.now
+        self._clock = clock or (lambda: datetime.now(UTC))
 
     def recommend(self, request: TurnRequest) -> RecommendationFlowResult:
         correlation_id = self._correlation_id_factory()
+        started_at = self._clock()
         snapshot = self._catalog.load_store(store_id=request.store_id)
         constraints = normalize_constraint_patches(parse_constraint_patches(request))
         eligibility = evaluate_store_eligibility(
@@ -153,9 +167,37 @@ class MultiProductRecommendationService:
                 break
 
         traces: list[RecommendationTraceEvent] = []
+        action_traces: list[RecommendationActionRoundTrace] = []
         results: list[RecommendationCandidateResult] = []
         rejected: list[CandidateIdentity] = []
+        candidate_fallbacks: list[RecommendationFallback] = []
+        action_plan = _build_action_plan(selected, question=request.user_text)
+        tool_calls = 0
+        retrieval_tokens = 0
+        action_rounds = 0
         for candidate, variant in selected:
+            if _deadline_exceeded(started_at, self._clock()):
+                _append_budget_trace(
+                    action_traces,
+                    candidate=candidate,
+                    round_number=min(action_rounds + 1, 2),
+                    action=RecommendationEvidenceAction.REFRESH_COMMERCE,
+                    tool_calls=tool_calls,
+                    retrieval_tokens=retrieval_tokens,
+                    stop_reason="TURN_DEADLINE",
+                )
+                break
+            if tool_calls >= _MAX_TOOL_CALLS or action_rounds >= _MAX_ACTION_ROUNDS:
+                _append_budget_trace(
+                    action_traces,
+                    candidate=candidate,
+                    round_number=min(action_rounds + 1, 2),
+                    action=RecommendationEvidenceAction.REFRESH_COMMERCE,
+                    tool_calls=tool_calls,
+                    retrieval_tokens=retrieval_tokens,
+                    stop_reason="TOOL_CALL_LIMIT",
+                )
+                break
             traces.append(
                 _trace(
                     correlation_id,
@@ -168,6 +210,22 @@ class MultiProductRecommendationService:
                 shopify=self._shopify,
                 variant=variant,
                 constraints=constraints,
+                now=self._clock(),
+            )
+            tool_calls += 1
+            action_rounds += 1
+            _append_action_trace(
+                action_traces,
+                candidate=candidate,
+                round_number=action_rounds,
+                action=RecommendationEvidenceAction.REFRESH_COMMERCE,
+                evidence_count=len(refreshed.evidence),
+                missing_fields=tuple(refreshed.result.missing_fields),
+                tool_calls=tool_calls,
+                retrieval_tokens=retrieval_tokens,
+                choice_reason=(
+                    "Refresh current commerce before eligibility and explanation."
+                ),
             )
             if not refreshed.eligibility.eligible:
                 rejected.append(candidate)
@@ -180,6 +238,77 @@ class MultiProductRecommendationService:
                     )
                 )
                 continue
+            rag_items: tuple[CandidateEvidence, ...] = ()
+            if self._retriever is not None:
+                if tool_calls >= _MAX_TOOL_CALLS or action_rounds >= _MAX_ACTION_ROUNDS:
+                    _append_budget_trace(
+                        action_traces,
+                        candidate=candidate,
+                        round_number=2,
+                        action=RecommendationEvidenceAction.RETRIEVE_PRODUCT_EVIDENCE,
+                        tool_calls=tool_calls,
+                        retrieval_tokens=retrieval_tokens,
+                        stop_reason="TOOL_CALL_LIMIT",
+                    )
+                else:
+                    try:
+                        rag_items = self._rag_evidence(request, candidate)
+                        retrieval_tokens += sum(
+                            len(item.text.split())
+                            for item in rag_items
+                            if item.text is not None
+                        )
+                        tool_calls += 1
+                        action_rounds += 1
+                        if retrieval_tokens > _MAX_RETRIEVAL_TOKENS:
+                            rag_items = ()
+                            _append_action_trace(
+                                action_traces,
+                                candidate=candidate,
+                                round_number=action_rounds,
+                                action=RecommendationEvidenceAction.RETRIEVE_PRODUCT_EVIDENCE,
+                                evidence_count=0,
+                                missing_fields=("rag",),
+                                tool_calls=tool_calls,
+                                retrieval_tokens=retrieval_tokens,
+                                choice_reason=(
+                                    "Reject retrieval output at the hard token budget."
+                                ),
+                                final_stop_reason="RETRIEVAL_TOKEN_BUDGET",
+                            )
+                        else:
+                            _append_action_trace(
+                                action_traces,
+                                candidate=candidate,
+                                round_number=action_rounds,
+                                action=RecommendationEvidenceAction.RETRIEVE_PRODUCT_EVIDENCE,
+                                evidence_count=len(rag_items),
+                                missing_fields=(),
+                                tool_calls=tool_calls,
+                                retrieval_tokens=retrieval_tokens,
+                                choice_reason=(
+                                    "Collect only candidate-scoped Product "
+                                    "RAG evidence."
+                                ),
+                            )
+                    except ValueError:
+                        tool_calls += 1
+                        action_rounds += 1
+                        _append_action_trace(
+                            action_traces,
+                            candidate=candidate,
+                            round_number=action_rounds,
+                            action=RecommendationEvidenceAction.RETRIEVE_PRODUCT_EVIDENCE,
+                            evidence_count=0,
+                            missing_fields=("rag",),
+                            tool_calls=tool_calls,
+                            retrieval_tokens=retrieval_tokens,
+                            choice_reason=(
+                                "Reject retrieval output that does not prove "
+                                "candidate scope."
+                            ),
+                            final_stop_reason="RAG_SCOPE_MISMATCH",
+                        )
             bundle = self._bundle_for(
                 request=request,
                 snapshot=snapshot,
@@ -187,6 +316,7 @@ class MultiProductRecommendationService:
                 candidate=candidate,
                 refreshed=refreshed,
                 constraints=constraints,
+                rag_items=rag_items,
             )
             traces.append(
                 _trace(
@@ -219,6 +349,21 @@ class MultiProductRecommendationService:
                     "Explanation coverage evaluated without cross-candidate evidence.",
                 )
             )
+            if explanation.explanation is None:
+                if explanation.fallback is not None:
+                    candidate_fallbacks.append(explanation.fallback)
+                    traces.append(
+                        _trace(
+                            correlation_id,
+                            RecommendationTraceEventType.FALLBACK,
+                            candidate,
+                            (
+                                "Candidate explanation degraded: "
+                                f"{explanation.fallback.reason.value}."
+                            ),
+                        )
+                    )
+                continue
             results.append(
                 RecommendationCandidateResult(
                     candidate=candidate,
@@ -230,11 +375,16 @@ class MultiProductRecommendationService:
 
         fallback = None
         if not results:
-            fallback = RecommendationFallback(
-                reason=RecommendationFallbackReason.NO_MATCH,
-                message=(
-                    "No candidate satisfies current availability and HARD constraints."
-                ),
+            fallback = (
+                candidate_fallbacks[0]
+                if candidate_fallbacks
+                else RecommendationFallback(
+                    reason=RecommendationFallbackReason.NO_MATCH,
+                    message=(
+                        "No candidate satisfies current availability and HARD "
+                        "constraints."
+                    ),
+                )
             )
             traces.append(
                 _trace(
@@ -250,6 +400,8 @@ class MultiProductRecommendationService:
             rejected_candidates=tuple(rejected),
             fallback=fallback,
             trace=tuple(traces),
+            action_plan=action_plan,
+            action_round_traces=tuple(action_traces),
         )
 
     def _bundle_for(
@@ -261,6 +413,7 @@ class MultiProductRecommendationService:
         candidate: CandidateIdentity,
         refreshed: CommerceRefreshResult,
         constraints: tuple[NormalizedConstraint, ...],
+        rag_items: tuple[CandidateEvidence, ...],
     ) -> CandidateEvidenceBundle:
         product = next(
             item
@@ -275,7 +428,6 @@ class MultiProductRecommendationService:
                 *variant.variant_attributes.items(),
             )
         )
-        rag_items = self._rag_evidence(request, candidate)
         derived = self._derived_evidence(candidate, refreshed, constraints)
         required_fields = ("price", "use_case", "camera_resolution")
         covered = tuple(
@@ -319,6 +471,15 @@ class MultiProductRecommendationService:
                 question=request.user_text,
             )
         )
+        if result.request.turn_target != candidate.as_scope():
+            raise ValueError("retrieval result crossed candidate identity")
+        if any(
+            chunk.store_id != candidate.store_id
+            or chunk.product_id != candidate.product_id
+            or chunk.variant_id not in (None, candidate.variant_id)
+            for chunk in result.evidence
+        ):
+            raise ValueError("retrieval evidence crossed candidate identity")
         return tuple(
             CandidateEvidence(
                 evidence_id=f"rag-{candidate.product_id}-{candidate.variant_id}-{chunk.chunk_id}",
@@ -377,6 +538,90 @@ def _rejection_detail(result: CommerceRefreshResult) -> str:
     if result.result.status is ToolStatus.ERROR:
         return f"Current commerce refresh failed: {result.result.error_code}."
     return "Current commerce or HARD eligibility check rejected the candidate."
+
+
+def _build_action_plan(
+    selected: list[tuple[CandidateIdentity, VariantRecord]], *, question: str
+) -> RecommendationActionPlan | None:
+    if not selected:
+        return None
+    candidates = tuple(candidate for candidate, _ in selected)
+    return RecommendationActionPlan(
+        candidate_set=candidates,
+        evidence_objectives=tuple(
+            EvidenceObjective(
+                candidate=candidate,
+                field="recommendation_evidence",
+                question=question,
+            )
+            for candidate in candidates
+        ),
+        per_product_budgets=tuple(
+            PerProductEvidenceBudget(candidate=candidate) for candidate in candidates
+        ),
+        max_action_rounds=_MAX_ACTION_ROUNDS,
+    )
+
+
+def _append_action_trace(
+    traces: list[RecommendationActionRoundTrace],
+    *,
+    candidate: CandidateIdentity,
+    round_number: int,
+    action: RecommendationEvidenceAction,
+    evidence_count: int,
+    missing_fields: tuple[str, ...],
+    tool_calls: int,
+    retrieval_tokens: int,
+    choice_reason: str,
+    final_stop_reason: str | None = None,
+) -> None:
+    observation = RecommendationActionObservation(
+        action=action,
+        candidate=candidate,
+        evidence_count=evidence_count,
+        missing_fields=missing_fields,
+    )
+    traces.append(
+        RecommendationActionRoundTrace(
+            round_number=round_number,
+            action=action,
+            candidate=candidate,
+            choice_reason=choice_reason,
+            observation=observation,
+            budget_tool_calls=tool_calls,
+            budget_retrieval_tokens=retrieval_tokens,
+            final_stop_reason=final_stop_reason,
+        )
+    )
+
+
+def _append_budget_trace(
+    traces: list[RecommendationActionRoundTrace],
+    *,
+    candidate: CandidateIdentity,
+    round_number: int,
+    action: RecommendationEvidenceAction,
+    tool_calls: int,
+    retrieval_tokens: int,
+    stop_reason: str,
+) -> None:
+    _append_action_trace(
+        traces,
+        candidate=candidate,
+        round_number=round_number,
+        action=action,
+        evidence_count=0,
+        missing_fields=("budget",),
+        tool_calls=tool_calls,
+        retrieval_tokens=retrieval_tokens,
+        choice_reason="Stop before an action that would exceed the turn budget.",
+        final_stop_reason=stop_reason,
+    )
+
+
+def _deadline_exceeded(started_at: datetime, now: datetime) -> bool:
+    return now - started_at >= _TURN_DEADLINE
 
 
 def _trace(

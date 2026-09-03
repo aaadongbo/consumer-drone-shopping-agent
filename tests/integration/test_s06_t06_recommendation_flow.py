@@ -12,7 +12,15 @@ from backend.common import (
     ConversationRef,
     PageContext,
     ToolResult,
+    ToolStatus,
     TurnRequest,
+)
+from backend.rag import (
+    DocumentChunk,
+    DocumentSourceType,
+    RetrievalResult,
+    RetrievalStrategy,
+    SourceLocator,
 )
 from backend.shopify import CommerceState
 
@@ -78,6 +86,9 @@ def test_flow_returns_at_most_three_candidates_with_current_commerce() -> None:
     assert len(port.calls) == len(result.candidates)
     assert port.writes == 0
     assert all(event.correlation_id == result.correlation_id for event in result.trace)
+    assert result.action_plan is not None
+    assert len(result.action_round_traces) <= 2
+    assert all(item.budget_tool_calls <= 2 for item in result.action_round_traces)
     for candidate in result.candidates:
         assert candidate.evidence_bundle.candidate == candidate.candidate
         assert candidate.explanation.explanation is not None
@@ -93,3 +104,70 @@ def test_no_match_produces_fallback_without_formal_candidates() -> None:
     assert result.fallback.reason.value == "NO_MATCH"
     assert result.trace[-1].event_type.value == "FALLBACK"
     assert port.writes == 0
+
+
+def test_critical_price_gap_becomes_global_fallback() -> None:
+    class MissingPricePort(CatalogCommerceReadDouble):
+        def refresh_commerce_state(self, **kwargs):  # type: ignore[no-untyped-def]
+            result = super().refresh_commerce_state(**kwargs)
+            assert result.data is not None
+            data = {
+                field: fact for field, fact in result.data.items() if field != "price"
+            }
+            return result.model_copy(
+                update={
+                    "status": ToolStatus.SUCCESS,
+                    "data": data,
+                    "missing_fields": [],
+                }
+            )
+
+    result = _service(MissingPricePort()).recommend(_request("适合旅行"))
+
+    assert result.candidates == ()
+    assert result.fallback is not None
+    assert result.fallback.reason.value == "COVERAGE_BELOW_THRESHOLD"
+
+
+def test_foreign_rag_result_is_discarded() -> None:
+    class ForeignRetriever:
+        def retrieve(self, request):  # type: ignore[no-untyped-def]
+            chunk = DocumentChunk(
+                store_id=_STORE_ID,
+                product_id="drone-cinema",
+                variant_id="cinema-pro",
+                source_id="foreign-source",
+                source_type=DocumentSourceType.MANUAL,
+                version="v1",
+                chunk_id="foreign-1",
+                order=0,
+                locator=SourceLocator(
+                    source_id="foreign-source",
+                    version="v1",
+                    locator="rag://foreign-source@v1/chunk/0",
+                ),
+                heading_path=("Manual",),
+                text="foreign product evidence",
+            )
+            return RetrievalResult(
+                request=request,
+                evidence=(chunk,),
+                retrieval_strategy=RetrievalStrategy.KEYWORD_OVERLAP,
+                index_version="v1",
+                filtered_out_count=0,
+            )
+
+    port = CatalogCommerceReadDouble()
+    result = MultiProductRecommendationService(
+        catalog=DeterministicCatalogFixture(observed_at=_NOW),
+        shopify=port,
+        retriever=ForeignRetriever(),
+        correlation_id_factory=lambda: "s06-foreign-rag",
+        clock=lambda: _NOW,
+    ).recommend(_request("预算 6000 元"))
+    assert result.candidates
+    assert all(not item.evidence_bundle.rag_evidence for item in result.candidates)
+    assert any(
+        item.final_stop_reason == "RAG_SCOPE_MISMATCH"
+        for item in result.action_round_traces
+    )

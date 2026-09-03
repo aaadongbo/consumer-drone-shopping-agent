@@ -1,6 +1,6 @@
 """Integration coverage for read-only commerce refresh and HARD recheck."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -54,3 +54,42 @@ def test_refresh_failure_cannot_reuse_old_commerce_facts() -> None:
     assert outcome.evidence == ()
     assert outcome.eligibility.eligible is False
     assert shopify.write_call_count == 0
+
+
+def test_stale_commerce_result_is_rejected_before_evidence() -> None:
+    stale = DeterministicShopifyFixture(
+        clock=lambda: _NOW - timedelta(minutes=6),
+    )
+    outcome = refresh_and_recheck_candidate(
+        shopify=stale,
+        variant=_variant(),
+        now=_NOW,
+    )
+
+    assert outcome.eligibility.eligible is False
+    assert outcome.evidence == ()
+    assert any(
+        "freshness" in item.message for item in outcome.eligibility.rejection_reasons
+    )
+    assert stale.write_call_count == 0
+
+
+def test_foreign_commerce_source_is_rejected_before_evidence() -> None:
+    class ForeignSourceFixture(DeterministicShopifyFixture):
+        def refresh_commerce_state(self, **kwargs):  # type: ignore[no-untyped-def]
+            result = super().refresh_commerce_state(**kwargs)
+            return result.model_copy(update={"source": "fixture://foreign"})
+
+    foreign = ForeignSourceFixture(clock=lambda: _NOW)
+    outcome = refresh_and_recheck_candidate(
+        shopify=foreign,
+        variant=_variant(),
+        now=_NOW,
+    )
+
+    assert outcome.eligibility.eligible is False
+    assert outcome.evidence == ()
+    assert any(
+        "source" in item.message for item in outcome.eligibility.rejection_reasons
+    )
+    assert foreign.write_call_count == 0

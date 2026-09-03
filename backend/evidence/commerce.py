@@ -42,6 +42,10 @@ def _evidence_for(
 ) -> CandidateEvidence:
     if fact.observed_at is not None and fact.observed_at != observed_at:
         raise ValueError("commerce fact timestamp must match current ToolResult")
+    if not _source_matches_candidate(source, candidate):
+        raise ValueError("commerce evidence source does not match candidate identity")
+    if not fact.source_ref.startswith(f"{source}#"):
+        raise ValueError("commerce fact source does not match candidate identity")
     return CandidateEvidence(
         evidence_id=f"commerce-{candidate.product_id}-{candidate.variant_id}-{field}",
         source_kind=EvidenceSourceKind.COMMERCE,
@@ -51,6 +55,18 @@ def _evidence_for(
         source_ref=source,
         observed_at=observed_at,
     )
+
+
+def _commerce_source(candidate: CandidateIdentity) -> str:
+    return (
+        f"fixture://{candidate.store_id}/products/{candidate.product_id}"
+        f"/variants/{candidate.variant_id}"
+    )
+
+
+def _source_matches_candidate(source: str, candidate: CandidateIdentity) -> bool:
+    expected = _commerce_source(candidate)
+    return source in {expected, f"{expected}/commerce"}
 
 
 __all__ = ["build_commerce_evidence"]

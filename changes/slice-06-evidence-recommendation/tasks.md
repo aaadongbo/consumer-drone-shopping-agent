@@ -188,6 +188,14 @@ Provisional budget config:
 - **Scope/safety**：仅限 T07 allowlist；未修改公共 Contract、Architecture、Workflow、依赖或 Slice 7。
 - **Completion**：S06 T01–T07 全部 `DONE`；等待一次独立 Slice completion review 与 Human 集成决策。
 
+### Slice completion review correction record
+
+- **Status**：S06 T01–T07 remain `DONE`; this record documents the minimal corrections requested by the independent Slice review before integration.
+- **Findings addressed**：commerce refresh now rejects foreign or stale ToolResults before Evidence; RAG output is checked against the requested candidate scope; critical evidence gaps are promoted to a global fallback instead of formal candidates; recommendation action/tool budgets are enforced and emitted as bounded action traces.
+- **Changed paths**：`backend/catalog/commerce_refresh.py`、`backend/evidence/commerce.py`、`backend/application/recommendation.py`、受影响的 S06 integration tests。
+- **Verification**：targeted S06 correction set `22 passed`; changed-file Ruff lint/format and `git diff --check` passed. The previously recorded Slice-completion full suite remains `525 passed`; it was not rerun for this bounded correction set.
+- **Scope**：无公共 Contract、Architecture、Workflow、依赖、外部服务或 Shopify write 变化；需针对新 snapshot 重新进行一次独立 Slice review。
+
 ## Human Escalation
 
 公共 Contract、Product Behavior、Architecture、重大依赖、外部服务、open-network Evidence、Shopify write、learning ranking 固化、Evidence Gate 放宽或超过 `2` 个 total action rounds 都必须升级。
