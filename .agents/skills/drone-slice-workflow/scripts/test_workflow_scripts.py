@@ -173,6 +173,22 @@ SLICE_9_DEPENDENCIES = {
     "T04": "T03",
     "T05": "T04",
 }
+SLICE_10_TITLES = {
+    "T01": "Pilot identity and data-readiness gate",
+    "T02": "Approved external corpus reader",
+    "T03": "Real read-only Shopify adapter",
+    "T04": "Pilot composition root",
+    "T05": "Three-product local pilot E2E",
+    "T06": "Slice 10 completion evidence",
+}
+SLICE_10_DEPENDENCIES = {
+    "T01": "S09 locally integrated; S10 planning approval",
+    "T02": "T01 corpus lane GO",
+    "T03": "T01 Shopify lane GO; explicit external-access authorization",
+    "T04": "T02, T03",
+    "T05": "T04",
+    "T06": "T05",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -297,6 +313,11 @@ class TemporaryRepository:
             self.titles, self.dependencies = (
                 dict(SLICE_9_TITLES),
                 dict(SLICE_9_DEPENDENCIES),
+            )
+        elif slice_name == "slice-10-real-data-pilot":
+            self.titles, self.dependencies = (
+                dict(SLICE_10_TITLES),
+                dict(SLICE_10_DEPENDENCIES),
             )
         else:
             self.titles, self.dependencies = (
@@ -500,6 +521,38 @@ class TemporaryRepository:
             path.write_text(content, encoding="utf-8")
         git(self.root, "add", ".")
         git(self.root, "commit", "-qm", "wip(WORKFLOW-S09-POLICY): snapshot")
+        return base, git(self.root, "rev-parse", "HEAD")
+
+    def s10_workflow_policy_snapshot(
+        self, *, extra_path: str | None = None
+    ) -> tuple[str, str]:
+        base = git(self.root, "rev-parse", "HEAD")
+        policy_path = (
+            self.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        changes = {
+            ".agents/skills/drone-slice-workflow/references/task-scope-policy.json": (
+                policy_path.read_text(encoding="utf-8") + "\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py": (
+                "# s10 workflow regression\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py": (
+                "# s10 workflow identity\n"
+            ),
+            str(self.tasks_path.relative_to(self.root)): (
+                self.tasks_path.read_text(encoding="utf-8") + "\n"
+            ),
+        }
+        if extra_path:
+            changes[extra_path] = "extra\n"
+        for relative, content in changes.items():
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "wip(WORKFLOW-S10-POLICY): snapshot")
         return base, git(self.root, "rev-parse", "HEAD")
 
     def write_planned_s05(self) -> None:
@@ -1707,6 +1760,99 @@ class WorkflowScriptTests(unittest.TestCase):
             extra_base,
             extra_snapshot,
             extra_repo.root,
+        )
+        self.assertFalse(extra["ok"])
+        self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
+
+    def test_workflow_s10_policy_formalizes_tasks_without_execution_authority(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-10-real-data-pilot")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root)
+        self.assertEqual(
+            [task["canonical_id"] for task in state["tasks"]],
+            [f"S10-T{i:02d}" for i in range(1, 7)],
+        )
+        self.assertEqual(state["ordered_candidate"], "S10-T01")
+        self.assertIsNone(state["executable_task"])
+        self.assertIn(
+            "CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"]["changes/slice-10-real-data-pilot/tasks.md"]
+        self.assertEqual(slice_policy["completion_task"], "T06")
+        self.assertEqual(
+            [slice_policy["tasks"][f"T{i:02d}"]["risk_tier"] for i in range(1, 7)],
+            ["LOW", "LOW", "HIGH", "LOW", "HIGH", "HIGH"],
+        )
+        self.assertTrue(slice_policy["execution_policy"]["automation"]["auto_advance"])
+        self.assertEqual(
+            slice_policy["execution_policy"]["review_cadence"]["HIGH"]["review"],
+            "human-decision",
+        )
+        self.assertTrue(slice_policy["activation_policy"]["formal_task_table_required"])
+        self.assertFalse(
+            slice_policy["activation_policy"]["planned_rows_non_executable"]
+        )
+        self.assertIn("shopify_write", slice_policy["forbidden_actions"])
+        self.assertIn("create_index", slice_policy["forbidden_actions"])
+        self.assertIn(
+            ".agents/skills/drone-slice-workflow/",
+            slice_policy["forbidden_path_prefixes"],
+        )
+        self.assertIn(
+            "backend/common/contracts.py", slice_policy["risk_escalation_paths"]
+        )
+
+    def test_s10_scope_allows_readiness_paths_but_blocks_forbidden_data(self) -> None:
+        holder, repo = self.repo(slice_name="slice-10-real-data-pilot")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot(
+            task_id="T01", changed_path="backend/rag/readiness.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+        allowed = check("S10-T01", repo.root, base_head=base, snapshot_head=snapshot)
+        self.assertTrue(allowed["ok"], allowed)
+
+        bad_holder, bad_repo = self.repo(slice_name="slice-10-real-data-pilot")
+        self.addCleanup(bad_holder.cleanup)
+        bad_base, bad_snapshot = bad_repo.snapshot(
+            task_id="T01", changed_path="official-docs/dji-neo.pdf"
+        )
+        git(bad_repo.root, "switch", "--detach", bad_snapshot)
+        forbidden = check(
+            "S10-T01", bad_repo.root, base_head=bad_base, snapshot_head=bad_snapshot
+        )
+        self.assertFalse(forbidden["ok"])
+        self.assertIn("FORBIDDEN_SLICE_PATH_CHANGED", forbidden["blocking_reasons"])
+        self.assertIn("SEMANTIC_SLICE_ACTION_FORBIDDEN", forbidden["blocking_reasons"])
+
+    def test_workflow_s10_policy_identity_and_task_scope(self) -> None:
+        holder, repo = self.repo(slice_name="slice-10-real-data-pilot")
+        self.addCleanup(holder.cleanup)
+
+        base, snapshot = repo.s10_workflow_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+        evidence = immutable_evidence("WORKFLOW-S10-POLICY", base, snapshot, repo.root)
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["task"], "WORKFLOW-S10-POLICY")
+        self.assertEqual(evidence["scope"]["scope_kind"], "workflow-policy")
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertFalse(evidence["integration_authorized"])
+        self.assertFalse(evidence["push_authorized"])
+
+        extra_holder, extra_repo = self.repo(slice_name="slice-10-real-data-pilot")
+        self.addCleanup(extra_holder.cleanup)
+        extra_base, extra_snapshot = extra_repo.s10_workflow_policy_snapshot(
+            extra_path="README.md"
+        )
+        git(extra_repo.root, "switch", "--detach", extra_snapshot)
+        extra = immutable_evidence(
+            "WORKFLOW-S10-POLICY", extra_base, extra_snapshot, extra_repo.root
         )
         self.assertFalse(extra["ok"])
         self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])

@@ -1158,6 +1158,168 @@
           "risk_tier": "HIGH"
         }
       }
+    },
+    "changes/slice-10-real-data-pilot/tasks.md": {
+      "completion_task": "T06",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "boundary-and-slice",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "delivery": "feature-delivery-proposed-non-operational",
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
+        }
+      },
+      "implementation_gate": {"type": "protected-workflow-baseline"},
+      "activation_policy": {
+        "formal_task_table_required": true,
+        "planned_rows_non_executable": false
+      },
+      "scope_notes": {
+        "allowlist_precedence": "Task allowed_paths are evaluated before forbidden_path_prefixes; semantic data-boundary rules remain blocking.",
+        "pilot_boundary": "S10 is a three-product, local, read-only pilot; completion cannot claim production readiness.",
+        "external_boundary": "Shopify credentials, external network access, and corpus authorization remain explicit Human boundaries even when a Task is otherwise LOW."
+      },
+      "forbidden_actions": [
+        "shopify_write",
+        "copy_raw_pdf",
+        "copy_official_text",
+        "copy_shopify_export",
+        "create_embeddings",
+        "create_index",
+        "freeze_golden_set",
+        "add_training_files",
+        "open_web_retrieval",
+        "production_deployment",
+        "public_contract_change",
+        "workflow_policy_self_modification",
+        "silent_fixture_fallback"
+      ],
+      "semantic_escalations": [
+        "public Contract change",
+        "Product Behavior change",
+        "Architecture boundary change",
+        "Acceptance or Accepted Decision change",
+        "major or cross-Slice dependency",
+        "raw PDF, official text, or Shopify export",
+        "embedding, index, Golden Set, or training artifact",
+        "real external service behavior",
+        "open-web or Shopify-write capability",
+        "production traffic or deployment"
+      ],
+      "core_artifacts": [
+        "changes/slice-10-real-data-pilot/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [".python-version", "pyproject.toml", "uv.lock"],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "Data-Staging/",
+        "backend/agent/",
+        "backend/common/",
+        "changes/slice-01-product-facts/",
+        "changes/slice-02-single-turn-recommendation/",
+        "changes/slice-03-target-resolution/",
+        "changes/slice-04-variant-comparison/",
+        "changes/slice-05-product-rag/",
+        "changes/slice-06-evidence-recommendation/",
+        "changes/slice-07-storefront-closure/",
+        "changes/slice-08-data-backed-rag/",
+        "changes/slice-09-controlled-rag-experiment/",
+        "docs/",
+        "eval/datasets/",
+        "eval/golden/",
+        "eval/training/",
+        "official-docs/",
+        "shopify_exports/",
+        "training/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "semantic_path_rules": [
+        {
+          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06"],
+          "path_patterns": [
+            "*.pdf", "**/*.pdf", "*raw*official*", "**/*raw*official*",
+            "*official*text*", "**/*official*text*", "*shopify*export*",
+            "**/*shopify*export*", "*embedding*", "**/*embedding*", "*index*",
+            "**/*index*", "*golden*", "**/*golden*", "*training*", "**/*training*"
+          ],
+          "behavior": "s10_forbidden_data_artifact",
+          "reason": "S10 must not copy raw documents, Shopify exports, embeddings, indexes, Golden Set labels, or training files into the repository."
+        },
+        {
+          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06"],
+          "path_patterns": ["backend/common/contracts.py"],
+          "behavior": "public_contract_change",
+          "reason": "S10 keeps the existing public wire Contract unchanged."
+        }
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["backend/catalog/", "backend/rag/", "backend/shopify/", "tests/unit/", "tests/contract/", "changes/slice-10-real-data-pilot/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "pilot identity and two-lane data-readiness gate",
+          "risk_tier": "LOW"
+        },
+        "T02": {
+          "allowed_paths": ["backend/rag/", "tests/unit/", "tests/integration/", "changes/slice-10-real-data-pilot/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "approved external corpus reader and data-boundary checks",
+          "risk_tier": "LOW"
+        },
+        "T03": {
+          "allowed_paths": ["backend/shopify/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-10-real-data-pilot/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "real read-only Shopify transport and credential boundary",
+          "risk_tier": "HIGH"
+        },
+        "T04": {
+          "allowed_paths": ["backend/api/", "backend/application/", "backend/catalog/", "backend/rag/", "backend/shopify/", "tests/unit/", "tests/integration/", "changes/slice-10-real-data-pilot/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "explicit fixture/pilot composition root",
+          "risk_tier": "LOW"
+        },
+        "T05": {
+          "allowed_paths": ["backend/api/", "backend/application/", "backend/catalog/", "backend/rag/", "backend/shopify/", "tests/unit/", "tests/contract/", "tests/integration/", "tests/e2e/", "changes/slice-10-real-data-pilot/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "integration or e2e",
+          "verification_rationale": "bounded three-product real-data pilot boundary",
+          "risk_tier": "HIGH"
+        },
+        "T06": {
+          "allowed_paths": ["scripts/", "tests/", "changes/slice-10-real-data-pilot/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "Slice completion evidence and full-project verification",
+          "risk_tier": "HIGH"
+        }
+      }
     }
   }
 }

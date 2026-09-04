@@ -1,26 +1,25 @@
 # Slice 10 Tasks - Real-data Read-only Pilot
 
-> Status: APPROVED PLANNING BASELINE / NON-EXECUTABLE
+> Status: IMPLEMENTATION AUTHORIZED / Formal Slice Task Table
 >
 > Human has accepted the Slice 10 goal, scope, acceptance, provisional budgets, and
-> ordered Task table. The rows remain planning records rather than formal workflow
-> states until S10 Workflow Policy activation; this baseline does not authorize
-> implementation, live credentials, external network access, push, or production use.
+> ordered Task table. The formal rows below are `NOT_STARTED`; this does not by itself
+> authorize live credentials, external network access, push, or production use.
 
 ## Ordered Tasks
 
-| Task | Title | Planned Risk | Dependencies |
+| Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Pilot identity and data-readiness gate | MEDIUM | S09 locally integrated; S10 planning approval |
-| T02 | Approved external corpus reader | MEDIUM | T01 corpus lane `GO` |
-| T03 | Real read-only Shopify adapter | HIGH | T01 Shopify lane `GO`; explicit external-access authorization |
-| T04 | Pilot composition root | MEDIUM | T02, T03 |
-| T05 | Three-product local pilot E2E | HIGH | T04 |
-| T06 | Slice 10 completion evidence | HIGH | T05 |
+| T01 | Pilot identity and data-readiness gate | NOT_STARTED | S09 locally integrated; S10 planning approval |
+| T02 | Approved external corpus reader | NOT_STARTED | T01 corpus lane `GO` |
+| T03 | Real read-only Shopify adapter | NOT_STARTED | T01 Shopify lane `GO`; explicit external-access authorization |
+| T04 | Pilot composition root | NOT_STARTED | T02, T03 |
+| T05 | Three-product local pilot E2E | NOT_STARTED | T04 |
+| T06 | Slice 10 completion evidence | NOT_STARTED | T05 |
 
-Risk labels are proposed for later Workflow Policy review. They are not execution
-authority. T03 and T05 are explicit Human boundaries because they involve real
-credentials/network behavior and real-source E2E respectively.
+Risk labels and execution cadence are defined by the activated S10 Workflow Policy.
+They are not external-service authority. T03 and T05 remain explicit Human
+boundaries because they involve real credentials/network behavior and real-source E2E.
 
 Verification cadence is intentionally light:
 
@@ -319,6 +318,5 @@ model-generated facts.
 
 ## Recommended Next Step
 
-Create the approved planning baseline, then configure and review only the minimum S10
-Workflow Policy. Do not execute T01 before policy activation and the applicable
-implementation authority.
+The S10 Workflow Policy is activated separately. Do not execute T01 before the
+current-context implementation authority and the applicable data-readiness checks.

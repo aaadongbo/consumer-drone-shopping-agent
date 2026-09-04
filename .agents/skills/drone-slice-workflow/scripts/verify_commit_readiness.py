@@ -33,6 +33,7 @@ WORKFLOW_POLICY_REPAIR_IDENTITIES = {
     "WORKFLOW-S05-POLICY": "changes/slice-05-product-rag/tasks.md",
     "WORKFLOW-S08-POLICY": "changes/slice-08-data-backed-rag/tasks.md",
     "WORKFLOW-S09-POLICY": "changes/slice-09-controlled-rag-experiment/tasks.md",
+    "WORKFLOW-S10-POLICY": "changes/slice-10-real-data-pilot/tasks.md",
 }
 WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES = {"WORKFLOW-S05-POLICY"}
 WORKFLOW_POLICY_REPAIR_IDENTITY = "WORKFLOW-S03-POLICY"
@@ -71,6 +72,12 @@ WORKFLOW_POLICY_PRE_ACTIVATION_PATHS = {
         ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
         ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
         "changes/slice-09-controlled-rag-experiment/tasks.md",
+    },
+    "WORKFLOW-S10-POLICY": {
+        ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+        ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
+        ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
+        "changes/slice-10-real-data-pilot/tasks.md",
     },
 }
 WORKFLOW_POLICY_PRE_ACTIVATION_PLAN_FILES = {
