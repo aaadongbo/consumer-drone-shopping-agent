@@ -1,12 +1,11 @@
 # Slice 8 Tasks - Data-backed Product RAG Readiness
 
-> Status: APPROVED IMPLEMENTATION BASELINE / NOT_STARTED
+> Status: COMPLETED / LOCALLY INTEGRATED
 >
 > Human has accepted this Task table, and S08 Workflow Policy exists for fail-closed
-> execution routing. The table below uses formal Task states; `NOT_STARTED` does not
-> by itself authorize implementation, snapshot, commit, push, external-service access,
-> Data-Staging mutation, embeddings, indexes, or training. Start S08-T01 only after
-> separate current-context implementation authority.
+> execution routing. S08-T01 through T06 are complete, and the completion snapshot is
+> integrated into the local `main`. Post-S08 indexing, serving, Golden Set, training,
+> or remote Git operations require a separate planning and approval decision.
 
 ## Ordered Tasks
 
@@ -164,10 +163,10 @@ Escalate immediately before implementation continues if any task requires:
 
 ## Recommended Next Step
 
-Human Review should first decide whether this roadmap is an acceptable S08 planning
-baseline. If accepted, establish the baseline, decide in a separate governance session
-whether a workflow policy is necessary, and only then authorize S08-T01 as an offline
-manifest/locator readiness task.
+S08 is closed as a data-readiness/control Slice. Human should decide whether to create
+a separate post-S08 planning Slice for chunk-baseline approval, indexing/embedding
+experiments, retrieval serving, or evaluation-data freeze. Until that decision and a
+new approved planning baseline exist, there is no executable S08 Task.
 
 ## Task Execution Records
 
@@ -177,7 +176,8 @@ manifest/locator readiness task.
 - Start commit: `eb6ba1e554e8dca049efbd004ae0027a04587657`
 - Start state: detached HEAD at `eb6ba1e554e8dca049efbd004ae0027a04587657`; `git status --short --branch` reported `## HEAD (no branch)` with no dirty paths.
 - Readiness: `python .agents/skills/drone-slice-workflow/scripts/inspect_state.py --authorize-task S08-T01` exited 0 and reported `selected_task=S08-T01`, `executable_task=S08-T01`, `ready_tasks=["S08-T01"]`, and no blocking reasons.
-- Scope note: T02-T06 remain `NOT_STARTED`; no remote Git, Shopify, embedding/index, training, or Data-Staging write operation is authorized.
+- Scope note: T02-T06 were subsequently completed in order; no remote Git, Shopify,
+  embedding/index, training, or Data-Staging write operation was authorized.
 - Implementation summary: added an internal read-only corpus readiness adapter and metadata-only unit fixtures; no public contract, dependency, core document, Data-Staging, embedding/index, training, Shopify, or remote Git changes.
 - Real Data-Staging read check: `python -c "from backend.rag import build_corpus_readiness_report; r=build_corpus_readiness_report(); print({'stop_reason': r.stop_reason.value, 'metadata_accepted': r.metadata_accepted, 'corpus_version': r.corpus_version, 'source_count': r.source_count, 'page_locator_count': r.page_locator_count, 'rejected_count': len(r.rejected_files), 'counts': r.counts})"` exited 0 and reported `metadata_accepted=True`, `source_count=3`, `page_locator_count=261`, `rejected_count=0`, and `stop_reason=CORPUS_NOT_INDEXED`.
 - Verification:
@@ -308,4 +308,6 @@ manifest/locator readiness task.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --check --no-cache .` exited 0 with `152 files already formatted`.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m 'unit or contract or integration or e2e' -q` exited 0 with `605 passed`.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T06` exited 0; Slice-completion compile, `uv lock --check`, full ruff, full format-check, full pytest, diff, core artifact, and dependency checks passed with `605 passed`. This helper used `uv run` internally and created local caches; removed `/private/tmp/consumer-drone-s08-implementation/.venv`, `.pytest_cache`, and `.ruff_cache` before snapshot.
-- Snapshot: pending; S08-T06 is the completion Task and requires one immutable Slice-completion snapshot before independent Slice Review.
+- Snapshot: `77d7ced805216c612d9b06bf5312c83ba9e7cdde` (completion snapshot; locally
+  fast-forward integrated to `main`); final independent Slice Review was explicitly
+  waived by Human approval. S08-T06 is complete and no S08 Task remains executable.
