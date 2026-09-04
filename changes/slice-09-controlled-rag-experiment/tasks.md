@@ -1,9 +1,11 @@
 # Slice 9 Tasks - Controlled RAG Experiment Readiness
 
-> Status: IMPLEMENTED / AWAITING SLICE COMPLETION INTEGRATION
+> Status: COMPLETED / LOCALLY INTEGRATED
 >
 > Human accepted this Task table and authorized S09 implementation through completion.
-> S09 remains local only until a separate integration decision.
+> S09-T01 through T05 are complete, and completion snapshot
+> `f222ca2028b9f01dfe32640d7421bd0ffda82651` is integrated into local `main`.
+> Remote push and any production-index or serving decision remain separately gated.
 > The tasks do not authorize Data-Staging writes, raw-data import, embeddings, indexes,
 > training, external services, commits, or pushes.
 
@@ -145,3 +147,17 @@ Shopify write, or data-boundary change stops for Human decision.
 - No public Contract, core docs, dependency files, Workflow files, raw data, generated
   chunks, embeddings, indexes, training data, Shopify export, Data-Staging write,
   push, or main integration was performed.
+
+### Post-completion Reconciliation
+
+- Local integration: completion snapshot
+  `f222ca2028b9f01dfe32640d7421bd0ffda82651` was fast-forward integrated into
+  local `main` after the recorded implementation verification.
+- Completion-session evidence reported one full-project run with `621 passed`, but
+  the per-Task records above retain only the `16 passed` targeted run. Slice 10 must
+  therefore record one fresh full baseline with its exact command and exit code before
+  real-data implementation begins; it must not repeat that full suite for every Task.
+- Remote delivery: not performed; local `main` remains unpushed.
+- S09 remains an offline, development-only readiness result and does not claim a
+  production RAG index, live Shopify integration, Human-approved Golden Set, or
+  production readiness.
