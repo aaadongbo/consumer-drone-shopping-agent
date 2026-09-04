@@ -12,6 +12,15 @@ from backend.rag.corpus_readiness import (
     CorpusReadinessStopReason,
     build_corpus_readiness_report,
 )
+from backend.rag.locator_binding import (
+    LocatorBinding,
+    LocatorBindingRejectionReason,
+    LocatorBindingResult,
+    LocatorBindingSource,
+    Mavic3ScopeOverlay,
+    OverlayDecision,
+    bind_locator_record,
+)
 from backend.rag.manifest import (
     AuthorizationState,
     DocumentChunk,
@@ -46,10 +55,17 @@ __all__ = [
     "chunk_document_source",
     "chunk_manifest",
     "InMemoryProductRetriever",
+    "LocatorBinding",
+    "LocatorBindingRejectionReason",
+    "LocatorBindingResult",
+    "LocatorBindingSource",
+    "Mavic3ScopeOverlay",
+    "OverlayDecision",
     "RetrievalRequest",
     "RetrievalEvidenceBundle",
     "RetrievalResult",
     "RetrievalResultAdapter",
     "RetrievalStrategy",
     "adapt_retrieval_result",
+    "bind_locator_record",
 ]

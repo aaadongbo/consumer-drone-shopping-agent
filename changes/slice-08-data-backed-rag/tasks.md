@@ -13,7 +13,7 @@
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
 | T01 | External corpus readiness adapter | DONE | Human Review + planning baseline |
-| T02 | Locator and scope binding gate | NOT_STARTED | T01 |
+| T02 | Locator and scope binding gate | DONE | T01 |
 | T03 | Offline single-target retrieval walking skeleton | NOT_STARTED | T02 |
 | T04 | Static/dynamic fallback and stale-data guards | NOT_STARTED | T03 |
 | T05 | Data boundary and no-upload verification | NOT_STARTED | T04 |
@@ -201,3 +201,24 @@ manifest/locator readiness task.
   - `git diff --check` exited 0.
   - `git status --short --untracked-files=all` exited 0 and showed only `backend/rag/__init__.py`, `backend/rag/corpus_readiness.py`, `changes/slice-08-data-backed-rag/tasks.md`, and `tests/unit/test_s08_t01_corpus_readiness.py`.
 - Snapshot: not created; S08-T01 was completed as working-tree changes only, with no commit and no push.
+
+### S08-T02 - Locator and Scope Binding Gate
+
+- Status: DONE
+- Start commit: `08f324e1f99cf767c8f76ed5afa8c5c9769e5643`
+- Start state: branch `codex/s08-implementation` at `08f324e1f99cf767c8f76ed5afa8c5c9769e5643`; `git status --short --branch` reported `## codex/s08-implementation` with no dirty paths.
+- Readiness: `python .agents/skills/drone-slice-workflow/scripts/inspect_state.py --authorize-task S08-T02` exited 0 and reported `selected_task=S08-T02`, `executable_task=S08-T02`, `ready_tasks=["S08-T02"]`, and no blocking reasons.
+- Scope note: used existing internal `ObjectScope` / `SourceLocator` semantics without modifying `backend/common/contracts.py`; no public contract, Architecture, dependency, Shopify, embedding/index, training, Data-Staging write, or remote Git change was made.
+- Implementation summary: added an internal metadata-only locator binding gate with exact mismatch reasons for product, variant, language, region, source_ref, source_id, version, checksum, page, locator, and Mavic 3/Cine overlay exclusion; exported the internal API from `backend.rag`; added focused unit and contract tests using small metadata-only fixtures.
+- Verification:
+  - `python -m py_compile backend/rag/locator_binding.py tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py` exited 0.
+  - `uv run --frozen pytest -m 'unit or contract' tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py -q` exited 0 with `16 passed`.
+  - `uv run --frozen ruff check backend/rag/__init__.py backend/rag/locator_binding.py tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py` exited 1 during repair for two quoted type annotations; fixed. This command created a local `.venv`; removed `/private/tmp/consumer-drone-s08-implementation/.venv`.
+  - `uv run --frozen ruff format --check backend/rag/__init__.py backend/rag/locator_binding.py tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py` exited 1 during repair; `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format backend/rag/__init__.py backend/rag/locator_binding.py tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py` exited 0 and reformatted one file.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m py_compile backend/rag/locator_binding.py tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m 'unit or contract' tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py -q` exited 0 with `16 passed`.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff check --no-cache backend/rag/__init__.py backend/rag/locator_binding.py tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --check --no-cache backend/rag/__init__.py backend/rag/locator_binding.py tests/unit/test_s08_t02_locator_binding.py tests/contract/test_s08_t02_locator_binding_contract.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/check_scope.py S08-T02` exited 0 with no disallowed paths, no core artifact changes, and no dependency changes.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T02` exited 0; targeted compile, ruff, format-check, unit/contract tests, diff, core artifact, and dependency checks passed. This helper used `uv run` internally and created a local `.venv`; removed `/private/tmp/consumer-drone-s08-implementation/.venv`.
+- Snapshot: not created; S08-T02 is HIGH risk with Human-authorized implementation, and no MEDIUM checkpoint applies.
