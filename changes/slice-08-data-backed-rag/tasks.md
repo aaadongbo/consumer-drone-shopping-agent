@@ -12,7 +12,7 @@
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | External corpus readiness adapter | NOT_STARTED | Human Review + planning baseline |
+| T01 | External corpus readiness adapter | DONE | Human Review + planning baseline |
 | T02 | Locator and scope binding gate | NOT_STARTED | T01 |
 | T03 | Offline single-target retrieval walking skeleton | NOT_STARTED | T02 |
 | T04 | Static/dynamic fallback and stale-data guards | NOT_STARTED | T03 |
@@ -168,3 +168,36 @@ Human Review should first decide whether this roadmap is an acceptable S08 plann
 baseline. If accepted, establish the baseline, decide in a separate governance session
 whether a workflow policy is necessary, and only then authorize S08-T01 as an offline
 manifest/locator readiness task.
+
+## Task Execution Records
+
+### S08-T01 - External Corpus Readiness Adapter
+
+- Status: DONE
+- Start commit: `eb6ba1e554e8dca049efbd004ae0027a04587657`
+- Start state: detached HEAD at `eb6ba1e554e8dca049efbd004ae0027a04587657`; `git status --short --branch` reported `## HEAD (no branch)` with no dirty paths.
+- Readiness: `python .agents/skills/drone-slice-workflow/scripts/inspect_state.py --authorize-task S08-T01` exited 0 and reported `selected_task=S08-T01`, `executable_task=S08-T01`, `ready_tasks=["S08-T01"]`, and no blocking reasons.
+- Scope note: T02-T06 remain `NOT_STARTED`; no remote Git, Shopify, embedding/index, training, or Data-Staging write operation is authorized.
+- Implementation summary: added an internal read-only corpus readiness adapter and metadata-only unit fixtures; no public contract, dependency, core document, Data-Staging, embedding/index, training, Shopify, or remote Git changes.
+- Real Data-Staging read check: `python -c "from backend.rag import build_corpus_readiness_report; r=build_corpus_readiness_report(); print({'stop_reason': r.stop_reason.value, 'metadata_accepted': r.metadata_accepted, 'corpus_version': r.corpus_version, 'source_count': r.source_count, 'page_locator_count': r.page_locator_count, 'rejected_count': len(r.rejected_files), 'counts': r.counts})"` exited 0 and reported `metadata_accepted=True`, `source_count=3`, `page_locator_count=261`, `rejected_count=0`, and `stop_reason=CORPUS_NOT_INDEXED`.
+- Verification:
+  - `python -m py_compile backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 0 before final export import ordering.
+  - `uv run --frozen pytest -m unit tests/unit/test_s08_t01_corpus_readiness.py -q` exited 1 during repair because missing-manifest report lacked explicit zero counts; fixed.
+  - `uv run --frozen ruff check backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 1 during repair for long literal lines; fixed.
+  - `uv run --frozen ruff format --check backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 1 during repair; `uv run --frozen ruff format backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 0 and reformatted two files.
+  - `python -m py_compile backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 0.
+  - `uv run --frozen pytest -m unit tests/unit/test_s08_t01_corpus_readiness.py -q` exited 0 with `8 passed`.
+  - `uv run --frozen ruff check backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 0.
+  - `uv run --frozen ruff format --check backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 0.
+  - `python -c "from backend.rag import build_corpus_readiness_report; r=build_corpus_readiness_report(); print({'stop_reason': r.stop_reason.value, 'metadata_accepted': r.metadata_accepted, 'corpus_version': r.corpus_version, 'source_count': r.source_count, 'page_locator_count': r.page_locator_count, 'rejected_count': len(r.rejected_files), 'counts': r.counts})"` exited 0 first with `CORPUS_METADATA_MISMATCH` due to strict Mavic inventory/locator scope string comparison; fixed by accepting semicolon-qualified stricter inventory scope.
+  - `python -c "from backend.rag import build_corpus_readiness_report; r=build_corpus_readiness_report(); print({'stop_reason': r.stop_reason.value, 'metadata_accepted': r.metadata_accepted, 'corpus_version': r.corpus_version, 'source_count': r.source_count, 'page_locator_count': r.page_locator_count, 'rejected_count': len(r.rejected_files), 'counts': r.counts})"` exited 0 with `CORPUS_NOT_INDEXED`, 3 sources, 261 page locators, and 0 rejected files.
+  - `python -m py_compile backend/rag/__init__.py backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 0.
+  - `uv run --frozen ruff check backend/rag/__init__.py backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 1 during repair for import ordering in `backend/rag/__init__.py`; `uv run --frozen ruff check --fix backend/rag/__init__.py` exited 0 and fixed one import-order issue.
+  - `uv run --frozen ruff check backend/rag/__init__.py backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 0.
+  - `uv run --frozen ruff format --check backend/rag/__init__.py backend/rag/corpus_readiness.py tests/unit/test_s08_t01_corpus_readiness.py` exited 0.
+  - `uv run --frozen pytest -m unit tests/unit/test_s08_t01_corpus_readiness.py -q` exited 0 with `8 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S08-T01` exited 0 with no disallowed paths, no core artifact changes, and no dependency changes.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T01` exited 0; targeted compile, ruff, format-check, unit test, diff, core artifact, and dependency checks passed.
+  - `git diff --check` exited 0.
+  - `git status --short --untracked-files=all` exited 0 and showed only `backend/rag/__init__.py`, `backend/rag/corpus_readiness.py`, `changes/slice-08-data-backed-rag/tasks.md`, and `tests/unit/test_s08_t01_corpus_readiness.py`.
+- Snapshot: not created; S08-T01 was completed as working-tree changes only, with no commit and no push.
