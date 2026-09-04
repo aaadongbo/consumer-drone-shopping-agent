@@ -1857,6 +1857,28 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertFalse(extra["ok"])
         self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
 
+    def test_s10_task_file_remains_workflow_gated_when_policy_gate_is_missing(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-10-real-data-pilot")
+        self.addCleanup(holder.cleanup)
+        policy_path = (
+            repo.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        policy["slices"]["changes/slice-10-real-data-pilot/tasks.md"].pop(
+            "implementation_gate"
+        )
+        policy_path.write_text(json.dumps(policy), encoding="utf-8")
+
+        state = inspect(repo.root)
+        self.assertFalse(state["tasks"][0]["implementation_gate"]["satisfied"])
+        self.assertIn(
+            "REQUIRED_IMPLEMENTATION_GATE_MISSING",
+            state["tasks"][0]["execution_blockers"],
+        )
+
     def test_s05_planned_table_is_nonexecutable_until_reconciled(self) -> None:
         holder, repo = self.repo(slice_name="slice-04-variant-comparison")
         self.addCleanup(holder.cleanup)
