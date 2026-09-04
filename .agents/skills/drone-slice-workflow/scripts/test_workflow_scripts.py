@@ -159,6 +159,20 @@ SLICE_8_DEPENDENCIES = {
     "T05": "T04",
     "T06": "T05",
 }
+SLICE_9_TITLES = {
+    "T01": "Corrected chunk-baseline manifest validation",
+    "T02": "Ephemeral deterministic chunk metadata experiment",
+    "T03": "Offline scoped lexical retrieval experiment",
+    "T04": "Development evaluation replay and budget gates",
+    "T05": "Controlled RAG readiness handoff",
+}
+SLICE_9_DEPENDENCIES = {
+    "T01": "S08 completion; planning baseline",
+    "T02": "T01",
+    "T03": "T02",
+    "T04": "T03",
+    "T05": "T04",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -278,6 +292,11 @@ class TemporaryRepository:
             self.titles, self.dependencies = (
                 dict(SLICE_8_TITLES),
                 dict(SLICE_8_DEPENDENCIES),
+            )
+        elif slice_name == "slice-09-controlled-rag-experiment":
+            self.titles, self.dependencies = (
+                dict(SLICE_9_TITLES),
+                dict(SLICE_9_DEPENDENCIES),
             )
         else:
             self.titles, self.dependencies = (
@@ -445,6 +464,42 @@ class TemporaryRepository:
             path.write_text(content, encoding="utf-8")
         git(self.root, "add", ".")
         git(self.root, "commit", "-qm", "wip(WORKFLOW-S08-POLICY): snapshot")
+        return base, git(self.root, "rev-parse", "HEAD")
+
+    def s09_workflow_policy_snapshot(
+        self, *, extra_path: str | None = None
+    ) -> tuple[str, str]:
+        base = git(self.root, "rev-parse", "HEAD")
+        policy_path = (
+            self.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        tasks_path = self.tasks_path
+        changes = {
+            ".agents/skills/drone-slice-workflow/references/task-scope-policy.json": (
+                policy_path.read_text(encoding="utf-8") + "\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/inspect_state.py": (
+                "# s09 workflow inspection\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py": (
+                "# s09 workflow regression\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py": (
+                "# s09 immutable review\n"
+            ),
+            str(tasks_path.relative_to(self.root)): (
+                tasks_path.read_text(encoding="utf-8") + "\n"
+            ),
+        }
+        if extra_path:
+            changes[extra_path] = "extra\n"
+        for relative, content in changes.items():
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "wip(WORKFLOW-S09-POLICY): snapshot")
         return base, git(self.root, "rev-parse", "HEAD")
 
     def write_planned_s05(self) -> None:
@@ -1590,6 +1645,65 @@ class WorkflowScriptTests(unittest.TestCase):
 
         extra = immutable_evidence(
             "WORKFLOW-S08-POLICY",
+            extra_base,
+            extra_snapshot,
+            extra_repo.root,
+        )
+        self.assertFalse(extra["ok"])
+        self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
+
+    def test_workflow_s09_policy_identity_and_task_activation(self) -> None:
+        holder, repo = self.repo(slice_name="slice-09-controlled-rag-experiment")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root)
+        self.assertEqual(
+            [task["canonical_id"] for task in state["tasks"]],
+            [f"S09-T{i:02d}" for i in range(1, 6)],
+        )
+        self.assertEqual(state["ordered_candidate"], "S09-T01")
+        self.assertIsNone(state["executable_task"])
+        self.assertIn(
+            "CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"][
+            "changes/slice-09-controlled-rag-experiment/tasks.md"
+        ]
+        self.assertEqual(slice_policy["completion_task"], "T05")
+        self.assertEqual(
+            [slice_policy["tasks"][f"T{i:02d}"]["risk_tier"] for i in range(1, 6)],
+            ["HIGH", "MEDIUM", "MEDIUM", "MEDIUM", "HIGH"],
+        )
+        self.assertTrue(slice_policy["execution_policy"]["automation"]["auto_advance"])
+        self.assertIn("create_embeddings", slice_policy["forbidden_actions"])
+        self.assertIn("create_index", slice_policy["forbidden_actions"])
+        self.assertIn(
+            "workflow_policy_self_modification", slice_policy["forbidden_actions"]
+        )
+
+        base, snapshot = repo.s09_workflow_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+        evidence = immutable_evidence("WORKFLOW-S09-POLICY", base, snapshot, repo.root)
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["task"], "WORKFLOW-S09-POLICY")
+        self.assertEqual(evidence["scope"]["scope_kind"], "workflow-policy")
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertFalse(evidence["integration_authorized"])
+        self.assertFalse(evidence["push_authorized"])
+
+        extra_holder, extra_repo = self.repo(
+            slice_name="slice-09-controlled-rag-experiment"
+        )
+        self.addCleanup(extra_holder.cleanup)
+        extra_base, extra_snapshot = extra_repo.s09_workflow_policy_snapshot(
+            extra_path="README.md"
+        )
+        git(extra_repo.root, "switch", "--detach", extra_snapshot)
+        extra = immutable_evidence(
+            "WORKFLOW-S09-POLICY",
             extra_base,
             extra_snapshot,
             extra_repo.root,

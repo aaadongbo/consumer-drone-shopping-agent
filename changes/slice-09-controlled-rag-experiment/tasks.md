@@ -1,20 +1,21 @@
 # Slice 9 Tasks - Controlled RAG Experiment Readiness
 
-> Status: PLANNED / non-executable roadmap
+> Status: APPROVED IMPLEMENTATION BASELINE / NOT_STARTED
 >
-> These tasks are planning candidates only. They are not formal workflow Tasks and do
-> not authorize Data-Staging writes, raw-data import, embeddings, indexes, training,
-> external services, commits, or pushes.
+> Human has accepted this Task table. S09 Workflow Policy is activated for fail-closed
+> routing; formal implementation authority is still required before S09-T01 runs.
+> The tasks do not authorize Data-Staging writes, raw-data import, embeddings, indexes,
+> training, external services, commits, or pushes.
 
-## Candidate Roadmap
+## Ordered Tasks
 
-| Candidate | Title | Roadmap state | Dependencies |
+| Task | Title | Status | Dependencies |
 |---|---|---|---|
-| S09-T01 | Corrected chunk-baseline manifest validation | CANDIDATE | S08 completion; Human planning approval |
-| S09-T02 | Ephemeral deterministic chunk metadata experiment | CANDIDATE | S09-T01 |
-| S09-T03 | Offline scoped lexical retrieval experiment | CANDIDATE | S09-T02 |
-| S09-T04 | Development evaluation replay and budget gates | CANDIDATE | S09-T03 |
-| S09-T05 | Controlled RAG readiness handoff | CANDIDATE | S09-T04 |
+| T01 | Corrected chunk-baseline manifest validation | NOT_STARTED | S08 completion; planning baseline |
+| T02 | Ephemeral deterministic chunk metadata experiment | NOT_STARTED | T01 |
+| T03 | Offline scoped lexical retrieval experiment | NOT_STARTED | T02 |
+| T04 | Development evaluation replay and budget gates | NOT_STARTED | T03 |
+| T05 | Controlled RAG readiness handoff | NOT_STARTED | T04 |
 
 ## Task Boundaries
 
@@ -74,12 +75,6 @@
 
 ## Workflow and Authority
 
-S09 remains non-executable until Human accepts this table, a separate S09 policy is
-activated if needed, and implementation authority is granted. Any public Contract,
+S09 task execution requires current-context implementation authority. Any public Contract,
 Architecture, dependency, external service, production index, embedding, training,
 Shopify write, or data-boundary change stops for Human decision.
-
-The table above intentionally does not use the formal workflow Task status column.
-If S09 is later activated, a separate governance step must convert these candidates
-to formal `NOT_STARTED` rows and add S09 policy coverage. Until then, workflow status
-inspection must treat this file as roadmap material only.
