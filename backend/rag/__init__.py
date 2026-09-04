@@ -32,6 +32,15 @@ from backend.rag.manifest import (
     chunk_document_source,
     chunk_manifest,
 )
+from backend.rag.offline_retrieval import (
+    CORPUS_NOT_INDEXED,
+    DEFAULT_MAX_SCOPED_CANDIDATES,
+    NO_SCOPED_MATCH,
+    SCOPED_CANDIDATE_LIMIT,
+    OfflineLocatorRecord,
+    OfflineLocatorRetrievalResult,
+    OfflineMetadataLocatorRetriever,
+)
 from backend.rag.retrieval import (
     InMemoryProductRetriever,
     RetrievalRequest,
@@ -44,7 +53,9 @@ __all__ = [
     "CorpusFileValidation",
     "CorpusReadinessReport",
     "CorpusReadinessStopReason",
+    "CORPUS_NOT_INDEXED",
     "DEFAULT_CORPUS_ROOT",
+    "DEFAULT_MAX_SCOPED_CANDIDATES",
     "DocumentChunk",
     "DocumentManifest",
     "DocumentSource",
@@ -60,12 +71,17 @@ __all__ = [
     "LocatorBindingResult",
     "LocatorBindingSource",
     "Mavic3ScopeOverlay",
+    "NO_SCOPED_MATCH",
+    "OfflineLocatorRecord",
+    "OfflineLocatorRetrievalResult",
+    "OfflineMetadataLocatorRetriever",
     "OverlayDecision",
     "RetrievalRequest",
     "RetrievalEvidenceBundle",
     "RetrievalResult",
     "RetrievalResultAdapter",
     "RetrievalStrategy",
+    "SCOPED_CANDIDATE_LIMIT",
     "adapt_retrieval_result",
     "bind_locator_record",
 ]

@@ -14,7 +14,7 @@
 |---|---|---|---|
 | T01 | External corpus readiness adapter | DONE | Human Review + planning baseline |
 | T02 | Locator and scope binding gate | DONE | T01 |
-| T03 | Offline single-target retrieval walking skeleton | NOT_STARTED | T02 |
+| T03 | Offline single-target retrieval walking skeleton | DONE | T02 |
 | T04 | Static/dynamic fallback and stale-data guards | NOT_STARTED | T03 |
 | T05 | Data boundary and no-upload verification | NOT_STARTED | T04 |
 | T06 | Slice readiness evidence and Human handoff | NOT_STARTED | T05 |
@@ -222,3 +222,24 @@ manifest/locator readiness task.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/check_scope.py S08-T02` exited 0 with no disallowed paths, no core artifact changes, and no dependency changes.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T02` exited 0; targeted compile, ruff, format-check, unit/contract tests, diff, core artifact, and dependency checks passed. This helper used `uv run` internally and created a local `.venv`; removed `/private/tmp/consumer-drone-s08-implementation/.venv`.
 - Snapshot: not created; S08-T02 is HIGH risk with Human-authorized implementation, and no MEDIUM checkpoint applies.
+
+### S08-T03 - Offline Single-target Retrieval Walking Skeleton
+
+- Status: DONE
+- Start commit: `8d574443ddf89f7a28570238c4395912964fc571`
+- Start state: branch `codex/s08-implementation` at `8d574443ddf89f7a28570238c4395912964fc571`; `git status --short --branch --untracked-files=all` reported `## codex/s08-implementation` with no dirty paths.
+- Readiness: `python .agents/skills/drone-slice-workflow/scripts/inspect_state.py --authorize-task S08-T03` exited 0 and reported `selected_task=S08-T03`, `executable_task=S08-T03`, `ready_tasks=["S08-T03"]`, and no blocking reasons.
+- Scope note: implemented an offline metadata-only walking skeleton; no embeddings, indexes, retrieval service, reranker, live model generation, open-web access, public contract change, dependency change, Shopify access, training, Data-Staging write, or remote Git operation was made.
+- Implementation summary: added an internal `OfflineMetadataLocatorRetriever` that reuses `RetrievalRequest` and `RetrievalStrategy`, filters candidates through the S08 locator binding gate before scoring, returns bounded metadata locator candidates, and fails closed with `NO_SCOPED_MATCH`, `CORPUS_NOT_INDEXED`, or `SCOPED_CANDIDATE_LIMIT`.
+- Verification:
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m py_compile backend/rag/offline_retrieval.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m integration tests/integration/test_s08_t03_offline_metadata_retrieval.py -q` exited 1 during repair because the cross-product rejection test expected 3 filtered records while the scope/score gate correctly filtered all 4 non-returned records; fixed.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff check --no-cache backend/rag/__init__.py backend/rag/offline_retrieval.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 1 during repair for one long line; fixed.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --check --no-cache backend/rag/__init__.py backend/rag/offline_retrieval.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 1 during repair; `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --no-cache backend/rag/__init__.py backend/rag/offline_retrieval.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 0 and reformatted one file.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m py_compile backend/rag/offline_retrieval.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m integration tests/integration/test_s08_t03_offline_metadata_retrieval.py -q` exited 0 with `7 passed`.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff check --no-cache backend/rag/__init__.py backend/rag/offline_retrieval.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --check --no-cache backend/rag/__init__.py backend/rag/offline_retrieval.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/check_scope.py S08-T03` exited 0 with no disallowed paths, no core artifact changes, and no dependency changes.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T03` exited 0; targeted compile, ruff, format-check, integration test, diff, core artifact, and dependency checks passed. This helper used `uv run` internally and created a local `.venv`; removed `/private/tmp/consumer-drone-s08-implementation/.venv`, `.pytest_cache`, and `.ruff_cache`.
+- Snapshot: pending immutable S08-T03 MEDIUM task snapshot and independent no-write review/checkpoint before S08-T04 can start.
