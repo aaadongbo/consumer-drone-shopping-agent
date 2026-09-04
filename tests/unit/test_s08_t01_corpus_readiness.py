@@ -49,6 +49,36 @@ def test_missing_manifest_fails_closed(tmp_path: Path) -> None:
     assert [item.reason for item in report.rejected_files] == ["manifest missing"]
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    [
+        "manifest.json",
+        "source_inventory.json",
+        "derived/mavic_3_scope_overlay.v0.1.json",
+        "../rag-source-official-verification-20260901-v0.1/"
+        "human_review.rag-source-official-verification.v0.3.json",
+    ],
+)
+def test_malformed_metadata_json_fails_closed(
+    tmp_path: Path,
+    relative_path: str,
+) -> None:
+    root = _write_corpus_fixture(tmp_path)
+    target = root / relative_path
+    target.write_text("{not-json", encoding="utf-8")
+    if relative_path == "derived/mavic_3_scope_overlay.v0.1.json":
+        manifest_path = root / "manifest.json"
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        manifest["derived_files"][relative_path]["sha256"] = _sha256_file(target)
+        _write_json(manifest_path, manifest)
+
+    report = build_corpus_readiness_report(root)
+
+    assert report.metadata_accepted is False
+    assert report.stop_reason is CorpusReadinessStopReason.CORPUS_METADATA_MISMATCH
+    assert any("json invalid" in (item.reason or "") for item in report.rejected_files)
+
+
 def test_locator_checksum_mismatch_fails_closed(tmp_path: Path) -> None:
     root = _write_corpus_fixture(tmp_path)
     locator = root / "derived/page_locators/dji-mini-3-manual-zh-cn-v1.2.jsonl"

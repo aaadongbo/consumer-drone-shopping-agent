@@ -106,6 +106,22 @@ def build_corpus_readiness_report(
     rejected: list[CorpusFileValidation] = []
     manifest_sha256 = _sha256_file(manifest_path)
     manifest = _read_json(manifest_path)
+    if manifest is None:
+        return CorpusReadinessReport(
+            manifest_path=manifest_path_text,
+            manifest_sha256=manifest_sha256,
+            source_count=0,
+            page_locator_count=0,
+            rejected_files=(
+                CorpusFileValidation(
+                    path=manifest_path_text,
+                    sha256=manifest_sha256,
+                    accepted=False,
+                    reason="manifest json invalid",
+                ),
+            ),
+            stop_reason=CorpusReadinessStopReason.CORPUS_METADATA_MISMATCH,
+        )
     accepted.append(
         CorpusFileValidation(
             path=manifest_path_text,
@@ -185,6 +201,9 @@ def _load_source_inventory(
         return {}
 
     inventory = _read_json(inventory_path)
+    if inventory is None:
+        _reject(rejected, str(inventory_path), "source inventory json invalid")
+        return {}
     accepted.append(
         CorpusFileValidation(
             path=str(inventory_path),
@@ -360,6 +379,9 @@ def _validate_overlay(
         _reject(rejected, str(overlay_path), "scope overlay sha256 mismatch")
         return
     overlay = _read_json(overlay_path)
+    if overlay is None:
+        _reject(rejected, str(overlay_path), "scope overlay json invalid")
+        return
     if overlay.get("schema_version") != "source-scope-overlay-v0.1":
         _reject(rejected, str(overlay_path), "scope overlay schema mismatch")
         return
@@ -402,6 +424,9 @@ def _validate_decision_bindings(
             _reject(rejected, str(binding_path), f"{binding_name} file missing")
             continue
         document = _read_json(binding_path)
+        if document is None:
+            _reject(rejected, str(binding_path), f"{binding_name} json invalid")
+            continue
         accepted.append(
             CorpusFileValidation(
                 path=str(binding_path),
@@ -456,11 +481,12 @@ def _locator_scope_matches_inventory(
     return inventory_scope.startswith(f"{locator_scope};")
 
 
-def _read_json(path: Path) -> dict[str, Any]:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(data, dict):
-        raise ValueError(f"{path} must contain a JSON object")
-    return data
+def _read_json(path: Path) -> dict[str, Any] | None:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return data if isinstance(data, dict) else None
 
 
 def _sha256_file(path: Path) -> str:
