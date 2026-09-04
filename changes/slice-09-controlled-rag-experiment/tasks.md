@@ -1,9 +1,9 @@
 # Slice 9 Tasks - Controlled RAG Experiment Readiness
 
-> Status: APPROVED IMPLEMENTATION BASELINE / NOT_STARTED
+> Status: IMPLEMENTED / AWAITING SLICE COMPLETION INTEGRATION
 >
-> Human has accepted this Task table. S09 Workflow Policy is activated for fail-closed
-> routing; formal implementation authority is still required before S09-T01 runs.
+> Human accepted this Task table and authorized S09 implementation through completion.
+> S09 remains local only until a separate integration decision.
 > The tasks do not authorize Data-Staging writes, raw-data import, embeddings, indexes,
 > training, external services, commits, or pushes.
 
@@ -11,11 +11,11 @@
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Corrected chunk-baseline manifest validation | NOT_STARTED | S08 completion; planning baseline |
-| T02 | Ephemeral deterministic chunk metadata experiment | NOT_STARTED | T01 |
-| T03 | Offline scoped lexical retrieval experiment | NOT_STARTED | T02 |
-| T04 | Development evaluation replay and budget gates | NOT_STARTED | T03 |
-| T05 | Controlled RAG readiness handoff | NOT_STARTED | T04 |
+| T01 | Corrected chunk-baseline manifest validation | DONE | S08 completion; planning baseline |
+| T02 | Ephemeral deterministic chunk metadata experiment | DONE | T01 |
+| T03 | Offline scoped lexical retrieval experiment | DONE | T02 |
+| T04 | Development evaluation replay and budget gates | DONE | T03 |
+| T05 | Controlled RAG readiness handoff | DONE | T04 |
 
 ## Task Boundaries
 
@@ -78,3 +78,70 @@
 S09 task execution requires current-context implementation authority. Any public Contract,
 Architecture, dependency, external service, production index, embedding, training,
 Shopify write, or data-boundary change stops for Human decision.
+
+## Execution Record
+
+### S09-T01 - DONE
+
+- **Start commit**: `263100c6f7275b7d89242085c485edd09381df30`
+- **Scope**: Added internal corrected chunk-baseline manifest validation in
+  `backend/rag/chunk_baseline.py`.
+- **Result**: Valid append-only metadata manifests are accepted; missing manifests,
+  invalid status, missing ordinal/extraction fields, duplicate IDs, checksum-shaped
+  errors, and cross-language/region/corpus mismatches fail closed. The model carries
+  locator metadata and checksums only, never raw text.
+- **Verification**: `tests/unit/test_s09_t01_chunk_baseline.py` included in targeted
+  pytest run: `16 passed`.
+
+### S09-T02 - DONE
+
+- **Scope**: Added deterministic ephemeral metadata digest replay through
+  `run_ephemeral_chunk_metadata_experiment`.
+- **Result**: Same manifest/config produces stable metadata digest and records
+  `persisted_to_repository=false`; generated chunk artifacts are not written to the
+  repository or Data-Staging.
+- **Verification**: T02/T03 integration tests included in targeted pytest run:
+  `16 passed`.
+
+### S09-T03 - DONE
+
+- **Scope**: Added `backend/rag/controlled_retrieval.py` for scope-first lexical
+  retrieval over corrected chunk metadata.
+- **Result**: Retrieval is limited to one store/product/optional variant, returns
+  locator/checksum metadata only, rejects cross-product matches before scoring, and
+  fails closed for no scoped match, scoped candidate limit, token budget, and deadline.
+- **Verification**: T02/T03 integration tests included in targeted pytest run:
+  `16 passed`.
+
+### S09-T04 - DONE
+
+- **Scope**: Added development-only replay in `backend/evaluation/s09_replay.py`.
+- **Result**: Replay is capped at 15 cases, remains `development_only=true`, never
+  freezes a Golden Set, and reports pass/fail against expected locators or explicit
+  stop reasons.
+- **Verification**: T04/T05 integration tests included in targeted pytest run:
+  `16 passed`.
+
+### S09-T05 - DONE
+
+- **Scope**: Added metadata-only GO/HOLD readiness handoff for future production-index
+  planning.
+- **Result**: Handoff requires complete matrix IDs, accepted chunk baseline,
+  successful development replay, and data-boundary acceptance to produce `GO`;
+  otherwise it returns `HOLD`. It explicitly defers production index, embeddings,
+  reranking, Golden Set freeze, training/fine-tuning, and live Shopify truth.
+- **Verification**: T04/T05 integration tests included in targeted pytest run:
+  `16 passed`.
+
+### Verification Notes
+
+- Initial `uv run ...` attempts failed because the sandbox could not access the
+  default uv cache and then could not download locked packages with a temporary cache.
+- Equivalent targeted checks were run with the existing repository virtualenv:
+  - Ruff check on changed S09 Python/test files: pass.
+  - Ruff format check on changed S09 Python/test files: pass.
+  - Targeted pytest for S09 unit/integration tests: `16 passed`.
+- S09 changed paths stayed within the S09-T05 Slice completion allowlist.
+- No public Contract, core docs, dependency files, Workflow files, raw data, generated
+  chunks, embeddings, indexes, training data, Shopify export, Data-Staging write,
+  push, or main integration was performed.
