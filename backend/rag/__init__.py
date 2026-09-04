@@ -12,6 +12,16 @@ from backend.rag.corpus_readiness import (
     CorpusReadinessStopReason,
     build_corpus_readiness_report,
 )
+from backend.rag.data_boundary import (
+    FORBIDDEN_PATH_PATTERNS,
+    FORBIDDEN_PATH_PREFIXES,
+    DataBoundaryReport,
+    DataBoundaryViolation,
+    DataBoundaryViolationReason,
+    report_to_dict,
+    scan_changed_data_boundary,
+    scan_data_boundary,
+)
 from backend.rag.locator_binding import (
     LocatorBinding,
     LocatorBindingRejectionReason,
@@ -70,6 +80,9 @@ __all__ = [
     "CorpusReadinessStopReason",
     "CORPUS_NOT_INDEXED",
     "CURRENT_CORPUS_VERSION",
+    "DataBoundaryReport",
+    "DataBoundaryViolation",
+    "DataBoundaryViolationReason",
     "DEFAULT_CORPUS_ROOT",
     "DEFAULT_MAX_SCOPED_CANDIDATES",
     "DocumentChunk",
@@ -78,6 +91,8 @@ __all__ = [
     "DocumentSourceType",
     "DYNAMIC_FACT_REQUIRED",
     "ChunkBaselineState",
+    "FORBIDDEN_PATH_PATTERNS",
+    "FORBIDDEN_PATH_PREFIXES",
     "SourceLocator",
     "SHOPIFY_CANDIDATE_STATUS",
     "SHOPIFY_VARIANT_UNRESOLVED_STATUS",
@@ -110,4 +125,7 @@ __all__ = [
     "bind_locator_record",
     "evaluate_static_rag_preflight",
     "is_dynamic_commerce_question",
+    "report_to_dict",
+    "scan_changed_data_boundary",
+    "scan_data_boundary",
 ]
