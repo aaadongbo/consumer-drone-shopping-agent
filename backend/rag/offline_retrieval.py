@@ -13,6 +13,10 @@ from backend.rag.locator_binding import (
     bind_locator_record,
 )
 from backend.rag.retrieval import RetrievalRequest, RetrievalStrategy
+from backend.rag.static_dynamic_guards import (
+    StaticRagStopReason,
+    is_dynamic_commerce_question,
+)
 
 type NonEmptyString = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1)
@@ -22,6 +26,7 @@ DEFAULT_MAX_SCOPED_CANDIDATES = 10
 NO_SCOPED_MATCH = "NO_SCOPED_MATCH"
 CORPUS_NOT_INDEXED = "CORPUS_NOT_INDEXED"
 SCOPED_CANDIDATE_LIMIT = "SCOPED_CANDIDATE_LIMIT"
+DYNAMIC_FACT_REQUIRED = StaticRagStopReason.DYNAMIC_FACT_REQUIRED.value
 
 
 class OfflineLocatorRecord(BaseModel):
@@ -74,6 +79,13 @@ class OfflineMetadataLocatorRetriever:
         self._max_scoped_candidates = max_scoped_candidates
 
     def retrieve(self, request: RetrievalRequest) -> OfflineLocatorRetrievalResult:
+        if is_dynamic_commerce_question(request.question):
+            return self._missing(
+                request,
+                filtered_out_count=0,
+                missing_reason=DYNAMIC_FACT_REQUIRED,
+            )
+
         scoped: list[tuple[int, LocatorBinding]] = []
         filtered_out_count = 0
         for candidate in self._records:
@@ -168,6 +180,7 @@ def _terms(text: str) -> set[str]:
 __all__ = [
     "CORPUS_NOT_INDEXED",
     "DEFAULT_MAX_SCOPED_CANDIDATES",
+    "DYNAMIC_FACT_REQUIRED",
     "NO_SCOPED_MATCH",
     "SCOPED_CANDIDATE_LIMIT",
     "OfflineLocatorRecord",

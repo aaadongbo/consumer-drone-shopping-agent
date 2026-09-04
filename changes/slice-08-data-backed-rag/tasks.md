@@ -15,7 +15,7 @@
 | T01 | External corpus readiness adapter | DONE | Human Review + planning baseline |
 | T02 | Locator and scope binding gate | DONE | T01 |
 | T03 | Offline single-target retrieval walking skeleton | DONE | T02 |
-| T04 | Static/dynamic fallback and stale-data guards | NOT_STARTED | T03 |
+| T04 | Static/dynamic fallback and stale-data guards | DONE | T03 |
 | T05 | Data boundary and no-upload verification | NOT_STARTED | T04 |
 | T06 | Slice readiness evidence and Human handoff | NOT_STARTED | T05 |
 
@@ -242,4 +242,22 @@ manifest/locator readiness task.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --check --no-cache backend/rag/__init__.py backend/rag/offline_retrieval.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 0.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/check_scope.py S08-T03` exited 0 with no disallowed paths, no core artifact changes, and no dependency changes.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T03` exited 0; targeted compile, ruff, format-check, integration test, diff, core artifact, and dependency checks passed. This helper used `uv run` internally and created a local `.venv`; removed `/private/tmp/consumer-drone-s08-implementation/.venv`, `.pytest_cache`, and `.ruff_cache`.
-- Snapshot: pending immutable S08-T03 MEDIUM task snapshot and independent no-write review/checkpoint before S08-T04 can start.
+- Snapshot: `856237d66c7032bdf042f3d06c1c104e1ec9754d`
+- Review/checkpoint: independent review evidence `/private/tmp/consumer-drone-s08-t03-review-evidence.json` reported `AI_REVIEW_PASS`; `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py S08-T03 --checkpoint --base-head 8d574443ddf89f7a28570238c4395912964fc571 --snapshot-head 856237d66c7032bdf042f3d06c1c104e1ec9754d --reviewed-digest 324dfbf4ee13d9eefa420787bf38bfa50744ebbf66dd219bac4f21d09bf4b19a --risk-tier MEDIUM --review-evidence /private/tmp/consumer-drone-s08-t03-review-evidence.json` exited 0 with `AUTO_ADVANCE_ELIGIBLE`, `digest_matches=true`, and `auto_advance=true`.
+
+### S08-T04 - Static/Dynamic Fallback and Stale-data Guards
+
+- Status: DONE
+- Start commit: `856237d66c7032bdf042f3d06c1c104e1ec9754d`
+- Start state: branch `codex/s08-implementation` at `856237d66c7032bdf042f3d06c1c104e1ec9754d`; `git status --short --branch --untracked-files=all` reported `## codex/s08-implementation` with no dirty paths.
+- Readiness: `python .agents/skills/drone-slice-workflow/scripts/inspect_state.py --authorize-task S08-T04` exited 0 and reported `selected_task=S08-T04`, `executable_task=S08-T04`, `ready_tasks=["S08-T04"]`, and no blocking reasons.
+- Scope note: implemented internal static/dynamic and stale-data guards under `backend/rag`; no live Shopify/OAuth, public contract, Architecture, dependency, embedding/index, training, Data-Staging write, or remote Git change was made.
+- Implementation summary: added `StaticRagPreflightRequest` / `StaticRagPreflightReport` and exact internal stop reasons for `DYNAMIC_FACT_REQUIRED`, `CORPUS_VERSION_MISMATCH`, `CHUNK_BASELINE_MANIFEST_MISSING`, `CHUNK_BASELINE_NEEDS_CHANGES`, `SHOPIFY_CANDIDATE_LIMITATION`, `GOLDEN_SET_NOT_FROZEN`, and `TRAINING_NOT_AUTHORIZED`; wired dynamic-commerce question detection into the offline metadata retriever before locator scoring.
+- Verification:
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m py_compile backend/rag/static_dynamic_guards.py backend/rag/offline_retrieval.py tests/contract/test_s08_t04_static_dynamic_guards.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m 'contract or integration' tests/contract/test_s08_t04_static_dynamic_guards.py tests/integration/test_s08_t03_offline_metadata_retrieval.py -q` exited 0 with `15 passed`.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff check --no-cache backend/rag/__init__.py backend/rag/offline_retrieval.py backend/rag/static_dynamic_guards.py tests/contract/test_s08_t04_static_dynamic_guards.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --check --no-cache backend/rag/__init__.py backend/rag/offline_retrieval.py backend/rag/static_dynamic_guards.py tests/contract/test_s08_t04_static_dynamic_guards.py tests/integration/test_s08_t03_offline_metadata_retrieval.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/check_scope.py S08-T04` exited 0 with no disallowed paths, no core artifact changes, and no dependency changes.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T04` exited 0; targeted compile, ruff, format-check, contract test, diff, core artifact, and dependency checks passed with `8 passed`. This helper used `uv run` internally and created local caches; removed `/private/tmp/consumer-drone-s08-implementation/.venv`, `.pytest_cache`, and `.ruff_cache`.
+- Snapshot: not created; S08-T04 is HIGH risk with Human-authorized implementation, and no MEDIUM checkpoint applies.
