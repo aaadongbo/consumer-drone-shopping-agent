@@ -17,7 +17,7 @@
 | T03 | Offline single-target retrieval walking skeleton | DONE | T02 |
 | T04 | Static/dynamic fallback and stale-data guards | DONE | T03 |
 | T05 | Data boundary and no-upload verification | DONE | T04 |
-| T06 | Slice readiness evidence and Human handoff | NOT_STARTED | T05 |
+| T06 | Slice readiness evidence and Human handoff | DONE | T05 |
 
 ## S08-T01 - External Corpus Readiness Adapter
 
@@ -285,4 +285,27 @@ manifest/locator readiness task.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python scripts/check_s08_data_boundary.py --command "git status --short --branch --untracked-files=all" --command "PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m unit tests/unit/test_s08_t05_data_boundary.py -q" --command "PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff check --no-cache backend/rag/__init__.py backend/rag/data_boundary.py scripts/check_s08_data_boundary.py tests/unit/test_s08_t05_data_boundary.py" --command "PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T05"` exited 0 with `accepted=true`, five checked paths, four checked commands, and no violations.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/check_scope.py S08-T05` exited 0 with no disallowed paths, no core artifact changes, and no dependency changes.
   - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T05` exited 0; targeted compile, ruff, format-check, unit test, diff, core artifact, and dependency checks passed with `8 passed`. This helper used `uv run` internally and created local caches; removed `/private/tmp/consumer-drone-s08-implementation/.venv`, `.pytest_cache`, and `.ruff_cache`.
-- Snapshot: pending; S08-T05 is MEDIUM and requires one immutable task snapshot plus fresh independent review/checkpoint before T06 can start.
+- Snapshot: `983aebf27ec859ae2f742c647d93a025d931f32c`
+- Review/checkpoint: Human explicitly approved skipping the S08-T05 independent review checkpoint based on snapshot `983aebf27ec859ae2f742c647d93a025d931f32c` and recorded targeted verification; no AI Human-approval claim is made.
+- Evidence digest: `052aa17b95c8964ccf3cf2607c45f729230d8bdbee769bec5e3c933db090a2df`
+
+### S08-T06 - Slice Readiness Evidence and Human Handoff
+
+- Status: DONE
+- Start commit: `983aebf27ec859ae2f742c647d93a025d931f32c`
+- Start state: branch `codex/s08-implementation` at `983aebf27ec859ae2f742c647d93a025d931f32c`; `git status --short --branch --untracked-files=all` reported `## codex/s08-implementation`, with existing T06 draft changes in `backend/rag/__init__.py`, `backend/rag/s08_readiness.py`, and `tests/e2e/test_s08_t06_completion_matrix.py` treated as in-scope per current Human instruction.
+- Readiness: `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/inspect_state.py --authorize-task S08-T06` exited 1 because the same worktree already contained in-scope T06 draft files, but it reported `selected_task=S08-T06`, `ready_tasks=["S08-T06"]`, T05 dependency satisfied, implementation gate satisfied, and `CURRENT_WORKTREE_DIRTY` as the only execution blocker.
+- Scope note: completed Slice-readiness evidence and Human handoff only; no public Contract, Architecture, Accepted Decision, dependency, workflow policy, raw PDF, official text, Shopify export, staging output, embedding, index, Golden Set, training/fine-tuning, Shopify write, Data-Staging write, remote Git, push, merge, S09, or production RAG serving change was made.
+- Implementation summary: added an internal `S08ReadinessHandoff` model and completion matrix evidence checks that keep the corpus explicitly `CORPUS_NOT_INDEXED`, require the S08 matrix rows to pass, require no-upload/data-boundary acceptance, and preserve deferred post-S08 decisions for chunk baseline approval, embeddings, indexes, production serving, Golden Set freeze, training/fine-tuning, and live Shopify truth.
+- Verification:
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m py_compile backend/rag/__init__.py backend/rag/s08_readiness.py tests/e2e/test_s08_t06_completion_matrix.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m e2e tests/e2e/test_s08_t06_completion_matrix.py -q` exited 0 with `3 passed`.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff check --no-cache backend/rag/__init__.py backend/rag/s08_readiness.py tests/e2e/test_s08_t06_completion_matrix.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --check --no-cache backend/rag/__init__.py backend/rag/s08_readiness.py tests/e2e/test_s08_t06_completion_matrix.py` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/check_scope.py S08-T06` exited 0 with no disallowed paths, no core artifact changes, and no dependency changes.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python scripts/check_s08_data_boundary.py --command "git status --short --branch --untracked-files=all" --command "PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m e2e tests/e2e/test_s08_t06_completion_matrix.py -q"` exited 0 with `accepted=true`, four checked paths, two checked commands, and no violations.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff check --no-cache .` exited 0.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/ruff format --check --no-cache .` exited 0 with `152 files already formatted`.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python -m pytest -p no:cacheprovider -m 'unit or contract or integration or e2e' -q` exited 0 with `605 passed`.
+  - `PYTHONDONTWRITEBYTECODE=1 /Users/russeell/Documents/ChatGPT/消费级无人机智能导购Agent/.venv/bin/python .agents/skills/drone-slice-workflow/scripts/verify_task.py S08-T06` exited 0; Slice-completion compile, `uv lock --check`, full ruff, full format-check, full pytest, diff, core artifact, and dependency checks passed with `605 passed`. This helper used `uv run` internally and created local caches; removed `/private/tmp/consumer-drone-s08-implementation/.venv`, `.pytest_cache`, and `.ruff_cache` before snapshot.
+- Snapshot: pending; S08-T06 is the completion Task and requires one immutable Slice-completion snapshot before independent Slice Review.

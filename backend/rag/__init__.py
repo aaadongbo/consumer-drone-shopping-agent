@@ -58,6 +58,15 @@ from backend.rag.retrieval import (
     RetrievalResult,
     RetrievalStrategy,
 )
+from backend.rag.s08_readiness import (
+    S08_MATRIX_IDS,
+    S08_REQUIRED_DEFERRED_CAPABILITIES,
+    S08_REQUIRED_OPEN_DECISIONS,
+    S08CompletionStatus,
+    S08MatrixEvidence,
+    S08ReadinessHandoff,
+    build_s08_readiness_handoff,
+)
 from backend.rag.static_dynamic_guards import (
     APPROVED_CHUNK_BASELINE_STATUS,
     CURRENT_CORPUS_VERSION,
@@ -120,9 +129,16 @@ __all__ = [
     "RetrievalResult",
     "RetrievalResultAdapter",
     "RetrievalStrategy",
+    "S08_MATRIX_IDS",
+    "S08_REQUIRED_DEFERRED_CAPABILITIES",
+    "S08_REQUIRED_OPEN_DECISIONS",
+    "S08CompletionStatus",
+    "S08MatrixEvidence",
+    "S08ReadinessHandoff",
     "SCOPED_CANDIDATE_LIMIT",
     "adapt_retrieval_result",
     "bind_locator_record",
+    "build_s08_readiness_handoff",
     "evaluate_static_rag_preflight",
     "is_dynamic_commerce_question",
     "report_to_dict",
