@@ -411,6 +411,42 @@ class TemporaryRepository:
         git(self.root, "commit", "-qm", "wip(WORKFLOW-S03-POLICY): snapshot")
         return base, git(self.root, "rev-parse", "HEAD")
 
+    def s08_workflow_policy_snapshot(
+        self, *, extra_path: str | None = None
+    ) -> tuple[str, str]:
+        base = git(self.root, "rev-parse", "HEAD")
+        policy_path = (
+            self.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        tasks_path = self.tasks_path
+        changes = {
+            ".agents/skills/drone-slice-workflow/references/task-scope-policy.json": (
+                policy_path.read_text(encoding="utf-8") + "\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/inspect_state.py": (
+                "# s08 workflow inspection\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py": (
+                "# s08 workflow regression\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py": (
+                "# s08 immutable review\n"
+            ),
+            str(tasks_path.relative_to(self.root)): (
+                tasks_path.read_text(encoding="utf-8") + "\n"
+            ),
+        }
+        if extra_path:
+            changes[extra_path] = "extra\n"
+        for relative, content in changes.items():
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "wip(WORKFLOW-S08-POLICY): snapshot")
+        return base, git(self.root, "rev-parse", "HEAD")
+
     def write_planned_s05(self) -> None:
         plan = self.root / "changes/slice-05-product-rag/plan.md"
         plan.parent.mkdir(parents=True, exist_ok=True)
@@ -1517,6 +1553,50 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertFalse(extra["ok"])
         self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
 
+    def test_workflow_s08_policy_identity_accepts_only_authorized_governance_paths(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-08-data-backed-rag")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.s08_workflow_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("WORKFLOW-S08-POLICY", base, snapshot, repo.root)
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["task"], "WORKFLOW-S08-POLICY")
+        self.assertEqual(evidence["scope"]["scope_kind"], "workflow-policy")
+        self.assertEqual(
+            evidence["scope"]["allowed_patterns"],
+            [
+                ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+                ".agents/skills/drone-slice-workflow/scripts/inspect_state.py",
+                ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
+                ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
+                "changes/slice-08-data-backed-rag/tasks.md",
+            ],
+        )
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertFalse(evidence["integration_authorized"])
+        self.assertFalse(evidence["push_authorized"])
+        self.assertFalse(evidence["human_approval"])
+
+        extra_holder, extra_repo = self.repo(slice_name="slice-08-data-backed-rag")
+        self.addCleanup(extra_holder.cleanup)
+        extra_base, extra_snapshot = extra_repo.s08_workflow_policy_snapshot(
+            extra_path="README.md"
+        )
+        git(extra_repo.root, "switch", "--detach", extra_snapshot)
+
+        extra = immutable_evidence(
+            "WORKFLOW-S08-POLICY",
+            extra_base,
+            extra_snapshot,
+            extra_repo.root,
+        )
+        self.assertFalse(extra["ok"])
+        self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
+
     def test_s05_planned_table_is_nonexecutable_until_reconciled(self) -> None:
         holder, repo = self.repo(slice_name="slice-04-variant-comparison")
         self.addCleanup(holder.cleanup)
@@ -1681,10 +1761,14 @@ class WorkflowScriptTests(unittest.TestCase):
             "human-decision",
         )
         self.assertTrue(slice_policy["activation_policy"]["formal_task_table_required"])
-        self.assertTrue(slice_policy["activation_policy"]["planned_rows_non_executable"])
+        self.assertTrue(
+            slice_policy["activation_policy"]["planned_rows_non_executable"]
+        )
         self.assertIn("create_embeddings", slice_policy["forbidden_actions"])
         self.assertIn("create_index", slice_policy["forbidden_actions"])
-        self.assertIn("workflow_policy_self_modification", slice_policy["forbidden_actions"])
+        self.assertIn(
+            "workflow_policy_self_modification", slice_policy["forbidden_actions"]
+        )
         self.assertIn(
             ".agents/skills/drone-slice-workflow/",
             slice_policy["forbidden_path_prefixes"],
