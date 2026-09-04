@@ -75,6 +75,7 @@ WORKFLOW_POLICY_PRE_ACTIVATION_PATHS = {
     },
     "WORKFLOW-S10-POLICY": {
         ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+        ".agents/skills/drone-slice-workflow/scripts/inspect_state.py",
         ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
         ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
         "changes/slice-10-real-data-pilot/tasks.md",
