@@ -11,7 +11,6 @@ from uuid import uuid4
 from fastapi import FastAPI
 
 from backend.agent import BoundedProductRagLoop, ProductRagBudget, ProductRagRetriever
-from backend.api import create_conversation_api
 from backend.application.product_rag import (
     ProductRagApplicationService,
     ProductRagQuestionInterpreter,
@@ -102,6 +101,10 @@ class PilotConversationApplication:
 
 def build_pilot_composition(config: PilotCompositionConfig) -> PilotComposition:
     """Build the explicitly requested mode, refusing implicit adapter fallback."""
+    # Import after this module is initialized so API guardrails cannot form a
+    # package-initialization cycle through the runtime composition boundary.
+    from backend.api import create_conversation_api
+
     mode = _coerce_mode(config.mode)
     _validate_config(config, mode)
     clock = config.clock or (lambda: datetime.now(UTC))

@@ -200,9 +200,9 @@ class ProductRagApplicationService:
             # retrieval tool result; a RAG-specific public evidence type would
             # be a future public Contract proposal, not a T06 change.
             type=EvidenceType.TOOL,
-            store_id=scope.store_id,
-            product_id=scope.product_id,
-            variant_id=scope.variant_id,
+            store_id=chunk.store_id,
+            product_id=chunk.product_id,
+            variant_id=chunk.variant_id,
             field_locator=locator,
             fact=fact,
             source=chunk.locator.locator,

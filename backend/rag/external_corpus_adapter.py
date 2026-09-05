@@ -23,7 +23,7 @@ from backend.rag.external_corpus_reader import (
 from backend.rag.manifest import DocumentChunk, DocumentSourceType, RagModel
 from backend.rag.manifest_identity import CorpusManifestIdentity
 from backend.rag.retrieval import RetrievalRequest, RetrievalResult, RetrievalStrategy
-from backend.rag.scope_binding import CorpusScopeBinding
+from backend.rag.scope_binding import CorpusScopeBinding, CorpusScopeBindingRegistry
 
 type NonEmptyString = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1)
@@ -67,6 +67,75 @@ class ExternalCorpusRetrievalResult(RagModel):
         return (
             self.retrieval is not None
             and self.stop_reason is ExternalCorpusStopReason.SOURCE_REGION_ACCEPTED
+        )
+
+
+class ExternalCorpusProductRetriever:
+    """Expose one approved external read as the existing RAG retriever port."""
+
+    def __init__(
+        self,
+        *,
+        reader: ExternalCorpusReader,
+        chunk_manifest_path: str,
+        binding_registry: CorpusScopeBindingRegistry,
+        manifest_sha256: str,
+        max_action_rounds: int = MAX_ACTION_ROUNDS,
+        turn_deadline_ms: int = TURN_DEADLINE_MS,
+    ) -> None:
+        if len(manifest_sha256) != 64 or any(
+            character not in "0123456789abcdef" for character in manifest_sha256
+        ):
+            raise ValueError("manifest checksum must be a lowercase SHA-256 digest")
+        bindings_by_scope: dict[tuple[str, str, str | None], CorpusScopeBinding] = {}
+        for binding in binding_registry.bindings:
+            scope = binding.canonical_scope
+            key = (scope.store_id, scope.product_id, scope.variant_id)
+            if key in bindings_by_scope:
+                raise ValueError("canonical corpus scopes must be bound uniquely")
+            bindings_by_scope[key] = binding
+        self._reader = reader
+        self._chunk_manifest_path = chunk_manifest_path
+        self._bindings_by_scope = bindings_by_scope
+        self._manifest_sha256 = manifest_sha256
+        self._max_action_rounds = max_action_rounds
+        self._turn_deadline_ms = turn_deadline_ms
+
+    def retrieve(self, request: RetrievalRequest) -> RetrievalResult:
+        """Read only the exact canonical scope selected by the caller."""
+        scope = request.turn_target
+        binding = self._bindings_by_scope.get(
+            (scope.store_id, scope.product_id, scope.variant_id)
+        )
+        if binding is None:
+            return _empty_retrieval(request, ExternalCorpusStopReason.SCOPE_MISMATCH)
+        try:
+            adapted = retrieve_external_corpus(
+                self._reader,
+                chunk_manifest_path=self._chunk_manifest_path,
+                request=request,
+                binding=binding,
+                manifest_sha256=self._manifest_sha256,
+                max_action_rounds=self._max_action_rounds,
+                turn_deadline_ms=self._turn_deadline_ms,
+            )
+        except ExternalCorpusAdapterError as error:
+            return _empty_retrieval(request, error.stop_reason)
+        except Exception:
+            return _empty_retrieval(
+                request, ExternalCorpusStopReason.EXTERNAL_READER_UNAVAILABLE
+            )
+        if adapted.retrieval is not None:
+            return adapted.retrieval
+        return _empty_retrieval(
+            request,
+            adapted.stop_reason,
+            filtered_out_count=adapted.filtered_out_count,
+            index_version=(
+                adapted.manifest_identity.index_version
+                if adapted.manifest_identity is not None
+                else "external-corpus-unavailable"
+            ),
         )
 
 
@@ -353,9 +422,27 @@ def _manifest_checksum_matches_report(result: ExternalCorpusReadResult) -> bool:
     )
 
 
+def _empty_retrieval(
+    request: RetrievalRequest,
+    stop_reason: ExternalCorpusStopReason,
+    *,
+    filtered_out_count: int = 0,
+    index_version: str = "external-corpus-unavailable",
+) -> RetrievalResult:
+    return RetrievalResult(
+        request=request,
+        evidence=(),
+        retrieval_strategy=RetrievalStrategy.KEYWORD_OVERLAP,
+        index_version=index_version,
+        filtered_out_count=filtered_out_count,
+        missing_reason=stop_reason.value,
+    )
+
+
 __all__ = [
     "CorpusSourceVersion",
     "ExternalCorpusAdapterError",
+    "ExternalCorpusProductRetriever",
     "ExternalCorpusRetrievalResult",
     "adapt_external_corpus_result",
     "build_controlled_retrieval_request",

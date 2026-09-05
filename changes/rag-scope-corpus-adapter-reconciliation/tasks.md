@@ -1,6 +1,6 @@
 # RAG Scope and Real Corpus Adapter Reconciliation Tasks
 
-> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R03 DONE
+> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R04 DONE
 >
 > The RAG policy is present in the integrated Workflow baseline and the current
 > context authorizes R01–R05 in order. Only the current Task may be active; later
@@ -11,7 +11,7 @@
 | R01 | Identity binding, scope predicate, and regression matrix | DONE | Planning baseline; current-context RAG authorization |
 | R02 | External corpus adapter, failure/version/budget mapping | DONE | R01; corpus readiness; current-context RAG authorization |
 | R03 | Preserve source-scope Evidence provenance | DONE | R01; policy activation |
-| R04 | Integrate adapter with pilot composition without public schema change | NOT_STARTED | R02, R03; policy activation |
+| R04 | Integrate adapter with pilot composition without public schema change | DONE | R02, R03; policy activation |
 | R05 | Reconcile canonical-Variant beta planning/evidence boundary | NOT_STARTED | R01–R04; policy activation |
 
 ## Formalization boundary
@@ -263,3 +263,48 @@
 - **Known limits**: pilot composition injection remains R04 scope. This HIGH Task
   has not been integrated into a protected branch or pushed; a fresh independent
   semantic review is required for the immutable snapshot.
+
+## RAG-R04 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `b9f31c6fdc7c8b8f6e8b3aad8c93ff9fb27cb6cc`
+- **Start worktree**: clean after the RAG-R03 immutable snapshot and independent
+  `AI_REVIEW_PASS`; no staged or untracked files before implementation.
+- **Authorization**: current-context authorization for the formal RAG-R01 through
+  RAG-R05 scope; RAG-R04 is the dependency-ready MEDIUM Task.
+- **Boundary**: internal external-corpus retriever injection into the existing
+  pilot composition, source-scope Evidence preservation, and targeted pilot tests.
+  No public Contract, external/network access, persistence, dependency, Workflow,
+  or S11 Task change.
+- **Implementation**: Added `ExternalCorpusProductRetriever`, which resolves an
+  exact canonical ObjectScope from an immutable binding registry, calls the
+  existing single-pass external adapter, and maps typed read failures to an empty
+  internal `RetrievalResult` so the existing bounded loop and Evidence Gate remain
+  the owners of budgets and acceptance. Pilot composition continues to receive
+  the retriever through its existing injection port. Product RAG Evidence now
+  copies store/product/variant provenance from the accepted source chunk. The API
+  factory import is deferred until composition construction to remove the
+  pre-existing application/runtime package initialization cycle.
+- **Targeted verification**:
+  - `.venv/bin/ruff check backend/rag/external_corpus_adapter.py
+    backend/rag/__init__.py backend/application/product_rag.py
+    backend/application/pilot_composition.py
+    tests/integration/test_rag_r04_pilot_composition.py` exited `0` with
+    `All checks passed!`.
+  - `.venv/bin/ruff format --check` on the same five changed Python files exited
+    `0` with `5 files already formatted`.
+  - `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider -m
+    'unit or contract or integration'` over the R04 pilot, existing S10 pilot,
+    Product RAG loop, RAG-R02 adapter, and RAG-R03 provenance tests exited `0`
+    with `37 passed in 0.37s`.
+  - `git diff --check` exited `0`.
+- **Repair notes**: the first lint attempt exited `1` for import ordering and
+  line length; Ruff formatting and import fixing corrected it. The first test
+  collection exited `2` on the existing application/runtime import cycle; the
+  pilot API factory import was deferred inside the composition builder and the
+  final targeted collection passed.
+- **Known limits**: this Task proves pilot injection with an injected read-only
+  external reader; the approved source-region smoke remains R02/S10-T02 scope.
+  This MEDIUM Task has not been integrated into a protected branch or pushed; a
+  fresh immutable snapshot, independent review, and checkpoint evaluation are
+  required.

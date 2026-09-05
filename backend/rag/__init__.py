@@ -46,6 +46,7 @@ from backend.rag.data_boundary import (
 from backend.rag.external_corpus_adapter import (
     CorpusSourceVersion,
     ExternalCorpusAdapterError,
+    ExternalCorpusProductRetriever,
     ExternalCorpusRetrievalResult,
     adapt_external_corpus_result,
     build_controlled_retrieval_request,
@@ -156,6 +157,7 @@ __all__ = [
     "ExternalCorpusReader",
     "ExternalCorpusStopReason",
     "ExternalCorpusAdapterError",
+    "ExternalCorpusProductRetriever",
     "ExternalCorpusRetrievalResult",
     "CorpusManifestIdentity",
     "CorpusSourceVersion",
