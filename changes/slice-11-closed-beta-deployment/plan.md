@@ -176,6 +176,10 @@ traffic.
 - Each Task runs targeted checks for the files and behavior it changes.
 - External-service, security, release, public Contract, dependency, or production
   traffic boundaries stop for Human decision before implementation proceeds.
+- A pre-T02 Data Readiness artifact may prepare a candidate seed/synthetic query set
+  in external Data-Staging only, with hashed Git-safe metadata and checksum sidecars.
+  This does not create a Golden Set, training data, implementation authority, or
+  permission to start `S11-T02`.
 - Full suite, real three-product acceptance, data/secret scan, staging smoke, rollback
   evidence, and final independent Slice review occur only at Slice completion.
 - No Task requires every earlier Task to rerun the full suite unless its own change

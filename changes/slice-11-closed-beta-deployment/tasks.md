@@ -445,3 +445,27 @@ provider, hosting, CI, staging, or Widget-origin changes.
 - **Known limits**: T01 does not select a hosting vendor, Secret Store, model
   provider, Widget origin, staging URL, rollback operator, or live external-service
   authority. Those decisions remain explicit gates for T02/T04/T05/T06/T07.
+
+## Pre-T02 Data Readiness Reconciliation
+
+- **Status**: `CANDIDATE_NOT_GOLDEN`; external Data-Staging artifact only.
+- **Dataset path**:
+  `/Users/russeell/Documents/Data-Staging/consumer-drone-agent/outputs/seed-synthetic-query-set-20260905-v0.1-candidate/`
+- **Purpose**: prepare a seed/synthetic query set for later S11 closed-beta data
+  readiness review without executing `S11-T02`, changing business code, changing
+  public Contracts, or authorizing deployment/runtime implementation.
+- **Scope**: exactly the approved three Products and three observed Variant IDs from
+  `shopify-dji-snapshot-20260831-v0.3` plus
+  `shopify-adapter-smoke-20260905-v0.4` metadata. Raw query text remains external to
+  Git; Git-visible planning records only path, status, count, coverage, and sidecar
+  boundary.
+- **Coverage**: pronoun/contextual turns, Product/Variant identity, price, inventory,
+  specifications, packaging, cross-product comparison, recommendation, after-sales,
+  ambiguity, unverifiable claims, wrong-scope, zero-hit, English, Chinese colloquial
+  phrasing, and typo cases.
+- **Boundary**: no secret, token, `.env`, full Shopify response, official full text,
+  chunk, index, embedding, Golden Set label, training data, Shopify write, network
+  call, dependency, Workflow, Architecture, Product Behavior, or public Contract
+  change is introduced.
+- **Authority**: this reconciliation does not activate or execute `S11-T02`; `T02`
+  remains `NOT_STARTED`.
