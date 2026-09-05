@@ -267,11 +267,15 @@ def _matches_target_scope(chunk: DocumentChunk, target: ObjectScope) -> bool:
 
 
 def _has_current_version(chunk: DocumentChunk, bundle: RetrievalEvidenceBundle) -> bool:
-    return (
-        chunk.version == bundle.index_version
-        and chunk.locator.version == chunk.version
+    source_version_bound = (
+        chunk.locator.version == chunk.version
         and chunk.locator.source_id == chunk.source_id
     )
+    if not source_version_bound:
+        return False
+    if "manifest_identity" in chunk.metadata:
+        return chunk.metadata["manifest_identity"] == bundle.index_version
+    return chunk.version == bundle.index_version
 
 
 def _locators(chunks: tuple[DocumentChunk, ...]) -> tuple[str, ...]:

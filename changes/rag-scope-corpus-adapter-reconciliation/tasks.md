@@ -1,6 +1,6 @@
 # RAG Scope and Real Corpus Adapter Reconciliation Tasks
 
-> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R02 DONE
+> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R03 DONE
 >
 > The RAG policy is present in the integrated Workflow baseline and the current
 > context authorizes R01–R05 in order. Only the current Task may be active; later
@@ -10,7 +10,7 @@
 |---|---|---|---|
 | R01 | Identity binding, scope predicate, and regression matrix | DONE | Planning baseline; current-context RAG authorization |
 | R02 | External corpus adapter, failure/version/budget mapping | DONE | R01; corpus readiness; current-context RAG authorization |
-| R03 | Preserve source-scope Evidence provenance | NOT_STARTED | R01; policy activation |
+| R03 | Preserve source-scope Evidence provenance | DONE | R01; policy activation |
 | R04 | Integrate adapter with pilot composition without public schema change | NOT_STARTED | R02, R03; policy activation |
 | R05 | Reconcile canonical-Variant beta planning/evidence boundary | NOT_STARTED | R01–R04; policy activation |
 
@@ -221,3 +221,45 @@
   provenance and its manifest/source-version acceptance semantics; those are
   R03 scope. This Task does not integrate pilot composition or change ActionPlan
   ownership in `BoundedProductRagLoop`.
+
+## RAG-R03 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `87356360ab279246305299f444dbfacabc628070`
+- **Start worktree**: clean after the RAG-R02 immutable snapshot and MEDIUM
+  checkpoint returned `AUTO_ADVANCE_ELIGIBLE`; no staged or untracked files before
+  implementation.
+- **Authorization**: current-context authorization for the formal RAG-R01 through
+  RAG-R05 scope; RAG-R03 is the dependency-ready HIGH Task.
+- **Boundary**: internal Evidence Gate version/provenance validation and targeted
+  Evidence tests only. Product-shared Evidence retains `variant_id = null`,
+  Variant-specific Evidence retains its source Variant ID, and no target scope is
+  copied into a source chunk. No public Contract, external/network access,
+  persistence, dependency, Workflow change, pilot composition, or S11 Task change.
+- **Implementation**: Evidence Gate now treats an external chunk's
+  `metadata["manifest_identity"]` as the manifest/index identity and compares it
+  with `RetrievalResult.index_version`, while independently requiring the chunk
+  locator to retain the source version and source ID. Legacy internal document
+  chunks without manifest metadata keep the existing document-version check.
+  Added Product-shared, exact Variant, cross-Variant/cross-Product,
+  Product-only, and manifest-identity mismatch regression coverage.
+- **Targeted verification**:
+  - `.venv/bin/ruff check backend/evidence/rag_quality.py
+    tests/unit/test_rag_r03_source_scope_evidence.py` exited `0` with
+    `All checks passed!`.
+  - `.venv/bin/ruff format --check backend/evidence/rag_quality.py
+    tests/unit/test_rag_r03_source_scope_evidence.py` exited `0` with
+    `2 files already formatted`.
+  - `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider -m
+    'unit or contract or integration'
+    tests/unit/test_rag_r03_source_scope_evidence.py
+    tests/contract/test_s05_t04_evidence_gate_contract.py
+    tests/integration/test_s05_t04_evidence_quality.py
+    tests/integration/test_s05_t05_rag_loop.py
+    tests/unit/test_rag_r02_external_corpus_adapter.py
+    tests/integration/test_s10_t02_external_corpus_reader_live.py -q` exited
+    `0` with `31 passed in 0.26s`.
+  - `git diff --check` exited `0`.
+- **Known limits**: pilot composition injection remains R04 scope. This HIGH Task
+  has not been integrated into a protected branch or pushed; a fresh independent
+  semantic review is required for the immutable snapshot.
