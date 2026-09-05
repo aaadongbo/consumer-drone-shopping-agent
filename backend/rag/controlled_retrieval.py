@@ -69,6 +69,7 @@ class ControlledRetrievalResult(BaseModel):
     candidates: tuple[ControlledRetrievalCandidate, ...]
     action_rounds_used: int = Field(ge=1, le=2)
     retrieval_tokens_used: int = Field(ge=0)
+    filtered_out_count: int = Field(default=0, ge=0)
     metadata_digest: Sha256String
     stop_reason: ChunkBaselineStopReason | None = None
 
@@ -89,15 +90,22 @@ def retrieve_controlled_chunk_metadata(
         return _empty(request, ChunkBaselineStopReason.TURN_DEADLINE, rounds=1)
 
     scoped: list[tuple[int, ChunkBaselineRecord]] = []
+    filtered_out_count = 0
     for record in manifest.records:
         if not _matches_scope(record, request):
+            filtered_out_count += 1
             continue
         score = _score(record, request)
         if score > 0:
             scoped.append((score, record))
 
     if len(scoped) > request.max_candidates:
-        return _empty(request, ChunkBaselineStopReason.SCOPED_CANDIDATE_LIMIT, rounds=1)
+        return _empty(
+            request,
+            ChunkBaselineStopReason.SCOPED_CANDIDATE_LIMIT,
+            rounds=1,
+            filtered_out_count=filtered_out_count,
+        )
 
     ranked = sorted(
         scoped,
@@ -116,6 +124,7 @@ def retrieve_controlled_chunk_metadata(
             ChunkBaselineStopReason.RETRIEVAL_TOKEN_BUDGET,
             rounds=1,
             tokens=tokens,
+            filtered_out_count=filtered_out_count,
         )
     candidates = tuple(
         ControlledRetrievalCandidate(
@@ -140,9 +149,15 @@ def retrieve_controlled_chunk_metadata(
             candidates=candidates,
             action_rounds_used=1,
             retrieval_tokens_used=tokens,
+            filtered_out_count=filtered_out_count,
             metadata_digest=_digest(candidates),
         )
-    return _empty(request, ChunkBaselineStopReason.NO_SCOPED_MATCH, rounds=2)
+    return _empty(
+        request,
+        ChunkBaselineStopReason.NO_SCOPED_MATCH,
+        rounds=2,
+        filtered_out_count=filtered_out_count,
+    )
 
 
 def _matches_scope(
@@ -185,12 +200,14 @@ def _empty(
     *,
     rounds: int,
     tokens: int = 0,
+    filtered_out_count: int = 0,
 ) -> ControlledRetrievalResult:
     return ControlledRetrievalResult(
         request=request,
         candidates=(),
         action_rounds_used=rounds,
         retrieval_tokens_used=tokens,
+        filtered_out_count=filtered_out_count,
         metadata_digest=_digest(()),
         stop_reason=stop_reason,
     )

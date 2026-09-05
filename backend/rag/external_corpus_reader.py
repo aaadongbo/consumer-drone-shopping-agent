@@ -26,12 +26,14 @@ from backend.rag.corpus_readiness import (
     build_corpus_readiness_report,
 )
 from backend.rag.manifest import DocumentChunk, DocumentSourceType, SourceLocator
+from backend.rag.manifest_identity import CorpusManifestIdentity
 
 
 class ExternalCorpusStopReason(StrEnum):
     """Fail-closed reasons for external source-region reads."""
 
     SOURCE_REGION_ACCEPTED = "SOURCE_REGION_ACCEPTED"
+    EMPTY_RESULT = "EMPTY_RESULT"
     CORPUS_METADATA_REQUIRED = "CORPUS_METADATA_REQUIRED"
     CHUNK_BASELINE_REQUIRED = "CHUNK_BASELINE_REQUIRED"
     CHECKSUM_MISMATCH = "CHECKSUM_MISMATCH"
@@ -43,6 +45,7 @@ class ExternalCorpusStopReason(StrEnum):
     SOURCE_REGION_MISSING = "SOURCE_REGION_MISSING"
     SOURCE_REGION_INVALID = "SOURCE_REGION_INVALID"
     SOURCE_TEXT_CHECKSUM_MISMATCH = "SOURCE_TEXT_CHECKSUM_MISMATCH"
+    VERSION_MISMATCH = "VERSION_MISMATCH"
     EXTERNAL_READER_UNAVAILABLE = "EXTERNAL_READER_UNAVAILABLE"
 
 
@@ -70,6 +73,14 @@ class ExternalCorpusReadResult:
     def accepted(self) -> bool:
         return self.stop_reason is ExternalCorpusStopReason.SOURCE_REGION_ACCEPTED
 
+    @property
+    def manifest_identity(self) -> CorpusManifestIdentity | None:
+        return (
+            CorpusManifestIdentity.from_manifest(self.manifest)
+            if self.manifest is not None
+            else None
+        )
+
     def safe_metadata(self) -> dict[str, object]:
         """Return a text-free summary suitable for traces or task evidence."""
 
@@ -83,7 +94,18 @@ class ExternalCorpusReadResult:
                 if self.metadata_result is not None
                 else 0
             ),
+            "filtered_out_count": (
+                self.metadata_result.filtered_out_count
+                if self.metadata_result is not None
+                else 0
+            ),
             "corpus_version": self.manifest.corpus_version if self.manifest else None,
+            "manifest_identity": (
+                self.manifest_identity.to_wire() if self.manifest_identity else None
+            ),
+            "source_versions": tuple(
+                f"{chunk.source_id}@{chunk.version}" for chunk in self.chunks
+            ),
             "persisted_to_repository": self.persisted_to_repository,
             "locators": tuple(chunk.locator.locator for chunk in self.chunks),
             "text_sha256": tuple(
@@ -158,6 +180,7 @@ class ExternalCorpusReader:
             )
 
         records_by_id = {record.chunk_id: record for record in manifest.records}
+        manifest_identity = CorpusManifestIdentity.from_manifest(manifest)
         loader = self._region_loader or PdfPageTextRegionLoader(self._corpus_root)
         chunks: list[DocumentChunk] = []
         try:
@@ -175,7 +198,9 @@ class ExternalCorpusReader:
                         ExternalCorpusStopReason.SOURCE_TEXT_CHECKSUM_MISMATCH,
                         "source region text checksum mismatch",
                     )
-                chunks.append(_chunk_from_record(record, text, order))
+                chunks.append(
+                    _chunk_from_record(record, text, order, manifest_identity)
+                )
         except ExternalCorpusReadError as exc:
             return ExternalCorpusReadResult(
                 request=request,
@@ -318,6 +343,7 @@ def _chunk_from_record(
     record: ChunkBaselineRecord,
     text: str,
     order: int,
+    manifest_identity: CorpusManifestIdentity,
 ) -> DocumentChunk:
     return DocumentChunk(
         store_id=record.store_id,
@@ -344,6 +370,10 @@ def _chunk_from_record(
             "extraction_method": record.extraction_method,
             "text_sha256": record.text_sha256,
             "locator": record.locator,
+            "manifest_schema_version": manifest_identity.schema_version,
+            "manifest_corpus_version": manifest_identity.corpus_version,
+            "manifest_sha256": manifest_identity.manifest_sha256,
+            "manifest_identity": manifest_identity.index_version,
         },
     )
 

@@ -43,6 +43,14 @@ from backend.rag.data_boundary import (
     scan_changed_data_boundary,
     scan_data_boundary,
 )
+from backend.rag.external_corpus_adapter import (
+    CorpusSourceVersion,
+    ExternalCorpusAdapterError,
+    ExternalCorpusRetrievalResult,
+    adapt_external_corpus_result,
+    build_controlled_retrieval_request,
+    retrieve_external_corpus,
+)
 from backend.rag.external_corpus_reader import (
     ExternalCorpusReader,
     ExternalCorpusReadResult,
@@ -70,6 +78,7 @@ from backend.rag.manifest import (
     chunk_document_source,
     chunk_manifest,
 )
+from backend.rag.manifest_identity import CorpusManifestIdentity
 from backend.rag.offline_retrieval import (
     CORPUS_NOT_INDEXED,
     DEFAULT_MAX_SCOPED_CANDIDATES,
@@ -146,6 +155,14 @@ __all__ = [
     "ExternalCorpusReadResult",
     "ExternalCorpusReader",
     "ExternalCorpusStopReason",
+    "ExternalCorpusAdapterError",
+    "ExternalCorpusRetrievalResult",
+    "CorpusManifestIdentity",
+    "CorpusSourceVersion",
+    "ExternalCorpusAdapterError",
+    "ExternalCorpusRetrievalResult",
+    "CorpusManifestIdentity",
+    "CorpusSourceVersion",
     "ChunkBaselineState",
     "FORBIDDEN_PATH_PATTERNS",
     "FORBIDDEN_PATH_PREFIXES",
@@ -198,13 +215,19 @@ __all__ = [
     "CorpusScopeBindingRejectionReason",
     "CorpusScopeBindingResult",
     "adapt_retrieval_result",
+    "adapt_external_corpus_result",
+    "adapt_external_corpus_result",
     "bind_corpus_scope",
     "bind_locator_record",
     "build_s08_readiness_handoff",
+    "build_controlled_retrieval_request",
+    "build_controlled_retrieval_request",
     "evaluate_static_rag_preflight",
     "is_dynamic_commerce_question",
     "report_to_dict",
     "retrieve_controlled_chunk_metadata",
+    "retrieve_external_corpus",
+    "retrieve_external_corpus",
     "resolve_corpus_scope",
     "run_ephemeral_chunk_metadata_experiment",
     "scan_changed_data_boundary",

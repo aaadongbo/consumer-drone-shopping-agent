@@ -1,6 +1,6 @@
 # RAG Scope and Real Corpus Adapter Reconciliation Tasks
 
-> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R01 IN PROGRESS
+> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R02 DONE
 >
 > The RAG policy is present in the integrated Workflow baseline and the current
 > context authorizes R01–R05 in order. Only the current Task may be active; later
@@ -9,7 +9,7 @@
 | Task | Title | Status | Depends on |
 |---|---|---|---|
 | R01 | Identity binding, scope predicate, and regression matrix | DONE | Planning baseline; current-context RAG authorization |
-| R02 | External corpus adapter, failure/version/budget mapping | NOT_STARTED | R01; corpus readiness; policy activation |
+| R02 | External corpus adapter, failure/version/budget mapping | DONE | R01; corpus readiness; current-context RAG authorization |
 | R03 | Preserve source-scope Evidence provenance | NOT_STARTED | R01; policy activation |
 | R04 | Integrate adapter with pilot composition without public schema change | NOT_STARTED | R02, R03; policy activation |
 | R05 | Reconcile canonical-Variant beta planning/evidence boundary | NOT_STARTED | R01–R04; policy activation |
@@ -152,3 +152,55 @@
 - **Known limits**: this Task does not validate external corpus reads, source
   versions, adapter budgets, Evidence provenance construction, pilot injection,
   or canonical-Variant planning; those remain R02–R05 scope.
+
+## RAG-R02 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `d30644a482a43452c18db883b30eb8ac2b59797e`
+- **Start worktree**: clean after the RAG-R01 immutable snapshot; no staged or
+  untracked files before implementation.
+- **Authorization**: current-context authorization for the formal RAG-R01 through
+  RAG-R05 scope; RAG-R01 completed with `AI_REVIEW_PASS`, and RAG-R02 is the
+  dependency-ready MEDIUM Task.
+- **Boundary**: internal ExternalCorpusReader adapter, manifest identity/source
+  version separation, failure and budget metadata, and targeted tests only. No
+  public Contract, external/network access, persistence, dependency, Workflow
+  change, Evidence provenance rewrite, or S11 Task change.
+- **Implementation**: Added `CorpusManifestIdentity` carrying internal
+  `schema_version`, `corpus_version`, and `manifest_sha256`, with a deterministic
+  `RetrievalResult.index_version` representation. External reads now annotate
+  ephemeral chunks with manifest identity while retaining each chunk's source
+  version. Added a single-pass adapter from `RetrievalRequest` through exact
+  `CorpusScopeBinding` to `ControlledRetrievalRequest`, then from
+  `ExternalCorpusReadResult` to the existing `RetrievalResult` shape. Adapter
+  output preserves controlled request budgets, source versions, and
+  `filtered_out_count`; empty, reader failure, deadline, checksum, and version
+  mismatch paths stop before Evidence.
+- **Targeted verification**:
+  - `.venv/bin/ruff check backend/rag/controlled_retrieval.py
+    backend/rag/external_corpus_reader.py backend/rag/manifest_identity.py
+    backend/rag/external_corpus_adapter.py backend/rag/__init__.py
+    tests/unit/test_rag_r02_external_corpus_adapter.py` exited `0` with
+    `All checks passed!`.
+  - `.venv/bin/ruff format --check backend/rag/controlled_retrieval.py
+    backend/rag/external_corpus_reader.py backend/rag/manifest_identity.py
+    backend/rag/external_corpus_adapter.py backend/rag/__init__.py
+    tests/unit/test_rag_r02_external_corpus_adapter.py` exited `0` with
+    `6 files already formatted`.
+  - `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider -m
+    'unit or contract or integration' tests/unit/test_rag_r02_external_corpus_adapter.py
+    tests/unit/test_s10_t02_external_corpus_reader.py
+    tests/integration/test_s10_t02_external_corpus_reader_live.py
+    tests/integration/test_rag_r01_scope_matrix.py
+    tests/unit/test_rag_r01_scope_binding.py
+    tests/integration/test_s09_t02_t03_controlled_retrieval.py -q` exited `0`
+    with `32 passed in 0.17s`.
+  - `git diff --check` exited `0`.
+- **Repair notes**: the first lint pass exited `1` after a retry had inserted
+  duplicate adapter exports into `backend/rag/__init__.py`; the duplicate block
+  was removed. The adapter tests then passed, and the final lint/test run above
+  was clean.
+- **Known limits**: the existing Evidence Gate still owns source-scope Evidence
+  provenance and its manifest/source-version acceptance semantics; those are
+  R03 scope. This Task does not integrate pilot composition or change ActionPlan
+  ownership in `BoundedProductRagLoop`.
