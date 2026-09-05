@@ -198,7 +198,7 @@
     tests/integration/test_rag_r01_scope_matrix.py
     tests/unit/test_rag_r01_scope_binding.py
     tests/integration/test_s09_t02_t03_controlled_retrieval.py -q` exited `0`
-    with `36 passed in 0.18s`.
+    with `38 passed in 0.17s`.
   - `git diff --check` exited `0`.
 - **Repair notes**: the first lint pass exited `1` after a retry had inserted
   duplicate adapter exports into `backend/rag/__init__.py`; the duplicate block
@@ -209,8 +209,14 @@
   incomplete returned-scope/candidate validation, unreported/exceeded action
   budget, missing language/region provenance, uncaught loader failures, and
   duplicate exports. The fresh implementation repairs these findings and adds
-  regression coverage; a new immutable snapshot and independent review are
-  required before checkpoint evaluation.
+  regression coverage. Independent review of the repaired snapshot
+  `b9404446995b7508ff92091c5a604b10f7f3ac95` with digest
+  `eaac54ba45b3d42c19c10262136bd2dae972f5d0b3e1aaf8775bd5306a5a527c` then
+  returned `AI_REVIEW_NEEDS_CHANGES` for missing caller-request binding and
+  duplicate candidate/chunk rejection. The second repair requires the caller's
+  exact controlled request and rejects duplicate IDs with regression coverage;
+  a fresh immutable snapshot and independent review are required before
+  checkpoint evaluation.
 - **Known limits**: the existing Evidence Gate still owns source-scope Evidence
   provenance and its manifest/source-version acceptance semantics; those are
   R03 scope. This Task does not integrate pilot composition or change ActionPlan

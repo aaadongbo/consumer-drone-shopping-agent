@@ -71,8 +71,11 @@ def test_request_translation_keeps_scope_and_all_reader_budgets() -> None:
 
 
 def test_accepted_read_maps_manifest_identity_separately_from_source_version() -> None:
+    read = _accepted_read()
     adapted = adapt_external_corpus_result(
-        _accepted_read(), expected_manifest_sha256=MANIFEST_SHA256
+        read,
+        expected_controlled_request=read.request,
+        expected_manifest_sha256=MANIFEST_SHA256,
     )
 
     assert adapted.accepted is True
@@ -140,8 +143,10 @@ def test_failed_read_stops_before_retrieval_result(
     stop_reason: ExternalCorpusStopReason,
     expected_reason: ExternalCorpusStopReason,
 ) -> None:
+    read = _accepted_read()
     adapted = adapt_external_corpus_result(
-        replace(_accepted_read(), stop_reason=stop_reason, chunks=()),
+        replace(read, stop_reason=stop_reason, chunks=()),
+        expected_controlled_request=read.request,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
 
@@ -151,8 +156,10 @@ def test_failed_read_stops_before_retrieval_result(
 
 
 def test_accepted_empty_read_has_explicit_empty_stop_reason() -> None:
+    read = _accepted_read()
     adapted = adapt_external_corpus_result(
-        replace(_accepted_read(), chunks=(), metadata_result=None),
+        replace(read, chunks=(), metadata_result=None),
+        expected_controlled_request=read.request,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
 
@@ -166,6 +173,7 @@ def test_source_version_mismatch_stops_before_evidence() -> None:
 
     adapted = adapt_external_corpus_result(
         replace(read, chunks=(bad_chunk,)),
+        expected_controlled_request=read.request,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
 
@@ -179,6 +187,7 @@ def test_manifest_checksum_mismatch_stops_before_evidence() -> None:
 
     adapted = adapt_external_corpus_result(
         replace(read, corpus_report=report),
+        expected_controlled_request=read.request,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
 
@@ -187,8 +196,11 @@ def test_manifest_checksum_mismatch_stops_before_evidence() -> None:
 
 
 def test_returned_manifest_checksum_must_match_bound_checksum() -> None:
+    read = _accepted_read()
     adapted = adapt_external_corpus_result(
-        _accepted_read(), expected_manifest_sha256="2" * 64
+        read,
+        expected_controlled_request=read.request,
+        expected_manifest_sha256="2" * 64,
     )
 
     assert adapted.retrieval is None
@@ -201,6 +213,42 @@ def test_foreign_scope_chunk_stops_before_evidence() -> None:
 
     adapted = adapt_external_corpus_result(
         replace(read, chunks=(foreign_chunk,)),
+        expected_controlled_request=read.request,
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+    assert adapted.retrieval is None
+    assert adapted.stop_reason is ExternalCorpusStopReason.VERSION_MISMATCH
+
+
+def test_returned_request_must_match_callers_controlled_request() -> None:
+    read = _accepted_read()
+    foreign_request = read.request.model_copy(update={"product_id": "foreign-product"})
+
+    adapted = adapt_external_corpus_result(
+        replace(read, request=foreign_request),
+        expected_controlled_request=read.request,
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+    assert adapted.retrieval is None
+    assert adapted.stop_reason is ExternalCorpusStopReason.SCOPE_MISMATCH
+
+
+def test_duplicate_candidates_and_chunks_stop_before_evidence() -> None:
+    read = _accepted_read()
+    assert read.metadata_result is not None
+    duplicate_result = replace(
+        read,
+        chunks=read.chunks * 2,
+        metadata_result=read.metadata_result.model_copy(
+            update={"candidates": read.metadata_result.candidates * 2}
+        ),
+    )
+
+    adapted = adapt_external_corpus_result(
+        duplicate_result,
+        expected_controlled_request=read.request,
         expected_manifest_sha256=MANIFEST_SHA256,
     )
 

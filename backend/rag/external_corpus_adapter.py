@@ -106,6 +106,7 @@ def build_controlled_retrieval_request(
 def adapt_external_corpus_result(
     result: ExternalCorpusReadResult,
     *,
+    expected_controlled_request: ControlledRetrievalRequest,
     expected_manifest_sha256: Sha256String,
 ) -> ExternalCorpusRetrievalResult:
     """Adapt one already-completed read; this function never invokes retrieval."""
@@ -126,7 +127,13 @@ def adapt_external_corpus_result(
     stop_reason = result.stop_reason
     reasons = result.reasons
 
-    if (
+    if result.request != expected_controlled_request:
+        stop_reason = ExternalCorpusStopReason.SCOPE_MISMATCH
+        reasons = ("reader returned a request different from the caller request",)
+    elif metadata_result is not None and metadata_result.request != result.request:
+        stop_reason = ExternalCorpusStopReason.SCOPE_MISMATCH
+        reasons = ("metadata result request differs from the reader request",)
+    elif (
         metadata_result is not None
         and action_rounds_used > result.request.max_action_rounds
     ):
@@ -217,6 +224,7 @@ def retrieve_external_corpus(
     )
     return adapt_external_corpus_result(
         external_result,
+        expected_controlled_request=controlled_request,
         expected_manifest_sha256=manifest_sha256,
     )
 
@@ -257,9 +265,15 @@ def _versions_match_manifest(result: ExternalCorpusReadResult) -> bool:
     candidates_by_id = {
         candidate.chunk_id: candidate for candidate in result.metadata_result.candidates
     }
-    if tuple(chunk.chunk_id for chunk in result.chunks) != tuple(
+    candidate_ids = tuple(
         candidate.chunk_id for candidate in result.metadata_result.candidates
+    )
+    chunk_ids = tuple(chunk.chunk_id for chunk in result.chunks)
+    if len(candidate_ids) != len(set(candidate_ids)) or len(chunk_ids) != len(
+        set(chunk_ids)
     ):
+        return False
+    if chunk_ids != candidate_ids:
         return False
     for chunk in result.chunks:
         record = records_by_id.get(chunk.chunk_id)
