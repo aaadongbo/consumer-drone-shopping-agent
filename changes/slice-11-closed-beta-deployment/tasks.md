@@ -11,7 +11,7 @@
 | Task | Title | Status | Dependencies |
 |---|---|---|---|---|
 | T01 | Deployment readiness reconciliation | DONE | S10 completion evidence; Human accepts S11 planning baseline |
-| T02 | Production-like composition and config boundary | NOT_STARTED | T01 |
+| T02 | Production-like composition and config boundary | DONE | T01 |
 | T03 | Health, error, CORS, and security guardrails | NOT_STARTED | T02 |
 | T04 | Model or restricted intent adapter boundary | NOT_STARTED | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | NOT_STARTED | T02, T03; exact staging/beta Widget origin values |
@@ -467,5 +467,40 @@ provider, hosting, CI, staging, or Widget-origin changes.
   chunk, index, embedding, Golden Set label, training data, Shopify write, network
   call, dependency, Workflow, Architecture, Product Behavior, or public Contract
   change is introduced.
-- **Authority**: this reconciliation does not activate or execute `S11-T02`; `T02`
-  remains `NOT_STARTED`.
+- **Authority**: this reconciliation did not activate or execute `S11-T02`; the
+  formal Task status is tracked in the execution record below.
+
+## S11-T02 Execution Record
+
+- **Status**: `IN_PROGRESS`
+- **Start commit**: `5eefc0341940d8681c663efc0382e0b6058386ba`
+- **Start worktree**: clean; no staged or untracked files before T02.
+- **Authorization**: current-context S11 implementation authorization with the exact
+  approved Workflow Policy baseline `c612f27e73b3b69bce555ba5349e1a1a89c78c95`.
+- **Boundary**: internal typed runtime configuration and explicit composition boundary
+  only; no public Contract, external service, credential, deployment, or dependency
+  change.
+
+### T02 Completion Record
+
+- **Status**: `DONE — Awaiting MEDIUM Task Review`
+- **Changed paths**: `backend/runtime/config.py`, `backend/runtime/composition.py`,
+  `backend/runtime/__init__.py`, `tests/unit/test_s11_t02_runtime_config.py`, and
+  this Task record.
+- **Acceptance**: explicit `closed_beta`/`single_container` settings, read-only pilot
+  adapter selection, local Keychain versus hosted Secret Store references, explicit
+  non-wildcard Widget origins, deterministic/provider intent modes, provisional hard
+  budgets, safe metadata diagnostics, and fixture-fallback rejection are implemented.
+- **Verification**:
+  - `uv run ruff check backend/runtime tests/unit/test_s11_t02_runtime_config.py`
+    exited `0`.
+  - `uv run ruff format --check backend/runtime tests/unit/test_s11_t02_runtime_config.py`
+    exited `0`.
+  - `uv run pytest -m unit tests/unit/test_s11_t02_runtime_config.py -q` exited `0`
+    (`10 passed`).
+  - No Shopify/network call was made; the test transport raises if invoked.
+- **Known limits**: hosting vendor, hosted Secret Store product, live model provider,
+  Widget origins, deployment, CI, health endpoints, and external credentials remain
+  explicit later-Task decisions; no public Contract or dependency was changed.
+- **Recommended next Task**: create the immutable T02 MEDIUM snapshot and complete
+  its independent read-only review before considering `S11-T03`.
