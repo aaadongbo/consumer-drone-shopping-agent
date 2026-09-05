@@ -10,7 +10,7 @@
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|---|
-| T01 | Deployment readiness reconciliation | NOT_STARTED | S10 completion evidence; Human accepts S11 planning baseline |
+| T01 | Deployment readiness reconciliation | DONE | S10 completion evidence; Human accepts S11 planning baseline |
 | T02 | Production-like composition and config boundary | NOT_STARTED | T01 |
 | T03 | Health, error, CORS, and security guardrails | NOT_STARTED | T02 |
 | T04 | Model or restricted intent adapter boundary | NOT_STARTED | T02; Human provider/model ID decision if live model is used |
@@ -414,3 +414,34 @@ Stop on any condition listed in `plan.md`, especially Product Behavior, Architec
 public Contract, Accepted Decision, major dependency, external service, Shopify write,
 security boundary, production traffic, rollback policy, credential, real model
 provider, hosting, CI, staging, or Widget-origin changes.
+
+## S11-T01 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `c612f27e73b3b69bce555ba5349e1a1a89c78c95`
+- **Start worktree**: clean; no staged or untracked files before T01.
+- **Authorization**: current-context S11 implementation authorization with the exact
+  approved Workflow Policy baseline `c612f27e73b3b69bce555ba5349e1a1a89c78c95`.
+- **Boundary**: metadata-only reconciliation of S10 handoff, S11 planning baselines,
+  DEC-012 status, open decisions, data boundary, and existing runtime/deployment
+  surface. No business code, tests, dependency, external-service, credential, or
+  deployment change is permitted.
+- **Readiness result**: `GO` for the bounded S11 planning baseline and `HOLD` for
+  dependent implementation lanes whose exact host vendor, Secret Store, staging/beta
+  origins, rollback operator, or model provider/model ID remains unresolved.
+- **Evidence**: S10 handoff is `PILOT_READY_FOR_HUMAN_EVALUATION`; DEC-012 is
+  `ACCEPTED`; the approved three-product/read-only boundary and no-Slice-12 boundary
+  are recorded in the plan. No public Contract, Architecture, dependency, or
+  external-service behavior changed.
+- **Verification**:
+  - `git status --short --branch` exited `0`; only this Task record was dirty.
+  - `git diff --check` exited `0`.
+  - `rg` checks for the S10 handoff, DEC-012, approved S11 baselines, open decisions,
+    and no-Slice-12 boundary exited `0`.
+  - `inspect_state.py --authorize-slice S11 --approved-workflow-oid
+    c612f27e73b3b69bce555ba5349e1a1a89c78c95` resolved `S11-T01` as the selected
+    boundary with no dependency blocker; the current Task record itself remained the
+    only working-tree change.
+- **Known limits**: T01 does not select a hosting vendor, Secret Store, model
+  provider, Widget origin, staging URL, rollback operator, or live external-service
+  authority. Those decisions remain explicit gates for T02/T04/T05/T06/T07.
