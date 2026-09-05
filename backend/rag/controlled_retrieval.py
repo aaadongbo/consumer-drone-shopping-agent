@@ -155,7 +155,7 @@ def retrieve_controlled_chunk_metadata(
     return _empty(
         request,
         ChunkBaselineStopReason.NO_SCOPED_MATCH,
-        rounds=2,
+        rounds=min(2, request.max_action_rounds),
         filtered_out_count=filtered_out_count,
     )
 
@@ -205,7 +205,7 @@ def _empty(
     return ControlledRetrievalResult(
         request=request,
         candidates=(),
-        action_rounds_used=rounds,
+        action_rounds_used=min(rounds, request.max_action_rounds),
         retrieval_tokens_used=tokens,
         filtered_out_count=filtered_out_count,
         metadata_digest=_digest(()),

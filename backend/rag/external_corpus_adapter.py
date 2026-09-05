@@ -2,14 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 from typing import Annotated
 
 from pydantic import Field, StringConstraints
 
 from backend.common import ObjectScope
+from backend.rag.chunk_baseline import ChunkBaselineRecord
 from backend.rag.controlled_retrieval import (
     MAX_ACTION_ROUNDS,
     TURN_DEADLINE_MS,
+    ControlledRetrievalCandidate,
     ControlledRetrievalRequest,
 )
 from backend.rag.external_corpus_reader import (
@@ -17,7 +20,7 @@ from backend.rag.external_corpus_reader import (
     ExternalCorpusReadResult,
     ExternalCorpusStopReason,
 )
-from backend.rag.manifest import DocumentChunk, RagModel
+from backend.rag.manifest import DocumentChunk, DocumentSourceType, RagModel
 from backend.rag.manifest_identity import CorpusManifestIdentity
 from backend.rag.retrieval import RetrievalRequest, RetrievalResult, RetrievalStrategy
 from backend.rag.scope_binding import CorpusScopeBinding
@@ -25,6 +28,7 @@ from backend.rag.scope_binding import CorpusScopeBinding
 type NonEmptyString = Annotated[
     str, StringConstraints(strip_whitespace=True, min_length=1)
 ]
+type Sha256String = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{64}$")]
 
 
 class ExternalCorpusAdapterError(RuntimeError):
@@ -51,6 +55,8 @@ class ExternalCorpusRetrievalResult(RagModel):
     retrieval: RetrievalResult | None = None
     manifest_identity: CorpusManifestIdentity | None = None
     source_versions: tuple[CorpusSourceVersion, ...] = ()
+    action_rounds_used: int = Field(ge=0, le=2)
+    retrieval_tokens_used: int = Field(ge=0)
     filtered_out_count: int = Field(ge=0)
     stop_reason: ExternalCorpusStopReason
     reasons: tuple[NonEmptyString, ...] = ()
@@ -99,6 +105,8 @@ def build_controlled_retrieval_request(
 
 def adapt_external_corpus_result(
     result: ExternalCorpusReadResult,
+    *,
+    expected_manifest_sha256: Sha256String,
 ) -> ExternalCorpusRetrievalResult:
     """Adapt one already-completed read; this function never invokes retrieval."""
 
@@ -108,14 +116,37 @@ def adapt_external_corpus_result(
     filtered_out_count = (
         metadata_result.filtered_out_count if metadata_result is not None else 0
     )
+    action_rounds_used = (
+        metadata_result.action_rounds_used if metadata_result is not None else 0
+    )
+    retrieval_tokens_used = (
+        metadata_result.retrieval_tokens_used if metadata_result is not None else 0
+    )
     source_versions = _source_versions(result.chunks)
     stop_reason = result.stop_reason
     reasons = result.reasons
+
+    if (
+        metadata_result is not None
+        and action_rounds_used > result.request.max_action_rounds
+    ):
+        stop_reason = ExternalCorpusStopReason.ACTION_ROUND_LIMIT
+        reasons = ("reader exceeded the configured action-round budget",)
+    elif (
+        metadata_result is not None
+        and retrieval_tokens_used > result.request.max_retrieval_tokens
+        and stop_reason is ExternalCorpusStopReason.SOURCE_REGION_ACCEPTED
+    ):
+        stop_reason = ExternalCorpusStopReason.RETRIEVAL_TOKEN_BUDGET
+        reasons = ("reader exceeded the configured retrieval-token budget",)
 
     if stop_reason is ExternalCorpusStopReason.SOURCE_REGION_ACCEPTED:
         if identity is None:
             stop_reason = ExternalCorpusStopReason.CORPUS_METADATA_REQUIRED
             reasons = ("accepted read is missing manifest identity",)
+        elif identity.manifest_sha256 != expected_manifest_sha256:
+            stop_reason = ExternalCorpusStopReason.CHECKSUM_MISMATCH
+            reasons = ("returned manifest identity does not match the bound checksum",)
         elif not result.chunks:
             stop_reason = ExternalCorpusStopReason.EMPTY_RESULT
             reasons = ("accepted read returned no source regions",)
@@ -139,6 +170,8 @@ def adapt_external_corpus_result(
                 retrieval=retrieval,
                 manifest_identity=identity,
                 source_versions=source_versions,
+                action_rounds_used=action_rounds_used,
+                retrieval_tokens_used=retrieval_tokens_used,
                 filtered_out_count=filtered_out_count,
                 stop_reason=stop_reason,
                 reasons=reasons,
@@ -150,6 +183,8 @@ def adapt_external_corpus_result(
         controlled_request=result.request,
         manifest_identity=identity,
         source_versions=source_versions,
+        action_rounds_used=action_rounds_used,
+        retrieval_tokens_used=retrieval_tokens_used,
         filtered_out_count=filtered_out_count,
         stop_reason=stop_reason,
         reasons=reasons,
@@ -180,7 +215,10 @@ def retrieve_external_corpus(
         chunk_manifest_path=chunk_manifest_path,
         request=controlled_request,
     )
-    return adapt_external_corpus_result(external_result)
+    return adapt_external_corpus_result(
+        external_result,
+        expected_manifest_sha256=manifest_sha256,
+    )
 
 
 def _retrieval_request(request: ControlledRetrievalRequest) -> RetrievalRequest:
@@ -209,25 +247,88 @@ def _source_versions(
 
 
 def _versions_match_manifest(result: ExternalCorpusReadResult) -> bool:
-    if result.manifest is None or result.manifest_identity is None:
+    if (
+        result.manifest is None
+        or result.manifest_identity is None
+        or result.metadata_result is None
+    ):
         return False
     records_by_id = {record.chunk_id: record for record in result.manifest.records}
+    candidates_by_id = {
+        candidate.chunk_id: candidate for candidate in result.metadata_result.candidates
+    }
+    if tuple(chunk.chunk_id for chunk in result.chunks) != tuple(
+        candidate.chunk_id for candidate in result.metadata_result.candidates
+    ):
+        return False
     for chunk in result.chunks:
         record = records_by_id.get(chunk.chunk_id)
-        if record is None:
+        candidate = candidates_by_id.get(chunk.chunk_id)
+        if record is None or candidate is None:
             return False
-        if chunk.version != record.source_version:
+        if not _candidate_matches_record(candidate, record):
             return False
-        if chunk.locator.source_id != chunk.source_id:
+        if not _scope_matches(record, result.request):
             return False
-        if chunk.locator.version != chunk.version:
+        if (
+            chunk.store_id != record.store_id
+            or chunk.product_id != record.product_id
+            or chunk.variant_id != record.variant_id
+            or chunk.source_id != record.source_id
+            or chunk.source_type is not DocumentSourceType.MANUAL
+            or chunk.version != record.source_version
+            or chunk.locator.source_id != record.source_id
+            or chunk.locator.version != record.source_version
+            or chunk.locator.locator != record.locator
+            or chunk.metadata.get("corpus_version") != record.corpus_version
+            or chunk.metadata.get("source_ref") != record.source_ref
+            or chunk.metadata.get("page_number") != str(record.page_number)
+            or chunk.metadata.get("ordinal_start") != str(record.ordinal_start)
+            or chunk.metadata.get("ordinal_end") != str(record.ordinal_end)
+            or chunk.metadata.get("text_sha256") != record.text_sha256
+            or chunk.metadata.get("locator") != record.locator
+            or chunk.metadata.get("language") != record.language
+            or chunk.metadata.get("region") != record.region
+        ):
             return False
         if (
             chunk.metadata.get("manifest_identity")
             != result.manifest_identity.index_version
         ):
             return False
+        if hashlib.sha256(chunk.text.encode("utf-8")).hexdigest() != record.text_sha256:
+            return False
     return True
+
+
+def _candidate_matches_record(
+    candidate: ControlledRetrievalCandidate,
+    record: ChunkBaselineRecord,
+) -> bool:
+    return (
+        candidate.chunk_id == record.chunk_id
+        and candidate.source_id == record.source_id
+        and candidate.source_ref == record.source_ref
+        and candidate.locator == record.locator
+        and candidate.product_id == record.product_id
+        and candidate.variant_id == record.variant_id
+        and candidate.page_number == record.page_number
+        and candidate.ordinal_start == record.ordinal_start
+        and candidate.ordinal_end == record.ordinal_end
+        and candidate.text_sha256 == record.text_sha256
+        and candidate.token_estimate == record.token_estimate
+    )
+
+
+def _scope_matches(
+    record: ChunkBaselineRecord,
+    request: ControlledRetrievalRequest,
+) -> bool:
+    if record.store_id != request.store_id or record.product_id != request.product_id:
+        return False
+    if request.variant_id is None:
+        return record.variant_id is None
+    return record.variant_id in (None, request.variant_id)
 
 
 def _manifest_checksum_matches_report(result: ExternalCorpusReadResult) -> bool:

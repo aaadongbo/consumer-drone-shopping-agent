@@ -170,23 +170,27 @@
   `schema_version`, `corpus_version`, and `manifest_sha256`, with a deterministic
   `RetrievalResult.index_version` representation. External reads now annotate
   ephemeral chunks with manifest identity while retaining each chunk's source
-  version. Added a single-pass adapter from `RetrievalRequest` through exact
-  `CorpusScopeBinding` to `ControlledRetrievalRequest`, then from
-  `ExternalCorpusReadResult` to the existing `RetrievalResult` shape. Adapter
-  output preserves controlled request budgets, source versions, and
-  `filtered_out_count`; empty, reader failure, deadline, checksum, and version
+  version, language, region, and record provenance. Added a single-pass adapter
+  from `RetrievalRequest` through exact `CorpusScopeBinding` to
+  `ControlledRetrievalRequest`, then from `ExternalCorpusReadResult` to the
+  existing `RetrievalResult` shape. Adapter output preserves configured and
+  consumed budgets, source versions, and `filtered_out_count`; returned manifests,
+  candidates, scopes, locators, and text checksums are cross-validated before
+  Evidence. Empty, reader failure, deadline, checksum, version, scope, and budget
   mismatch paths stop before Evidence.
 - **Targeted verification**:
   - `.venv/bin/ruff check backend/rag/controlled_retrieval.py
     backend/rag/external_corpus_reader.py backend/rag/manifest_identity.py
     backend/rag/external_corpus_adapter.py backend/rag/__init__.py
-    tests/unit/test_rag_r02_external_corpus_adapter.py` exited `0` with
+    tests/unit/test_rag_r02_external_corpus_adapter.py
+    tests/unit/test_s10_t02_external_corpus_reader.py` exited `0` with
     `All checks passed!`.
   - `.venv/bin/ruff format --check backend/rag/controlled_retrieval.py
     backend/rag/external_corpus_reader.py backend/rag/manifest_identity.py
     backend/rag/external_corpus_adapter.py backend/rag/__init__.py
-    tests/unit/test_rag_r02_external_corpus_adapter.py` exited `0` with
-    `6 files already formatted`.
+    tests/unit/test_rag_r02_external_corpus_adapter.py
+    tests/unit/test_s10_t02_external_corpus_reader.py` exited `0` with
+    `7 files already formatted`.
   - `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -p no:cacheprovider -m
     'unit or contract or integration' tests/unit/test_rag_r02_external_corpus_adapter.py
     tests/unit/test_s10_t02_external_corpus_reader.py
@@ -194,12 +198,19 @@
     tests/integration/test_rag_r01_scope_matrix.py
     tests/unit/test_rag_r01_scope_binding.py
     tests/integration/test_s09_t02_t03_controlled_retrieval.py -q` exited `0`
-    with `32 passed in 0.17s`.
+    with `36 passed in 0.18s`.
   - `git diff --check` exited `0`.
 - **Repair notes**: the first lint pass exited `1` after a retry had inserted
   duplicate adapter exports into `backend/rag/__init__.py`; the duplicate block
-  was removed. The adapter tests then passed, and the final lint/test run above
-  was clean.
+  was removed. Independent review of snapshot
+  `47fe1974fd49838bdc893814fe976d1391a87fcd` with digest
+  `13c6c55d4cd11e9f73729513e483e2f6c8e95d1aab3e47b0a8ee52e07da867ce` returned
+  `AI_REVIEW_NEEDS_CHANGES` for missing returned-manifest checksum binding,
+  incomplete returned-scope/candidate validation, unreported/exceeded action
+  budget, missing language/region provenance, uncaught loader failures, and
+  duplicate exports. The fresh implementation repairs these findings and adds
+  regression coverage; a new immutable snapshot and independent review are
+  required before checkpoint evaluation.
 - **Known limits**: the existing Evidence Gate still owns source-scope Evidence
   provenance and its manifest/source-version acceptance semantics; those are
   R03 scope. This Task does not integrate pilot composition or change ActionPlan

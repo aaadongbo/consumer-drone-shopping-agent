@@ -39,6 +39,7 @@ class ExternalCorpusStopReason(StrEnum):
     CHECKSUM_MISMATCH = "CHECKSUM_MISMATCH"
     SCOPE_MISMATCH = "SCOPE_MISMATCH"
     NO_SCOPED_MATCH = "NO_SCOPED_MATCH"
+    ACTION_ROUND_LIMIT = "ACTION_ROUND_LIMIT"
     SCOPED_CANDIDATE_LIMIT = "SCOPED_CANDIDATE_LIMIT"
     RETRIEVAL_TOKEN_BUDGET = "RETRIEVAL_TOKEN_BUDGET"
     TURN_DEADLINE = "TURN_DEADLINE"
@@ -96,6 +97,16 @@ class ExternalCorpusReadResult:
             ),
             "filtered_out_count": (
                 self.metadata_result.filtered_out_count
+                if self.metadata_result is not None
+                else 0
+            ),
+            "action_rounds_used": (
+                self.metadata_result.action_rounds_used
+                if self.metadata_result is not None
+                else 0
+            ),
+            "retrieval_tokens_used": (
+                self.metadata_result.retrieval_tokens_used
                 if self.metadata_result is not None
                 else 0
             ),
@@ -181,9 +192,9 @@ class ExternalCorpusReader:
 
         records_by_id = {record.chunk_id: record for record in manifest.records}
         manifest_identity = CorpusManifestIdentity.from_manifest(manifest)
-        loader = self._region_loader or PdfPageTextRegionLoader(self._corpus_root)
         chunks: list[DocumentChunk] = []
         try:
+            loader = self._region_loader or PdfPageTextRegionLoader(self._corpus_root)
             for order, candidate in enumerate(metadata_result.candidates):
                 record = records_by_id[candidate.chunk_id]
                 text = loader.load_region(record)
@@ -210,6 +221,16 @@ class ExternalCorpusReader:
                 manifest=manifest,
                 stop_reason=exc.stop_reason,
                 reasons=(exc.message,),
+            )
+        except Exception as exc:
+            return ExternalCorpusReadResult(
+                request=request,
+                chunks=(),
+                metadata_result=metadata_result,
+                corpus_report=corpus_report,
+                manifest=manifest,
+                stop_reason=ExternalCorpusStopReason.EXTERNAL_READER_UNAVAILABLE,
+                reasons=(f"{type(exc).__name__}: source region loader failed",),
             )
 
         return ExternalCorpusReadResult(
@@ -370,6 +391,8 @@ def _chunk_from_record(
             "extraction_method": record.extraction_method,
             "text_sha256": record.text_sha256,
             "locator": record.locator,
+            "language": record.language,
+            "region": record.region,
             "manifest_schema_version": manifest_identity.schema_version,
             "manifest_corpus_version": manifest_identity.corpus_version,
             "manifest_sha256": manifest_identity.manifest_sha256,
@@ -399,7 +422,7 @@ def _map_chunk_stop_reason(
             ExternalCorpusStopReason.NO_SCOPED_MATCH
         ),
         ChunkBaselineStopReason.ACTION_ROUND_LIMIT: (
-            ExternalCorpusStopReason.NO_SCOPED_MATCH
+            ExternalCorpusStopReason.ACTION_ROUND_LIMIT
         ),
         ChunkBaselineStopReason.SCOPED_CANDIDATE_LIMIT: (
             ExternalCorpusStopReason.SCOPED_CANDIDATE_LIMIT

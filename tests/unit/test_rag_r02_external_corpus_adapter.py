@@ -1,5 +1,6 @@
 """RAG-R02 external corpus adapter and version boundary coverage."""
 
+import hashlib
 from dataclasses import replace
 
 import pytest
@@ -8,6 +9,7 @@ from backend.common import ObjectScope
 from backend.rag import (
     ChunkBaselineManifest,
     ChunkBaselineRecord,
+    ControlledRetrievalRequest,
     CorpusManifestIdentity,
     CorpusScopeBinding,
     CorpusSourceVersion,
@@ -17,6 +19,7 @@ from backend.rag import (
     RetrievalRequest,
     adapt_external_corpus_result,
     build_controlled_retrieval_request,
+    retrieve_controlled_chunk_metadata,
     retrieve_external_corpus,
 )
 from backend.rag.controlled_retrieval import (
@@ -32,6 +35,7 @@ from backend.rag.manifest import DocumentChunk, DocumentSourceType, SourceLocato
 pytestmark = pytest.mark.unit
 
 MANIFEST_SHA256 = "1" * 64
+TEXT_SHA256 = hashlib.sha256(b"battery safety").hexdigest()
 
 
 def test_request_translation_keeps_scope_and_all_reader_budgets() -> None:
@@ -67,7 +71,9 @@ def test_request_translation_keeps_scope_and_all_reader_budgets() -> None:
 
 
 def test_accepted_read_maps_manifest_identity_separately_from_source_version() -> None:
-    adapted = adapt_external_corpus_result(_accepted_read())
+    adapted = adapt_external_corpus_result(
+        _accepted_read(), expected_manifest_sha256=MANIFEST_SHA256
+    )
 
     assert adapted.accepted is True
     assert adapted.manifest_identity == CorpusManifestIdentity(
@@ -85,6 +91,8 @@ def test_accepted_read_maps_manifest_identity_separately_from_source_version() -
     )
     assert adapted.filtered_out_count == 2
     assert adapted.retrieval.filtered_out_count == 2
+    assert adapted.action_rounds_used == 1
+    assert adapted.retrieval_tokens_used == 4
 
 
 def test_adapter_does_not_repeat_reader_retrieval() -> None:
@@ -133,7 +141,8 @@ def test_failed_read_stops_before_retrieval_result(
     expected_reason: ExternalCorpusStopReason,
 ) -> None:
     adapted = adapt_external_corpus_result(
-        replace(_accepted_read(), stop_reason=stop_reason, chunks=())
+        replace(_accepted_read(), stop_reason=stop_reason, chunks=()),
+        expected_manifest_sha256=MANIFEST_SHA256,
     )
 
     assert adapted.retrieval is None
@@ -143,7 +152,8 @@ def test_failed_read_stops_before_retrieval_result(
 
 def test_accepted_empty_read_has_explicit_empty_stop_reason() -> None:
     adapted = adapt_external_corpus_result(
-        replace(_accepted_read(), chunks=(), metadata_result=None)
+        replace(_accepted_read(), chunks=(), metadata_result=None),
+        expected_manifest_sha256=MANIFEST_SHA256,
     )
 
     assert adapted.retrieval is None
@@ -154,7 +164,10 @@ def test_source_version_mismatch_stops_before_evidence() -> None:
     read = _accepted_read()
     bad_chunk = read.chunks[0].model_copy(update={"version": "source-v9"})
 
-    adapted = adapt_external_corpus_result(replace(read, chunks=(bad_chunk,)))
+    adapted = adapt_external_corpus_result(
+        replace(read, chunks=(bad_chunk,)),
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
 
     assert adapted.retrieval is None
     assert adapted.stop_reason is ExternalCorpusStopReason.VERSION_MISMATCH
@@ -164,10 +177,35 @@ def test_manifest_checksum_mismatch_stops_before_evidence() -> None:
     read = _accepted_read()
     report = read.corpus_report.model_copy(update={"manifest_sha256": "2" * 64})
 
-    adapted = adapt_external_corpus_result(replace(read, corpus_report=report))
+    adapted = adapt_external_corpus_result(
+        replace(read, corpus_report=report),
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
 
     assert adapted.retrieval is None
     assert adapted.stop_reason is ExternalCorpusStopReason.CHECKSUM_MISMATCH
+
+
+def test_returned_manifest_checksum_must_match_bound_checksum() -> None:
+    adapted = adapt_external_corpus_result(
+        _accepted_read(), expected_manifest_sha256="2" * 64
+    )
+
+    assert adapted.retrieval is None
+    assert adapted.stop_reason is ExternalCorpusStopReason.CHECKSUM_MISMATCH
+
+
+def test_foreign_scope_chunk_stops_before_evidence() -> None:
+    read = _accepted_read()
+    foreign_chunk = read.chunks[0].model_copy(update={"product_id": "foreign-product"})
+
+    adapted = adapt_external_corpus_result(
+        replace(read, chunks=(foreign_chunk,)),
+        expected_manifest_sha256=MANIFEST_SHA256,
+    )
+
+    assert adapted.retrieval is None
+    assert adapted.stop_reason is ExternalCorpusStopReason.VERSION_MISMATCH
 
 
 def test_binding_checksum_mismatch_stops_before_reader() -> None:
@@ -182,6 +220,21 @@ def test_binding_checksum_mismatch_stops_before_reader() -> None:
         )
 
     assert error.value.stop_reason is ExternalCorpusStopReason.CHECKSUM_MISMATCH
+
+
+def test_no_match_does_not_exceed_configured_action_round_budget() -> None:
+    result = retrieve_controlled_chunk_metadata(
+        _manifest(),
+        ControlledRetrievalRequest(
+            store_id="store-a",
+            product_id="product-a",
+            query="missing",
+            max_action_rounds=1,
+        ),
+    )
+
+    assert result.stop_reason is not None
+    assert result.action_rounds_used == 1
 
 
 def _accepted_read() -> ExternalCorpusReadResult:
@@ -203,7 +256,7 @@ def _accepted_read() -> ExternalCorpusReadResult:
         ordinal_start=0,
         ordinal_end=1,
         score=1,
-        text_sha256="c" * 64,
+        text_sha256=TEXT_SHA256,
         token_estimate=4,
     )
     metadata_result = ControlledRetrievalResult(
@@ -257,7 +310,7 @@ def _record() -> ChunkBaselineRecord:
         ordinal_start=0,
         ordinal_end=1,
         extraction_method="metadata-only fixture",
-        text_sha256="c" * 64,
+        text_sha256=TEXT_SHA256,
         locator="rag://source-a@source-v1/page/1#ord=0-1",
         token_estimate=4,
         keywords=("battery",),
@@ -282,6 +335,15 @@ def _chunk() -> DocumentChunk:
         heading_path=("ref-a", "battery"),
         text="battery safety",
         metadata={
+            "corpus_version": "v0.1",
+            "source_ref": "ref-a",
+            "page_number": "1",
+            "ordinal_start": "0",
+            "ordinal_end": "1",
+            "text_sha256": TEXT_SHA256,
+            "locator": "rag://source-a@source-v1/page/1#ord=0-1",
+            "language": "zh-CN",
+            "region": "China mainland",
             "manifest_identity": identity.index_version,
             "manifest_schema_version": identity.schema_version,
             "manifest_corpus_version": identity.corpus_version,

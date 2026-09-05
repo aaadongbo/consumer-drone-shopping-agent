@@ -90,6 +90,28 @@ def test_source_text_checksum_mismatch_fails_closed(tmp_path: Path) -> None:
     assert result.stop_reason is ExternalCorpusStopReason.SOURCE_TEXT_CHECKSUM_MISMATCH
 
 
+def test_unexpected_region_loader_failure_is_typed_and_fail_closed(
+    tmp_path: Path,
+) -> None:
+    text = "mini battery safety"
+    corpus_root, chunk_manifest_path = _write_external_corpus_fixture(tmp_path, text)
+
+    result = ExternalCorpusReader(
+        corpus_root=corpus_root,
+        region_loader=_UnexpectedRegionLoader(),
+    ).retrieve(
+        chunk_manifest_path=chunk_manifest_path,
+        request=ControlledRetrievalRequest(
+            store_id="store-dji-cn",
+            product_id="DJI Mini 3",
+            query="battery",
+        ),
+    )
+
+    assert result.chunks == ()
+    assert result.stop_reason is ExternalCorpusStopReason.EXTERNAL_READER_UNAVAILABLE
+
+
 def test_safe_metadata_excludes_raw_source_text(tmp_path: Path) -> None:
     text = "mini battery safety"
     corpus_root, chunk_manifest_path = _write_external_corpus_fixture(tmp_path, text)
@@ -145,6 +167,11 @@ class _SyntheticRegionLoader:
     def load_region(self, record: ChunkBaselineRecord) -> str:
         self.loaded_chunk_ids.append(record.chunk_id)
         return self._text_by_chunk_id[record.chunk_id]
+
+
+class _UnexpectedRegionLoader:
+    def load_region(self, record: ChunkBaselineRecord) -> str:
+        raise RuntimeError(f"unexpected loader failure for {record.chunk_id}")
 
 
 def _write_external_corpus_fixture(
