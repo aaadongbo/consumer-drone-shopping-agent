@@ -38,7 +38,25 @@ The reconciliation addresses two bounded gaps:
 - S10's real corpus reader and pilot composition were validated separately; the
   composition tests primarily use an injected synthetic retriever.
 
-## 3. Proposed scope semantics
+## 3. Product knowledge and Variant overlay model
+
+The corpus is not duplicated per Variant. Product-level manuals, general
+specifications, feature descriptions, safety guidance, and Product FAQ remain
+Product-shared records (`variant_id = null`). A Variant overlay contains only
+differences such as bundle name, included accessories, battery count, controller
+model, current price/inventory, and an optional genuinely Variant-specific guide.
+
+Structured Shopify/catalog data is preferred for Variant differences. A Variant
+document is needed only when an official guide, operating procedure, regional rule,
+or hardware/battery behavior is materially different. The current three-product beta
+does not invent secondary Variants and must not claim multi-bundle isolation.
+
+This model is consistent with the observed public product experience: Product-level
+content is shared while bundle-specific packaging and commerce facts vary. Public web
+pages do not prove the vendor's internal storage schema, so this is a project-local
+data contract rather than a claim about DJI internals.
+
+## 4. Proposed scope semantics
 
 The internal scope predicate should be:
 
@@ -64,7 +82,7 @@ The rule applies only to static corpus metadata. It never permits:
 Internal metadata continues to use `variant_id = null` for Product-shared records and
 the exact stable ID for Variant-specific records. No public wire field is added.
 
-## 4. Corpus identity and version binding
+## 5. Corpus identity and version binding
 
 The adapter must introduce an internal, typed `CorpusScopeBinding` before retrieval:
 
@@ -104,7 +122,7 @@ carry the manifest version, source version, checksum, locator, and original
 Target has a Variant. No evidence builder may overwrite source scope with target
 scope.
 
-## 5. Proposed real-corpus adapter boundary
+## 6. Proposed real-corpus adapter boundary
 
 The bounded data flow is:
 
@@ -132,14 +150,14 @@ checksum, language, region, and per-record provenance. It must not copy raw PDFs
 official source text, chunks, indexes, embeddings, or training data into Git. It must
 not create a vector index or introduce a model, database, or new runtime dependency.
 
-## 6. Canonical-Variant beta boundary
+## 7. Canonical-Variant beta boundary
 
 The current S10/S11 beta remains limited to one canonical Variant per Product. No
 synthetic secondary Variant may be introduced. A future multi-Variant expansion
 requires real Shopify identities and a separate acceptance matrix covering at least
 price, inventory, packaging, and bundle-specific facts.
 
-## 7. Non-goals
+## 8. Non-goals
 
 - No public Contract, Architecture Decision, or Product Behavior change in this
   reconciliation.
@@ -149,18 +167,21 @@ price, inventory, packaging, and bundle-specific facts.
 - No Widget, deployment, persistence, or Workflow policy change.
 - No change to S11-T04 or any other active S11 Task.
 
-## 8. Open decisions and escalation
+## 9. Open decisions and escalation
 
 Human decision is required before implementation if the adapter needs a new public
 Contract, new dependency, different corpus authorization, multi-Variant scope, or a
 change to Evidence semantics. The exact external source-region loader remains an
 implementation detail only after the approved corpus and checksum gate passes.
 
-## 9. Proposed verification
+## 10. Proposed verification
 
 - Product-shared record is returned for a confirmed Variant request.
 - Variant A cannot retrieve Variant B's record.
 - Product-only request cannot retrieve Variant-specific or dynamic facts.
+- Product-level corpus records are not duplicated for each Variant; structured
+  Variant overlays cover bundle differences, with optional explicit supplemental
+  documents only when their content is materially different.
 - Same-Product static Evidence can coexist with exact-Variant dynamic Shopify Evidence
   without scope mixing.
 - Corpus identity resolution is exact and checksum-bound; display-name or fuzzy

@@ -1,18 +1,30 @@
 # RAG Scope and Real Corpus Adapter Reconciliation Tasks
 
-> Status: PLANNED / NON-EXECUTABLE / WAITING FOR HUMAN REVIEW
+> Status: FORMAL IMPLEMENTATION SCOPE / WORKFLOW POLICY NOT ACTIVATED
 >
-> These rows are not formal Slice Tasks. They cannot be selected by the Workflow
-> Skill and must not be implemented until this reconciliation is accepted and a
-> separate implementation scope is authorized.
+> R01–R05 are formal bounded implementation tasks, but they are not executable yet:
+> this scope has no activated Workflow policy and no implementation authorization.
+> The Workflow Skill must not select or run these rows until a separate policy
+> session and current-context authorization are completed.
 
 | Task | Title | Status | Depends on |
 |---|---|---|---|
-| R01 | Identity binding, scope predicate, and regression matrix | PLANNED | Planning acceptance |
-| R02 | External corpus adapter, failure/version/budget mapping | PLANNED | R01; corpus readiness |
-| R03 | Preserve source-scope Evidence provenance | PLANNED | R01 |
-| R04 | Integrate adapter with pilot composition without public schema change | PLANNED | R02, R03 |
-| R05 | Reconcile canonical-Variant beta planning/evidence boundary | PLANNED | R01–R04 |
+| R01 | Identity binding, scope predicate, and regression matrix | NOT_STARTED | Planning baseline; policy activation |
+| R02 | External corpus adapter, failure/version/budget mapping | NOT_STARTED | R01; corpus readiness; policy activation |
+| R03 | Preserve source-scope Evidence provenance | NOT_STARTED | R01; policy activation |
+| R04 | Integrate adapter with pilot composition without public schema change | NOT_STARTED | R02, R03; policy activation |
+| R05 | Reconcile canonical-Variant beta planning/evidence boundary | NOT_STARTED | R01–R04; policy activation |
+
+## Formalization boundary
+
+- This table is the implementation scope and dependency order for the reconciliation.
+- No Workflow policy, allowlist, risk tier, or verification profile is activated by
+  this file alone.
+- The scope is separate from S11; it must not change S11 `tasks.md` or make S11-T04
+  executable.
+- A future policy session must define allowed paths, risk tiers, targeted gates, and
+  the rule for returning to S11 before any row changes from `NOT_STARTED` to
+  `IN_PROGRESS`.
 
 ## R01 — Identity binding, scope predicate, and regression matrix
 
@@ -28,6 +40,10 @@
 - **Acceptance**: shared static record is retrievable for a Variant; Variant A/B
   records cannot cross; Product-only cannot read Variant-specific facts; no default
   Variant selection occurs; name/slug/fuzzy and cross-Store fallback is rejected.
+- **Data model**: Product-level corpus records are stored once as shared knowledge;
+  Variant overlays carry bundle/accessory/controller/battery differences, and a
+  Variant document is admitted only when an official supplemental procedure or
+  materially different rule exists.
 - **Verification**: targeted unit/contract/integration checks only.
 - **Out of scope**: dynamic Shopify facts, Product/Variant selection, comparison,
   recommendation, public Contract.
