@@ -189,6 +189,27 @@ SLICE_10_DEPENDENCIES = {
     "T05": "T04",
     "T06": "T05",
 }
+SLICE_11_TITLES = {
+    "T01": "Deployment readiness reconciliation",
+    "T02": "Production-like composition and config boundary",
+    "T03": "Health, error, CORS, and security guardrails",
+    "T04": "Model or restricted intent adapter boundary",
+    "T05": "Embeddable Storefront Widget",
+    "T06": "CI, staging deployment, and rollback path",
+    "T07": "Closed-beta acceptance and completion evidence",
+}
+SLICE_11_DEPENDENCIES = {
+    "T01": "S10 completion evidence; Human accepts S11 planning baseline",
+    "T02": "T01",
+    "T03": "T02",
+    "T04": "T02; Human provider/model ID decision if live model is used",
+    "T05": "T02, T03; exact staging/beta Widget origin values",
+    "T06": (
+        "T03, T05; exact hosting vendor, staging URL, Secret Store, "
+        "and rollback operator"
+    ),
+    "T07": "T04, T06; explicit live smoke authority",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -318,6 +339,11 @@ class TemporaryRepository:
             self.titles, self.dependencies = (
                 dict(SLICE_10_TITLES),
                 dict(SLICE_10_DEPENDENCIES),
+            )
+        elif slice_name == "slice-11-closed-beta-deployment":
+            self.titles, self.dependencies = (
+                dict(SLICE_11_TITLES),
+                dict(SLICE_11_DEPENDENCIES),
             )
         else:
             self.titles, self.dependencies = (
@@ -1878,6 +1904,61 @@ class WorkflowScriptTests(unittest.TestCase):
             "REQUIRED_IMPLEMENTATION_GATE_MISSING",
             state["tasks"][0]["execution_blockers"],
         )
+
+    def test_workflow_s11_policy_formalizes_closed_beta_tasks(self) -> None:
+        holder, repo = self.repo(slice_name="slice-11-closed-beta-deployment")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root)
+        self.assertEqual(
+            [task["canonical_id"] for task in state["tasks"]],
+            [f"S11-T{i:02d}" for i in range(1, 8)],
+        )
+        self.assertEqual(state["ordered_candidate"], "S11-T01")
+        self.assertIsNone(state["executable_task"])
+
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"][
+            "changes/slice-11-closed-beta-deployment/tasks.md"
+        ]
+        self.assertEqual(slice_policy["completion_task"], "T07")
+        self.assertEqual(
+            [slice_policy["tasks"][f"T{i:02d}"]["risk_tier"] for i in range(1, 8)],
+            ["LOW", "MEDIUM", "MEDIUM", "HIGH", "MEDIUM", "HIGH", "MEDIUM"],
+        )
+        self.assertTrue(slice_policy["execution_policy"]["automation"]["auto_advance"])
+        self.assertEqual(
+            slice_policy["execution_policy"]["review_cadence"]["HIGH"]["review"],
+            "human-decision",
+        )
+        self.assertIn("shopify_write", slice_policy["forbidden_actions"])
+        self.assertIn("public_launch", slice_policy["forbidden_actions"])
+        self.assertIn(".github/workflows/", slice_policy["risk_escalation_paths"])
+
+    def test_s11_scope_allows_runtime_but_blocks_release_artifacts(self) -> None:
+        holder, repo = self.repo(slice_name="slice-11-closed-beta-deployment")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot(
+            task_id="T02", changed_path="backend/runtime/config.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+        allowed = check("S11-T02", repo.root, base_head=base, snapshot_head=snapshot)
+        self.assertTrue(allowed["ok"], allowed)
+
+        bad_holder, bad_repo = self.repo(slice_name="slice-11-closed-beta-deployment")
+        self.addCleanup(bad_holder.cleanup)
+        bad_base, bad_snapshot = bad_repo.snapshot(
+            task_id="T02", changed_path="backend/runtime/.env"
+        )
+        git(bad_repo.root, "switch", "--detach", bad_snapshot)
+        forbidden = check(
+            "S11-T02",
+            bad_repo.root,
+            base_head=bad_base,
+            snapshot_head=bad_snapshot,
+        )
+        self.assertFalse(forbidden["ok"])
+        self.assertIn("SEMANTIC_SLICE_ACTION_FORBIDDEN", forbidden["blocking_reasons"])
 
     def test_s05_planned_table_is_nonexecutable_until_reconciled(self) -> None:
         holder, repo = self.repo(slice_name="slice-04-variant-comparison")

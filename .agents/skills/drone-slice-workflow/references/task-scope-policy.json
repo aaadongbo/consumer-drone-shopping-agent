@@ -1320,6 +1320,187 @@
           "risk_tier": "HIGH"
         }
       }
+    },
+    "changes/slice-11-closed-beta-deployment/tasks.md": {
+      "completion_task": "T07",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "boundary-and-slice",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "delivery": "feature-delivery-proposed-non-operational",
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
+        }
+      },
+      "implementation_gate": {
+        "type": "protected-workflow-baseline"
+      },
+      "activation_policy": {
+        "formal_task_table_required": true,
+        "planned_rows_non_executable": false
+      },
+      "scope_notes": {
+        "allowlist_precedence": "Task allowed_paths are evaluated before forbidden_path_prefixes; semantic release and data-boundary rules remain blocking.",
+        "release_boundary": "S11 is closed-beta only; deployment, staging, model, credential, and external-service behavior remain explicit Human boundaries.",
+        "data_boundary": "Only metadata, checksums, counts, redacted logs, and stop reasons may enter the repository; secrets, raw Shopify responses, official text, and protected source data remain external."
+      },
+      "forbidden_actions": [
+        "shopify_write",
+        "write_capable_credential",
+        "copy_raw_pdf",
+        "copy_official_text",
+        "copy_shopify_export",
+        "create_embeddings",
+        "create_index",
+        "add_training_files",
+        "public_launch",
+        "production_traffic",
+        "public_contract_change",
+        "workflow_policy_self_modification",
+        "secret_value_commit",
+        "unapproved_external_service",
+        "database_migration"
+      ],
+      "semantic_escalations": [
+        "public Contract change",
+        "Product Behavior change",
+        "Architecture boundary change",
+        "Acceptance or Accepted Decision change",
+        "major or cross-Slice dependency",
+        "real model provider or model ID",
+        "hosting or Secret Store selection",
+        "GitHub Actions or staging behavior",
+        "real external service behavior",
+        "Shopify-write capability",
+        "production traffic or public launch",
+        "security boundary relaxation",
+        "credential provisioning or scope change"
+      ],
+      "core_artifacts": [
+        "changes/slice-11-closed-beta-deployment/plan.md",
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [
+        ".python-version",
+        "pyproject.toml",
+        "uv.lock"
+      ],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "Data-Staging/",
+        "changes/slice-01-product-facts/",
+        "changes/slice-02-single-turn-recommendation/",
+        "changes/slice-03-target-resolution/",
+        "changes/slice-04-variant-comparison/",
+        "changes/slice-05-product-rag/",
+        "changes/slice-06-evidence-recommendation/",
+        "changes/slice-07-storefront-closure/",
+        "changes/slice-08-data-backed-rag/",
+        "changes/slice-09-controlled-rag-experiment/",
+        "changes/slice-10-real-data-pilot/",
+        "docs/",
+        "eval/datasets/",
+        "eval/golden/",
+        "eval/training/",
+        "official-docs/",
+        "shopify_exports/",
+        "training/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version",
+        ".github/workflows/"
+      ],
+      "semantic_path_rules": [
+        {
+          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07"],
+          "path_patterns": [
+            "*.pdf", "**/*.pdf", "*raw*official*", "**/*raw*official*",
+            "*official*text*", "**/*official*text*", "*shopify*export*",
+            "**/*shopify*export*", "*embedding*", "**/*embedding*",
+            "*index*", "**/*index*", "*training*", "**/*training*",
+            "*.env", "**/*.env", "*secret*", "**/*secret*", "*token*", "**/*token*"
+          ],
+          "behavior": "s11_forbidden_release_artifact",
+          "reason": "S11 must not commit secrets, raw protected data, generated indexes, or training artifacts."
+        },
+        {
+          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07"],
+          "path_patterns": ["backend/common/contracts.py"],
+          "behavior": "public_contract_change",
+          "reason": "S11 keeps the existing public wire Contract unchanged unless separately approved."
+        }
+      ],
+      "tasks": {
+        "T01": {
+          "allowed_paths": ["changes/slice-11-closed-beta-deployment/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "metadata-only release-readiness reconciliation",
+          "risk_tier": "LOW"
+        },
+        "T02": {
+          "allowed_paths": ["backend/runtime/", "backend/api/", "backend/application/", "tests/unit/", "tests/integration/", "changes/slice-11-closed-beta-deployment/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "closed-beta composition and fail-closed configuration boundary",
+          "risk_tier": "MEDIUM"
+        },
+        "T03": {
+          "allowed_paths": ["backend/runtime/", "backend/api/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/slice-11-closed-beta-deployment/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "health, CORS, error, redaction, rate, and zero-write guardrails",
+          "risk_tier": "MEDIUM"
+        },
+        "T04": {
+          "allowed_paths": ["backend/agent/", "backend/application/", "backend/runtime/", "tests/unit/", "tests/contract/", "changes/slice-11-closed-beta-deployment/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract",
+          "verification_rationale": "bounded intent adapter with deterministic fallback",
+          "risk_tier": "HIGH"
+        },
+        "T05": {
+          "allowed_paths": ["storefront/", "tests/unit/", "tests/integration/", "tests/e2e/", "changes/slice-11-closed-beta-deployment/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration or e2e",
+          "verification_rationale": "embeddable Widget boundary and approved origin behavior",
+          "risk_tier": "MEDIUM"
+        },
+        "T06": {
+          "allowed_paths": [".github/workflows/", "deploy/", "scripts/", "tests/", "Dockerfile", "changes/slice-11-closed-beta-deployment/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "CI, staging, immutable release, and rollback path",
+          "risk_tier": "HIGH"
+        },
+        "T07": {
+          "allowed_paths": ["scripts/", "tests/", "changes/slice-11-closed-beta-deployment/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "closed-beta acceptance matrix and Slice completion evidence",
+          "risk_tier": "MEDIUM"
+        }
+      }
     }
   }
 }
