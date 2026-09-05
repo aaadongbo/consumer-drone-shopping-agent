@@ -27,5 +27,13 @@
 | [DEC-009](./adr/DEC-009-dynamic-commerce-facts-separate-from-rag.md) | ACCEPTED | Shopify 动态事实与 RAG 如何分工？ | 动态 commerce 事实与静态文档知识严格分层 |
 | [DEC-010](./adr/DEC-010-deterministic-hard-constraints-at-variant-level.md) | ACCEPTED | HARD Constraint 由谁判断？ | 由确定性 Variant 级代码判断 |
 | [DEC-011](./adr/DEC-011-protocol-independent-internal-tool-contract.md) | ACCEPTED | 内部 Tool Contract 是否依赖 MCP？ | 协议无关；MCP 仅是可选 adapter |
-| [DEC-012](./adr/DEC-012-separate-page-context-turn-target-and-conversation-context.md) | PROPOSED / PENDING HUMAN REVIEW / CANDIDATE DECISION | 商品页、单轮目标与长期会话对象如何分工？ | Candidate Decision：Page Context 提供默认，Turn Target 约束本轮，只有确认切换更新 Conversation Context |
+| [DEC-012](./adr/DEC-012-separate-page-context-turn-target-and-conversation-context.md) | ACCEPTED | 商品页、单轮目标与长期会话对象如何分工？ | Page Context 提供默认，Turn Target 约束本轮，只有确认切换更新 Conversation Context |
 | [DEC-013](./adr/DEC-013-bounded-agentic-rag-only.md) | ACCEPTED | V1 是否采用 Agentic RAG？ | 只采用单编排器内受限 ActionPlan，不采用开放式 ReAct / 多 Agent |
+
+## 3. Decision Evidence Notes
+
+- `DEC-012` accepted on 2026-09-05 by Human reconciliation after Slice 3 through
+  Slice 10 implemented and depended on the Page Context / Turn Target /
+  Conversation Context separation semantics. This updates only the Decision status
+  and evidence in this index; it does not change the Decision content boundary,
+  public Contract, Product Behavior, or Architecture text.
