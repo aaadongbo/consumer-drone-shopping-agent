@@ -1,15 +1,14 @@
 # RAG Scope and Real Corpus Adapter Reconciliation Tasks
 
-> Status: FORMAL IMPLEMENTATION SCOPE / WORKFLOW POLICY NOT ACTIVATED
+> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R01 IN PROGRESS
 >
-> R01–R05 are formal bounded implementation tasks, but they are not executable yet:
-> this scope has no activated Workflow policy and no implementation authorization.
-> The Workflow Skill must not select or run these rows until a separate policy
-> session and current-context authorization are completed.
+> The RAG policy is present in the integrated Workflow baseline and the current
+> context authorizes R01–R05 in order. Only the current Task may be active; later
+> rows remain non-executable until their dependencies and task gate are met.
 
 | Task | Title | Status | Depends on |
 |---|---|---|---|
-| R01 | Identity binding, scope predicate, and regression matrix | NOT_STARTED | Planning baseline; policy activation |
+| R01 | Identity binding, scope predicate, and regression matrix | DONE | Planning baseline; current-context RAG authorization |
 | R02 | External corpus adapter, failure/version/budget mapping | NOT_STARTED | R01; corpus readiness; policy activation |
 | R03 | Preserve source-scope Evidence provenance | NOT_STARTED | R01; policy activation |
 | R04 | Integrate adapter with pilot composition without public schema change | NOT_STARTED | R02, R03; policy activation |
@@ -22,9 +21,9 @@
   this file alone.
 - The scope is separate from S11; it must not change S11 `tasks.md` or make S11-T04
   executable.
-- A future policy session must define allowed paths, risk tiers, targeted gates, and
-  the rule for returning to S11 before any row changes from `NOT_STARTED` to
-  `IN_PROGRESS`.
+- The integrated RAG policy defines the allowed paths, risk tiers, and targeted
+  gates; a current-context authorization is still required before a row changes
+  from `NOT_STARTED` to `IN_PROGRESS`.
 
 ## R01 — Identity binding, scope predicate, and regression matrix
 
@@ -100,3 +99,56 @@
   Contracts, or runtime code in R05; any S11 synchronization is a later S11 planning
   reconciliation.
 - **Verification**: planning/evidence reconciliation only.
+
+## RAG-R01 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `0603339a52daeb29ce1422986550e038c39bbb1e`
+- **Start worktree**: clean; no staged or untracked files before implementation.
+- **Authorization**: current-context authorization for the formal RAG-R01 through
+  RAG-R05 scope; RAG-R01 is the selected first Task and is HIGH within that
+  authorization.
+- **Boundary**: internal corpus identity binding, canonical ObjectScope mapping,
+  Product-shared/Variant-specific retrieval predicate, and regression tests only.
+  No public Contract, external access, source corpus content, persistence,
+  dependency, Workflow change, or S11 Task change.
+- **Implementation**: Added immutable `CorpusScopeBinding`, exact-key
+  `CorpusScopeBindingRegistry`, typed binding results/rejections, and
+  `bind_corpus_scope`/`resolve_corpus_scope`. Matching requires exact corpus
+  store/product/variant keys and the exact manifest checksum; unknown names,
+  slugs, aliases, and fuzzy candidates are not consulted. Controlled retrieval
+  now admits Product-shared records for an exact Variant request while keeping
+  Product-only requests shared-only and rejecting foreign Variant records.
+- **Targeted verification**:
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff check ...`
+    first exited `1` because the sandbox could not download locked packages;
+    after the approved local dependency preparation,
+    `.venv/bin/ruff check backend/rag/scope_binding.py
+    backend/rag/controlled_retrieval.py backend/rag/__init__.py
+    tests/unit/test_rag_r01_scope_binding.py
+    tests/integration/test_rag_r01_scope_matrix.py` exited `0`.
+  - `.venv/bin/ruff format --check backend/rag/scope_binding.py
+    backend/rag/controlled_retrieval.py backend/rag/__init__.py
+    tests/unit/test_rag_r01_scope_binding.py
+    tests/integration/test_rag_r01_scope_matrix.py` exited `0`.
+  - `PYTHONDONTWRITEBYTECODE=1 .venv/bin/pytest -m 'unit or integration'
+    tests/unit/test_rag_r01_scope_binding.py
+    tests/integration/test_rag_r01_scope_matrix.py
+    tests/integration/test_s09_t02_t03_controlled_retrieval.py -q` exited `0`
+    with `17 passed in 0.16s`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py RAG-R01`
+    exited `0`; all changed paths matched the R01 allowlist and no core,
+    dependency, forbidden-data, or semantic violations were reported.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py RAG-R01`
+    exited `0`; syntax, changed-file lint/format, targeted tests, diff, core
+    artifact, and dependency gates passed (`12 passed in 0.16s` for its selected
+    R01 tests).
+  - `git diff --check` exited `0`.
+- **Repair notes**: the first test collection attempt exited `2` because pytest
+  reserves the parameter name `request`; the next run exited `1` with three
+  fixture assertions because the matrix accidentally queried records assigned
+  to the requested foreign scope. Both were corrected within R01 and the final
+  targeted run passed.
+- **Known limits**: this Task does not validate external corpus reads, source
+  versions, adapter budgets, Evidence provenance construction, pilot injection,
+  or canonical-Variant planning; those remain R02–R05 scope.

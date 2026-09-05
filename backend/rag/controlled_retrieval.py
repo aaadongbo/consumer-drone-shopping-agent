@@ -149,11 +149,11 @@ def _matches_scope(
     record: ChunkBaselineRecord,
     request: ControlledRetrievalRequest,
 ) -> bool:
-    return (
-        record.store_id == request.store_id
-        and record.product_id == request.product_id
-        and record.variant_id == request.variant_id
-    )
+    if record.store_id != request.store_id or record.product_id != request.product_id:
+        return False
+    if request.variant_id is None:
+        return record.variant_id is None
+    return record.variant_id in (None, request.variant_id)
 
 
 def _score(record: ChunkBaselineRecord, request: ControlledRetrievalRequest) -> int:
