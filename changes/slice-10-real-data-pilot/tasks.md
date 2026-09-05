@@ -10,7 +10,7 @@
 
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
-| T01 | Pilot identity and data-readiness gate | NOT_STARTED | S09 locally integrated; S10 planning approval |
+| T01 | Pilot identity and data-readiness gate | DONE | S09 locally integrated; S10 planning approval |
 | T02 | Approved external corpus reader | NOT_STARTED | T01 corpus lane `GO` |
 | T03 | Real read-only Shopify adapter | NOT_STARTED | T01 Shopify lane `GO`; explicit external-access authorization |
 | T04 | Pilot composition root | NOT_STARTED | T02, T03 |
@@ -315,6 +315,61 @@ Stop on any condition listed in `plan.md`, especially public Contract or Archite
 change, new runtime dependency, mutation-capable Shopify access, unresolved Variant
 identity, corpus authorization change, forbidden data copy, production traffic, or
 model-generated facts.
+
+## S10-T01 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `a58b6e8979ec89d1f5a85e20786b57f570f7b9f6`
+- **Start worktree**: clean; no staged or untracked files before implementation.
+- **Authorization**: current-context Slice 10 authorization with approved Workflow
+  baseline `a58b6e8979ec89d1f5a85e20786b57f570f7b9f6`.
+- **Boundary**: internal metadata-only readiness; no Shopify network, credentials,
+  external corpus content, Data-Staging writes, public Contract, or dependency.
+- **Baseline verification**:
+  - `uv run pytest -q` first failed with uv cache permission (`exit 2`); no tests ran.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run pytest -q` exited `0`
+    with `621 passed in 0.78s`.
+- **Implementation**: Added internal-only `PilotDataReadinessReport`, separate
+  Shopify/corpus lane reports, stable Product/Variant identity validation, and safe
+  metadata serialization. Missing read-only credential, unresolved/duplicate/foreign
+  identity, missing corpus metadata, and missing chunk baseline all fail closed as
+  lane-specific `HOLD` reasons. No network, credentials, source text, Data-Staging
+  write, public Contract, or dependency was introduced.
+- **Targeted verification**:
+  - `PYTHONDONTWRITEBYTECODE=1 python -c "...compile..."` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff check
+    backend/catalog/pilot_readiness.py backend/catalog/__init__.py
+    tests/unit/test_s10_t01_pilot_readiness.py
+    tests/contract/test_s10_t01_readiness_contract.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff format --check
+    ...` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run pytest -m 'unit or
+    contract' tests/unit/test_s10_t01_pilot_readiness.py
+    tests/contract/test_s10_t01_readiness_contract.py -q` exited `0` with `7 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S10-T01`
+    exited `0` with no disallowed, core-artifact, dependency, or semantic data paths.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S10-T01`
+    exited `0`; syntax, Ruff, format, targeted tests, diff, core-artifact, and
+    dependency gates passed.
+- **Readiness result**: The repository implementation is ready for metadata input;
+  the current default external lanes remain `HOLD` until approved identity,
+  read-only credential metadata, corpus metadata, and corrected chunk baseline are
+  supplied. No external access was attempted.
+- **Read-only Data-Staging metadata check**:
+  - The admitted `rag-corpus-20260902-v0.1` manifest reports three products and
+    `chunks=0`, `embeddings=0`, `indexes=0`, `retrieval_runs=0`.
+  - The corrected `rag-chunking-ablation-20260902-v0.3/manifest.json` is absent and
+    its review sidecar is `AI_REVIEW_NEEDS_CHANGES`; the corpus lane therefore cannot
+    become `GO`.
+  - The Shopify v0.3 candidate review confirms three Product IDs but
+    `variant_id_status=UNRESOLVED_FROM_STANDARD_EXPORT`; Variant IDs are explicitly
+    unresolved before real adapter smoke or implementation ingestion. Shopify lane
+    therefore remains `HOLD`.
+  - These checks read metadata only; no PDF, source text, export row, credential,
+    network endpoint, or staging file was opened or written.
+- **Recommended Next Task**: `S10-T02` is dependency-ready but remains `NOT_STARTED`;
+  it requires a corpus lane `GO` and any external corpus access remains an explicit
+  Human boundary.
 
 ## Recommended Next Step
 
