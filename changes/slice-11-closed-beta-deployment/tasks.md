@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T03 DONE, REVIEW PENDING
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T04 DONE, REVIEW PENDING
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -13,7 +13,7 @@
 | T01 | Deployment readiness reconciliation | DONE | S10 completion evidence; Human accepts S11 planning baseline |
 | T02 | Production-like composition and config boundary | DONE | T01 |
 | T03 | Health, error, CORS, and security guardrails | DONE | T02 |
-| T04 | Model or restricted intent adapter boundary | NOT_STARTED | T02; Human provider/model ID decision if live model is used |
+| T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | NOT_STARTED | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | NOT_STARTED | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T07 | Closed-beta acceptance and completion evidence | NOT_STARTED | T04, T06; explicit live smoke authority |
@@ -549,3 +549,63 @@ provider, hosting, CI, staging, or Widget-origin changes.
   scope. T03 does not alter the public wire Contract.
 - **Recommended next Task**: create the immutable T03 MEDIUM snapshot and complete
   its independent read-only review before considering `S11-T04`.
+
+## S11-T04 Execution Record
+
+- **Status**: `DONE — Awaiting HIGH Task Human Review`
+- **Start commit**: `9ea6053bc4c48833c061837b5e8415c6b61821aa`
+- **Start worktree**: clean detached task worktree; no staged or untracked files
+  before T04.
+- **Authorization**: current-context explicit Human authorization for `S11-T04`
+  only. This does not authorize `S11-T05` through `S11-T07`.
+- **Boundary**: deterministic interpreter fallback and replaceable restricted intent
+  adapter boundary only. No public Contract, Product Behavior, Architecture,
+  dependency, external service, credential, live provider/model ID, Shopify write,
+  deployment, or Widget change is authorized.
+- **Changed paths**: `backend/agent/__init__.py`,
+  `backend/agent/intent_adapter.py`, `backend/application/pilot_composition.py`,
+  `backend/application/product_rag.py`, `backend/runtime/__init__.py`,
+  `backend/runtime/composition.py`,
+  `tests/contract/test_s11_t04_intent_adapter_contract.py`,
+  `tests/unit/test_s10_t04_pilot_composition.py`,
+  `tests/unit/test_s11_t04_intent_adapter.py`, and this Task record.
+- **Acceptance**: optional adapter output is restricted to bounded route candidates
+  and safe metadata; deterministic fallback remains the default; provider timeout,
+  provider failure, low confidence, token-budget exhaustion, unsupported intent, and
+  explicit safe fallback all return through safe deterministic or fallback semantics
+  without generating product facts or bypassing Evidence gates. No live provider,
+  provider/model ID, credential, external service, public Contract, Product Behavior,
+  Architecture, dependency, Shopify write, deployment, or Widget change was made.
+- **Verification**:
+  - Initial sandboxed `uv` commands exited `2` because the sandbox could not access
+    `/Users/russeell/.cache/uv`; the same targeted commands were rerun with approved
+    cache access.
+  - Initial Ruff check exited `1` for import ordering and one long test name; the
+    minimal formatting fixes were applied.
+  - `uv run ruff check backend/agent backend/application backend/runtime
+    tests/unit/test_s11_t04_intent_adapter.py
+    tests/contract/test_s11_t04_intent_adapter_contract.py
+    tests/unit/test_s10_t04_pilot_composition.py` exited `0`.
+  - `uv run ruff format --check backend/agent backend/application backend/runtime
+    tests/unit/test_s11_t04_intent_adapter.py
+    tests/contract/test_s11_t04_intent_adapter_contract.py
+    tests/unit/test_s10_t04_pilot_composition.py` exited `0`
+    (`20 files already formatted`).
+  - `uv run pytest -m 'unit or contract'
+    tests/unit/test_s11_t04_intent_adapter.py
+    tests/contract/test_s11_t04_intent_adapter_contract.py
+    tests/unit/test_s10_t04_pilot_composition.py -q` exited `0`
+    (`21 passed`).
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py T04`
+    exited `0`; all changed paths are within the T04 allowlist.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py T04`
+    exited `0`; targeted compile, Ruff, format, pytest, diff, core-artifact, and
+    dependency checks passed.
+  - `git diff --check` exited `0`.
+  - Focused redaction scan found only redaction-test strings and existing redaction
+    key names; no credential value, raw provider payload, prompt secret, Shopify raw
+    response, official text, index, embedding, or training artifact was added.
+- **Known limits**: provider/model ID remains `OD-S11-03` and no real-model smoke was
+  run or authorized. T04 creates only the deterministic/restricted boundary; later
+  deployment, Widget, CI, staging, rollback, and closed-beta acceptance Tasks remain
+  `NOT_STARTED`.

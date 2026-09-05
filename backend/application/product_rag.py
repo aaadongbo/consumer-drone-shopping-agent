@@ -238,6 +238,38 @@ class ProductRagApplicationService:
         )
         return AnswerEnvelope(root=payload)
 
+    def fallback_resolved(
+        self,
+        request: TurnRequest,
+        resolution: TargetResolution,
+        *,
+        reason: RagStopReason = RagStopReason.EVIDENCE_REJECTED,
+    ) -> AnswerEnvelope:
+        """Return a safe fallback for a resolved target without attempting RAG."""
+        correlation_id = _safe_trace_value(self._correlation_id_factory())
+        try:
+            scope = TargetFactIdentityAdapter().resolve_scope(
+                request=request, resolution=resolution
+            )
+        except TargetFactIdentityError:
+            scope = ObjectScope(
+                store_id=request.store_id,
+                product_id=request.page_context.product_id,
+                variant_id=request.page_context.variant_id,
+            )
+        self._trace(
+            correlation_id,
+            TraceEventType.TURN_REQUEST_ACCEPTED,
+            TraceResult.ACCEPTED,
+            scope,
+        )
+        return self._fallback(
+            request=request,
+            correlation_id=correlation_id,
+            scope=scope,
+            reason=reason,
+        )
+
     def _fallback(
         self,
         *,

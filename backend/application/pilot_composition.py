@@ -10,7 +10,15 @@ from uuid import uuid4
 
 from fastapi import FastAPI
 
-from backend.agent import BoundedProductRagLoop, ProductRagBudget, ProductRagRetriever
+from backend.agent import (
+    BoundedProductRagLoop,
+    IntentAdapterBudget,
+    IntentRoute,
+    ProductRagBudget,
+    ProductRagRetriever,
+    RestrictedIntentAdapter,
+    RestrictedIntentRouter,
+)
 from backend.application.product_rag import (
     ProductRagApplicationService,
     ProductRagQuestionInterpreter,
@@ -29,7 +37,6 @@ from backend.conversation import (
     TurnTarget,
     TurnTargetKind,
 )
-from backend.rag import is_dynamic_commerce_question
 from backend.shopify import (
     DeterministicShopifyFixture,
     RealShopifyReadAdapter,
@@ -58,6 +65,8 @@ class PilotCompositionConfig:
     static_retriever: ProductRagRetriever
     readiness: PilotDataReadinessReport | None = None
     rag_budget: ProductRagBudget | None = None
+    intent_adapter: RestrictedIntentAdapter | None = None
+    intent_budget: IntentAdapterBudget | None = None
     clock: Callable[[], datetime] | None = None
     correlation_id_factory: Callable[[], str] | None = None
 
@@ -83,16 +92,24 @@ class PilotConversationApplication:
         store_id: str,
         commerce: Slice1ApplicationService,
         static: ProductRagApplicationService,
+        intent_router: RestrictedIntentRouter,
     ) -> None:
         self._store_id = store_id
         self._commerce = commerce
         self._static = static
+        self._intent_router = intent_router
 
     def answer(self, request: TurnRequest) -> AnswerEnvelope:
         if request.store_id != self._store_id:
             raise PilotCompositionError("request store is outside the pilot scope")
-        if is_dynamic_commerce_question(request.user_text):
+        decision = self._intent_router.decide(request)
+        if decision.route is IntentRoute.COMMERCE_FACT:
             return self._commerce.answer(request)
+        if decision.route is IntentRoute.SAFE_FALLBACK:
+            return self._static.fallback_resolved(
+                request,
+                _page_context_resolution(request),
+            )
         return self._static.answer_resolved(
             request,
             _page_context_resolution(request),
@@ -129,10 +146,19 @@ def build_pilot_composition(config: PilotCompositionConfig) -> PilotComposition:
         correlation_id_factory=correlation_id_factory,
         clock=clock,
     )
+    intent_router = RestrictedIntentRouter(
+        adapter=config.intent_adapter,
+        budget=config.intent_budget
+        or IntentAdapterBudget(
+            timeout_ms=8_000,
+            max_model_tokens=1_200,
+        ),
+    )
     application = PilotConversationApplication(
         store_id=config.store_id,
         commerce=commerce,
         static=static,
+        intent_router=intent_router,
     )
     return PilotComposition(
         mode=mode,

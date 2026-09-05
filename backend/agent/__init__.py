@@ -1,5 +1,15 @@
 """Bounded deterministic orchestration for recommendation and Product RAG."""
 
+from backend.agent.intent_adapter import (
+    IntentAdapterBudget,
+    IntentAdapterSignal,
+    IntentDecisionSource,
+    IntentRoute,
+    IntentRoutingDecision,
+    IntentSignalStatus,
+    RestrictedIntentAdapter,
+    RestrictedIntentRouter,
+)
 from backend.agent.product_rag import (
     ActionObservation,
     ActionPlan,
@@ -44,11 +54,19 @@ __all__ = [
     "BoundedProductRagLoop",
     "BudgetConsumption",
     "CatalogSnapshotProvider",
+    "IntentAdapterBudget",
+    "IntentAdapterSignal",
+    "IntentDecisionSource",
+    "IntentRoute",
+    "IntentRoutingDecision",
+    "IntentSignalStatus",
     "ProductRagBudget",
     "ProductRagLoopResult",
     "ProductRagRetriever",
     "RagAction",
     "RagStopReason",
+    "RestrictedIntentAdapter",
+    "RestrictedIntentRouter",
     "Slice2RecommendationService",
     "Slice2TraceSink",
     "EvidenceObjective",

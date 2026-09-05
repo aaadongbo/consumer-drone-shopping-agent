@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backend.agent import ProductRagBudget, ProductRagRetriever
+from backend.agent import IntentAdapterBudget, ProductRagBudget, ProductRagRetriever
 from backend.application.pilot_composition import (
     PilotComposition,
     PilotCompositionConfig,
@@ -52,6 +52,10 @@ def build_closed_beta_composition(
             static_retriever=dependencies.static_retriever,
             readiness=dependencies.readiness,
             rag_budget=rag_budget,
+            intent_budget=IntentAdapterBudget(
+                timeout_ms=config.request_timeout_ms,
+                max_model_tokens=config.max_model_tokens_per_turn,
+            ),
         )
     )
 

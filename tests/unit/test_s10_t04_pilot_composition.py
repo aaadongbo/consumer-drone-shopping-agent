@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 
 import pytest
 
+from backend.agent import IntentAdapterSignal, IntentRoute, IntentSignalStatus
 from backend.application import (
     PilotCompositionConfig,
     PilotCompositionError,
@@ -18,6 +19,7 @@ from backend.catalog import (
     PilotReadinessStopReason,
     PilotVariantIdentity,
 )
+from backend.common import ConversationRef, PageContext, TurnRequest
 from backend.shopify import (
     DeterministicShopifyFixture,
     RealShopifyReadAdapter,
@@ -48,6 +50,20 @@ class EmptyTransport:
 class EmptyRetriever:
     def retrieve(self, request):
         raise AssertionError("the composition test must not retrieve")
+
+
+class StaticRetriever:
+    def retrieve(self, request):
+        raise AssertionError("safe fallback must not retrieve")
+
+
+class FakeIntentAdapter:
+    def __init__(self, signal: IntentAdapterSignal) -> None:
+        self.signal = signal
+
+    def route(self, request, *, budget):
+        assert budget.max_model_tokens > 0
+        return self.signal
 
 
 def fixture() -> DeterministicShopifyFixture:
@@ -176,3 +192,35 @@ def test_missing_dependencies_and_unknown_mode_are_rejected_without_fallback() -
         build_pilot_composition(config(shopify=None))
     with pytest.raises(PilotCompositionError):
         build_pilot_composition(config(mode="unknown"))
+
+
+def test_intent_adapter_can_only_force_safe_fallback_not_answer_generation() -> None:
+    composition = build_pilot_composition(
+        config(
+            shopify=fixture(),
+            static_retriever=StaticRetriever(),
+            intent_adapter=FakeIntentAdapter(
+                IntentAdapterSignal(
+                    status=IntentSignalStatus.UNSUPPORTED_INTENT,
+                    route=IntentRoute.SAFE_FALLBACK,
+                    confidence=1.0,
+                )
+            ),
+        )
+    )
+
+    response = composition.application.answer(
+        TurnRequest(
+            schema_version="1.0",
+            store_id=STORE,
+            conversation=ConversationRef(
+                conversation_id="conversation-1",
+                message_id="message-1",
+            ),
+            user_text="包装里有什么？",
+            locale="zh-CN",
+            page_context=PageContext(product_id="p1", variant_id="v1"),
+        )
+    )
+
+    assert response.root.outcome.value == "FALLBACK"

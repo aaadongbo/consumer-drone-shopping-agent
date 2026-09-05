@@ -1,4 +1,4 @@
-"""Internal runtime configuration and composition boundaries."""
+"""Internal runtime configuration, guardrails, and composition boundaries."""
 
 from backend.runtime.composition import (
     ReleaseDependencies,
@@ -10,17 +10,6 @@ from backend.runtime.config import (
     ReleaseConfigError,
     ReleaseEnvironment,
 )
-
-__all__ = [
-    "IntentAdapterMode",
-    "ReleaseConfig",
-    "ReleaseConfigError",
-    "ReleaseDependencies",
-    "ReleaseEnvironment",
-    "ReleaseDependencies",
-    "build_closed_beta_composition",
-    "build_closed_beta_composition",
-]
 from backend.runtime.guardrails import (
     ConcurrencyLimitExceeded,
     GuardrailError,
@@ -46,7 +35,9 @@ __all__ = [
     "ReadOnlyOperationLedger",
     "ReleaseConfig",
     "ReleaseConfigError",
+    "ReleaseDependencies",
     "ReleaseEnvironment",
+    "build_closed_beta_composition",
     "build_health_report",
     "is_allowed_origin",
     "redact_for_log",
