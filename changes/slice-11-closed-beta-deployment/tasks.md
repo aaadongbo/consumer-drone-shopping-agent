@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: PLANNING REVIEW / NON-EXECUTABLE / INDEPENDENT REVIEW + HUMAN REVIEW REQUIRED
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T03 DONE, REVIEW PENDING
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -12,7 +12,7 @@
 |---|---|---|---|---|
 | T01 | Deployment readiness reconciliation | DONE | S10 completion evidence; Human accepts S11 planning baseline |
 | T02 | Production-like composition and config boundary | DONE | T01 |
-| T03 | Health, error, CORS, and security guardrails | NOT_STARTED | T02 |
+| T03 | Health, error, CORS, and security guardrails | DONE | T02 |
 | T04 | Model or restricted intent adapter boundary | NOT_STARTED | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | NOT_STARTED | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | NOT_STARTED | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
@@ -472,7 +472,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ## S11-T02 Execution Record
 
-- **Status**: `IN_PROGRESS`
+- **Status**: `DONE`
 - **Start commit**: `5eefc0341940d8681c663efc0382e0b6058386ba`
 - **Start worktree**: clean; no staged or untracked files before T02.
 - **Authorization**: current-context S11 implementation authorization with the exact
@@ -483,7 +483,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ### T02 Completion Record
 
-- **Status**: `DONE — Awaiting MEDIUM Task Review`
+- **Status**: `DONE — MEDIUM Review PASS / AUTO_ADVANCE_ELIGIBLE`
 - **Changed paths**: `backend/runtime/config.py`, `backend/runtime/composition.py`,
   `backend/runtime/__init__.py`, `tests/unit/test_s11_t02_runtime_config.py`, and
   this Task record.
@@ -498,9 +498,54 @@ provider, hosting, CI, staging, or Widget-origin changes.
     exited `0`.
   - `uv run pytest -m unit tests/unit/test_s11_t02_runtime_config.py -q` exited `0`
     (`10 passed`).
+  - Independent child review re-ran immutable evidence, targeted lint/format,
+    targeted tests, and diff checks; all exited `0`, with `AI_REVIEW_PASS` and
+    an empty findings list.
   - No Shopify/network call was made; the test transport raises if invoked.
 - **Known limits**: hosting vendor, hosted Secret Store product, live model provider,
   Widget origins, deployment, CI, health endpoints, and external credentials remain
   explicit later-Task decisions; no public Contract or dependency was changed.
-- **Recommended next Task**: create the immutable T02 MEDIUM snapshot and complete
-  its independent read-only review before considering `S11-T03`.
+- **Recommended next Task**: continue with `S11-T03`.
+
+## S11-T03 Execution Record
+
+- **Status**: `DONE — Awaiting MEDIUM Task Review`
+- **Start commit**: `182d51785ed20406cbf1f17c6d7dd0af1e6c0f86`
+- **Start worktree**: clean; no staged or untracked files before T03.
+- **Authorization**: current-context S11 implementation authorization with the exact
+  approved Workflow Policy baseline `c612f27e73b3b69bce555ba5349e1a1a89c78c95`.
+- **Boundary**: in-process health/readiness, explicit-origin CORS, safe exception
+  responses, metadata-only redaction, rate/concurrency limits, and read-only
+  operation counters. No public Contract, dependency, external service, Shopify
+  write, deployment, or persistent state change.
+- **Changed paths**: `backend/runtime/guardrails.py`, `backend/runtime/__init__.py`,
+  `backend/api/guardrails.py`, `backend/api/__init__.py`,
+  `tests/unit/test_s11_t03_guardrails.py`,
+  `tests/contract/test_s11_t03_guardrails_contract.py`,
+  `tests/integration/test_s11_t03_guardrails_api.py`, and this Task record.
+- **Acceptance**: health reports contain only safe metadata and fail closed on
+  readiness; CORS accepts only exact configured origins; rate and concurrency
+  limits are bounded and stable; unexpected errors expose no diagnostics; logs
+  redact secrets/payloads; and the operation ledger has no write surface and a
+  zero write-call count.
+- **Verification**:
+  - Initial Ruff check reported one unused import, duplicate exports, and formatting
+    findings; the minimal mechanical fixes were applied.
+  - Initial CORS integration assertion exposed a method-list mismatch; `GET` was
+    added to the explicitly allowlisted methods and the regression passed.
+  - `uv run ruff check backend/runtime backend/api/guardrails.py
+    tests/unit/test_s11_t03_guardrails.py
+    tests/contract/test_s11_t03_guardrails_contract.py
+    tests/integration/test_s11_t03_guardrails_api.py` exited `0`.
+  - `uv run ruff format --check backend/runtime backend/api/guardrails.py
+    tests/unit/test_s11_t03_guardrails.py
+    tests/contract/test_s11_t03_guardrails_contract.py
+    tests/integration/test_s11_t03_guardrails_api.py` exited `0`.
+  - `uv run pytest -m 'unit or contract or integration' ...` exited `0`
+    (`16 passed`). Unit-only and integration-only reruns also exited `0`
+    (`12 passed` and `2 passed`).
+- **Known limits**: rate/concurrency state is intentionally process-local; external
+  monitoring, distributed limits, deployment, and production traffic remain out of
+  scope. T03 does not alter the public wire Contract.
+- **Recommended next Task**: create the immutable T03 MEDIUM snapshot and complete
+  its independent read-only review before considering `S11-T04`.

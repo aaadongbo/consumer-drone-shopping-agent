@@ -6,10 +6,16 @@ from backend.api.conversation import (
     MinimalConversationClient,
     create_conversation_api,
 )
+from backend.api.guardrails import (
+    install_cors_guardrail,
+    install_safe_exception_handler,
+)
 
 __all__ = [
     "CONVERSATION_TURN_PATH",
     "ConversationTransportError",
     "MinimalConversationClient",
     "create_conversation_api",
+    "install_cors_guardrail",
+    "install_safe_exception_handler",
 ]
