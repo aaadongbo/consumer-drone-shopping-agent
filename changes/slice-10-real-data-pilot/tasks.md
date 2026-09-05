@@ -14,7 +14,7 @@
 | T02 | Approved external corpus reader | DONE | T01 corpus lane `GO` |
 | T03 | Real read-only Shopify adapter | DONE | T01 Shopify lane `GO`; explicit external-access authorization |
 | T04 | Pilot composition root | DONE | T02, T03 |
-| T05 | Three-product local pilot E2E | NOT_STARTED | T04 |
+| T05 | Three-product local pilot E2E | DONE | T04 |
 | T06 | Slice 10 completion evidence | NOT_STARTED | T05 |
 
 Risk labels and execution cadence are defined by the activated S10 Workflow Policy.
@@ -516,3 +516,30 @@ current-context implementation authority and the applicable data-readiness check
 - **Known limits**: T04 verifies local composition with synthetic transport/retrieval
   dependencies. The three-product pilot matrix, failure-path audit, full suite, and
   final Slice review remain for T05/T06. No production-readiness claim is made.
+
+## S10-T05 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `7625fb62e44305d1251834805433ed099ba0ff44`
+- **Authorization**: current-context Human authorization covers continuation through
+  S10-T06 after the successful v0.4 smoke. v0.4 remains the sole live-read smoke;
+  T05 made no Shopify network call, Keychain access, retry, or Data-Staging write.
+- **Boundary**: Added a local/test-only E2E matrix using the explicit `pilot` mode,
+  synthetic typed Shopify transport, approved v0.4 Product/Variant identities, and
+  the existing Conversation API/AnswerEnvelope. The matrix covers dynamic and static
+  journeys for Air 3, Mavic 3, and Mini 3, same-Product evidence, cross-Product
+  injection rejection, Variant identity mismatch, source timeout, trace correlation,
+  bounded retrieval/read calls, redacted wire/trace values, and zero-write ledgers.
+  No public Contract, product/inventory/scope data, runtime dependency, or old smoke
+  artifact was changed.
+- **Targeted verification**:
+  - `PYTHONDONTWRITEBYTECODE=1 python -m py_compile tests/e2e/test_s10_t05_pilot_e2e.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff check tests/e2e/test_s10_t05_pilot_e2e.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff format --check tests/e2e/test_s10_t05_pilot_e2e.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run pytest -m e2e tests/e2e/test_s10_t05_pilot_e2e.py -q` exited `0` with `9 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S10-T05 --pretty` exited `0`; no disallowed, core-artifact, dependency, forbidden-slice, or semantic-action violations.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S10-T05 --pretty` exited `0`; syntax, Ruff, format, targeted E2E, diff whitespace, core-artifact, and dependency gates passed.
+- **Known limits**: T05 proves the local synthetic pilot boundary and consumes the
+  approved v0.4 metadata-only live evidence; it is not a production traffic test and
+  does not authorize deployment, indexing, training, or push. T06 remains for the
+  one-time full suite, boundary scans, completion snapshot, and final Slice review.
