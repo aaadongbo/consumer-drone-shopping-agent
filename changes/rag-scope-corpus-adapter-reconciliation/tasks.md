@@ -1,6 +1,6 @@
 # RAG Scope and Real Corpus Adapter Reconciliation Tasks
 
-> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R04 DONE
+> Status: FORMAL IMPLEMENTATION SCOPE / RAG-R05 DONE
 >
 > The RAG policy is present in the integrated Workflow baseline and the current
 > context authorizes R01–R05 in order. Only the current Task may be active; later
@@ -12,7 +12,7 @@
 | R02 | External corpus adapter, failure/version/budget mapping | DONE | R01; corpus readiness; current-context RAG authorization |
 | R03 | Preserve source-scope Evidence provenance | DONE | R01; policy activation |
 | R04 | Integrate adapter with pilot composition without public schema change | DONE | R02, R03; policy activation |
-| R05 | Reconcile canonical-Variant beta planning/evidence boundary | NOT_STARTED | R01–R04; policy activation |
+| R05 | Reconcile canonical-Variant beta planning/evidence boundary | DONE | R01–R04; policy activation |
 
 ## Formalization boundary
 
@@ -308,3 +308,27 @@
   This MEDIUM Task has not been integrated into a protected branch or pushed; a
   fresh immutable snapshot, independent review, and checkpoint evaluation are
   required.
+
+## RAG-R05 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `abc01181d636103fb93046795e347e6299bf418e`
+- **Start worktree**: clean after the RAG-R04 immutable snapshot, independent
+  `AI_REVIEW_PASS`, and MEDIUM checkpoint `AUTO_ADVANCE_ELIGIBLE`.
+- **Authorization**: current-context authorization for the formal RAG-R01 through
+  RAG-R05 scope; RAG-R05 is the dependency-ready LOW planning Task.
+- **Boundary**: this Task updates only this reconciliation's `plan.md` and
+  `tasks.md` to make the current canonical-Variant beta limitation explicit. It
+  does not change S10 evidence, S11 `tasks.md`, public Contracts, runtime code,
+  Shopify access, or Workflow policy.
+- **Reconciliation**: the current pilot proves at most one accepted canonical
+  Variant identity per Product. Product-shared static evidence may be inherited by
+  that confirmed Variant, while exact-Variant dynamic facts remain separate. The
+  current evidence does not prove isolation between multiple bundles or secondary
+  Variants, and no such claim is made. Any future expansion requires real secondary
+  Shopify Variant identities and a separate matrix for shared, Variant-specific,
+  packaging, price, inventory, and availability behavior.
+- **Verification**: `git diff --check` exited `0`; planning text was reviewed for
+  the canonical-Variant limitation and the R05 artifact boundary.
+- **Known limits**: this planning reconciliation does not widen the S10/S11 beta,
+  create secondary Variant data, or authorize integration or push.

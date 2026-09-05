@@ -157,6 +157,14 @@ synthetic secondary Variant may be introduced. A future multi-Variant expansion
 requires real Shopify identities and a separate acceptance matrix covering at least
 price, inventory, packaging, and bundle-specific facts.
 
+The reconciled evidence boundary is therefore explicit: the current pilot may prove
+identity binding and exact-Variant commerce reads for the one accepted Variant, plus
+Product-shared static evidence inherited by that Variant. It does not prove isolation
+between multiple bundles of one Product, and no Product/Variant evidence may be
+interpreted as doing so. A future expansion must add real secondary Shopify Variant
+identities and independently verify shared, Variant-specific, packaging, and dynamic
+commerce cases before any beta scope is widened.
+
 ## 8. Non-goals
 
 - No public Contract, Architecture Decision, or Product Behavior change in this
