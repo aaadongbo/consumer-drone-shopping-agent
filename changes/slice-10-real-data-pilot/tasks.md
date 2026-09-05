@@ -15,7 +15,7 @@
 | T03 | Real read-only Shopify adapter | DONE | T01 Shopify lane `GO`; explicit external-access authorization |
 | T04 | Pilot composition root | DONE | T02, T03 |
 | T05 | Three-product local pilot E2E | DONE | T04 |
-| T06 | Slice 10 completion evidence | NOT_STARTED | T05 |
+| T06 | Slice 10 completion evidence | DONE | T05 |
 
 Risk labels and execution cadence are defined by the activated S10 Workflow Policy.
 They are not external-service authority. T03 and T05 remain explicit Human
@@ -543,3 +543,59 @@ current-context implementation authority and the applicable data-readiness check
   approved v0.4 metadata-only live evidence; it is not a production traffic test and
   does not authorize deployment, indexing, training, or push. T06 remains for the
   one-time full suite, boundary scans, completion snapshot, and final Slice review.
+
+## S10-T06 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `ba1abe0ea896d93cd24ac8f0719dd4cedcf451cf`
+- **Authorization**: current-context Human authorization covers continuation through
+  S10-T06 after the successful v0.4 smoke. No new Shopify network access, Keychain
+  access, retry, Data-Staging write, push, merge, or production action was performed.
+- **Metadata-only handoff**: `PILOT_READY_FOR_HUMAN_EVALUATION`. This is a local-pilot
+  evaluation handoff only, not production readiness. It records the exact distinction
+  between the one approved live v0.4 read smoke and the synthetic local composition/
+  E2E matrix. It does not authorize production traffic, embeddings/indexing, training,
+  Golden Set freeze, deployment, or push.
+- **Acceptance evidence**:
+  - `S10-A01`/`S10-A02`/`S10-A03`: v0.4 metadata reports exact approved store,
+    three Product/Variant identities, `read_calls=2`, `write_calls=0`,
+    `retry_count=0`, and current commerce responses; T05 dynamic journeys preserve
+    exact scope and `observed_at`.
+  - `S10-A04`/`S10-A05`/`S10-A06`: T05 static journeys for all three Products use
+    same-Product approved locators; cross-Product injection is rejected; dynamic
+    questions use Shopify and static questions use controlled retrieval.
+  - `S10-A07`/`S10-A08`/`S10-A09`: T04 explicit mode/readiness guards and T05
+    mismatch/timeout fallback cases pass through the unchanged Conversation API and
+    `AnswerEnvelope` without stale facts or internal diagnostics.
+  - `S10-A10`/`S10-A11`/`S10-A12`: metadata-only Data-Staging boundary scan is
+    accepted; adapter/retrieval limits remain bounded; T05 matrix is `9 passed` with
+    zero-write ledgers and redacted wire/trace assertions.
+  - `S10-A13`: this handoff is explicitly labeled local pilot evaluation and makes no
+    production claim.
+- **v0.4 evidence**: The append-only directory
+  `/Users/russeell/Documents/Data-Staging/consumer-drone-agent/outputs/shopify-adapter-smoke-20260905-v0.4`
+  still contains only `smoke-result.metadata.json` and `checksums.json`. The metadata
+  SHA-256 is
+  `78a45ab17e6aed9bd621dc36b4dd5e24f79f5fe1acbe0e6657781630c70de410`; the checksums
+  file SHA-256 is
+  `75cd72b47c97a53ad7e6b11f9694408398ee8cc5d38e6e1bf706235767a92027`. Older v0.1,
+  v0.2, and v0.3 directories remain untouched; raw bodies, headers, tokens, and
+  source text were not recorded.
+- **Completion verification**:
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache python .agents/skills/drone-slice-workflow/scripts/verify_task.py S10-T06 --pretty` exited `0`. Its one full-project run completed with `694 passed in 0.79s`; `uv lock --check`, full Ruff lint/format, diff, core-artifact, dependency, and scope gates also passed.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S10-T06 --pretty` exited `0`; only this task record changed, with no disallowed, core-artifact, dependency, forbidden-slice, or semantic-action violation.
+  - `PYTHONDONTWRITEBYTECODE=1 python scripts/check_s08_data_boundary.py --command "git status --short --branch --untracked-files=all" --command "uv run pytest -q" --command "git diff --check" --command "git diff --quiet HEAD -- backend/common/contracts.py" --command "git diff --quiet HEAD -- .python-version pyproject.toml uv.lock"` exited `0` with `accepted=true` and no violations.
+  - `git diff --quiet HEAD -- backend/common/contracts.py && git diff --quiet HEAD -- .python-version pyproject.toml uv.lock` exited `0`; the public Contract and dependency lock are unchanged.
+  - The changed-record secret-signature scan exited `0` with no credential-token,
+    bearer-header, private-key, admin-token, project-key, or client-secret match.
+  - The v0.4 file-list/checksum command exited `0` and confirmed the two-file append-only metadata boundary and both recorded SHA-256 values.
+- **Snapshot/review boundary**: T01-T05 are complete; T03 immutable review passed at
+  `cd1fe1d62dc12890a6ee4bbf8dbcd788bed85756`, and T05 immutable review passed at
+  `ba1abe0ea896d93cd24ac8f0719dd4cedcf451cf` with digest
+  `9fa85dafffe341e4aad48fe2491c4f1d1b9c15a5ec8a253ecb6f531bb22a4e1e`. The final
+  completion snapshot and independent Slice review remain the last workflow gate;
+  neither implies Human acceptance, integration, merge, or push.
+- **Known limits**: Live evidence is one bounded v0.4 read smoke only; T04/T05
+  composition and E2E evidence is synthetic and local. The result does not validate
+  production traffic, deployment, customer auth, model behavior, hosted retrieval,
+  persistent state, or production SLOs.
