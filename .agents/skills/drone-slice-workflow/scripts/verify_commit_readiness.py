@@ -34,8 +34,11 @@ WORKFLOW_POLICY_REPAIR_IDENTITIES = {
     "WORKFLOW-S08-POLICY": "changes/slice-08-data-backed-rag/tasks.md",
     "WORKFLOW-S09-POLICY": "changes/slice-09-controlled-rag-experiment/tasks.md",
     "WORKFLOW-S10-POLICY": "changes/slice-10-real-data-pilot/tasks.md",
+    "WORKFLOW-RAG-POLICY": "changes/rag-scope-corpus-adapter-reconciliation/tasks.md",
 }
 WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES = {"WORKFLOW-S05-POLICY"}
+WORKFLOW_POLICY_STATE_ONLY_IDENTITIES = {"WORKFLOW-RAG-POLICY"}
+WORKFLOW_POLICY_EXACT_PATH_IDENTITIES = {"WORKFLOW-RAG-POLICY"}
 WORKFLOW_POLICY_REPAIR_IDENTITY = "WORKFLOW-S03-POLICY"
 WORKFLOW_POLICY_REPAIR_TASKS_FILE = WORKFLOW_POLICY_REPAIR_IDENTITIES[
     WORKFLOW_POLICY_REPAIR_IDENTITY
@@ -79,6 +82,14 @@ WORKFLOW_POLICY_PRE_ACTIVATION_PATHS = {
         ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
         ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
         "changes/slice-10-real-data-pilot/tasks.md",
+    },
+    "WORKFLOW-RAG-POLICY": {
+        ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+        ".agents/skills/drone-slice-workflow/scripts/check_scope.py",
+        ".agents/skills/drone-slice-workflow/scripts/inspect_state.py",
+        ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
+        ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
+        ".agents/skills/drone-slice-workflow/scripts/verify_task.py",
     },
 }
 WORKFLOW_POLICY_PRE_ACTIVATION_PLAN_FILES = {
@@ -260,11 +271,19 @@ def commit_range_sha256(
     base = resolve_commit(repo, base_revision)
     snapshot = resolve_commit(repo, snapshot_revision)
     identity = task_ref.strip().upper()
-    if identity in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES:
+    if identity in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES.union(
+        WORKFLOW_POLICY_STATE_ONLY_IDENTITIES
+    ):
         state = pre_activation_workflow_state(repo, snapshot, identity)
         canonical_task = identity
     else:
-        state = inspect(repo)
+        requested_task_ref = (
+            task_ref
+            if identity.startswith("RAG-")
+            and identity not in WORKFLOW_POLICY_REPAIR_IDENTITIES
+            else None
+        )
+        state = inspect(repo, requested_task_ref=requested_task_ref)
         canonical_task = canonical_review_identity(task_ref, state)
     manifest = range_manifest(repo, base, snapshot)
     hasher = hashlib.sha256()
@@ -337,13 +356,14 @@ def pre_activation_workflow_state(
     repo: Path, revision: str, identity: str
 ) -> dict[str, Any]:
     tasks_file = WORKFLOW_POLICY_REPAIR_IDENTITIES[identity]
+    slice_id = "RAG" if identity == "WORKFLOW-RAG-POLICY" else "S05"
     return {
         "repository_root": str(repo),
-        "slice_id": "S05",
+        "slice_id": slice_id,
         "tasks_file": tasks_file,
         "tasks": [],
         "other_active_worktrees": [],
-        "pre_activation": True,
+        "pre_activation": identity in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES,
         "pre_activation_revision": revision,
     }
 
@@ -367,12 +387,15 @@ def workflow_policy_repair_scope(
     tasks_file = WORKFLOW_POLICY_REPAIR_IDENTITIES[identity]
     reasons: list[str] = []
     pre_activation = identity in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES
+    state_only = identity in WORKFLOW_POLICY_STATE_ONLY_IDENTITIES
     planned_state: dict[str, Any] | None = None
     if pre_activation:
         planned_state, planned_reasons = s05_planned_nonexecutable(
             repo, snapshot, identity
         )
         reasons.extend(planned_reasons)
+    elif state_only:
+        pass
     elif state["tasks_file"] != tasks_file:
         reasons.append("WORKFLOW_POLICY_IDENTITY_SLICE_MISMATCH")
     else:
@@ -388,6 +411,11 @@ def workflow_policy_repair_scope(
             reasons.append("WORKFLOW_POLICY_IDENTITY_SLICE_MISMATCH")
     if not paths:
         reasons.append("NO_WORKFLOW_POLICY_CHANGES")
+    if (
+        identity in WORKFLOW_POLICY_EXACT_PATH_IDENTITIES
+        and set(paths) != allowed_paths
+    ):
+        reasons.append("WORKFLOW_POLICY_PATH_SET_MISMATCH")
     if disallowed:
         reasons.append("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE")
     return {
@@ -461,15 +489,23 @@ def immutable_evidence(
     repo = repository_root(repo_arg)
     requested_identity = task_ref.strip().upper()
     workflow_policy_repair = requested_identity in WORKFLOW_POLICY_REPAIR_IDENTITIES
-    workflow_policy_pre_activation = (
-        requested_identity in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES
+    workflow_policy_state_only = (
+        requested_identity
+        in WORKFLOW_POLICY_PRE_ACTIVATION_IDENTITIES.union(
+            WORKFLOW_POLICY_STATE_ONLY_IDENTITIES
+        )
     )
     base = resolve_commit(repo, base_revision)
     snapshot = resolve_commit(repo, snapshot_revision)
-    if workflow_policy_pre_activation:
+    if workflow_policy_state_only:
         state = pre_activation_workflow_state(repo, snapshot, requested_identity)
     else:
-        state = inspect(repo)
+        requested_task_ref = (
+            task_ref
+            if requested_identity.startswith("RAG-") and not workflow_policy_repair
+            else None
+        )
+        state = inspect(repo, requested_task_ref=requested_task_ref)
     if workflow_policy_repair:
         local_task, canonical_task = None, requested_identity
     else:

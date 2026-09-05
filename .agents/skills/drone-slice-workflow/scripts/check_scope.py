@@ -34,6 +34,11 @@ HUMAN_GATES = {"unplanned-exception"}
 SEMANTIC_FORBIDDEN_REASON = "SEMANTIC_SLICE_ACTION_FORBIDDEN"
 
 
+def explicit_rag_task_ref(task_ref: str) -> str | None:
+    normalized = task_ref.strip().upper()
+    return normalized if normalized.startswith("RAG-") else None
+
+
 def load_policy(path: Path = POLICY_PATH) -> dict[str, Any]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
@@ -212,7 +217,11 @@ def check(
         raise InspectionError("base_head and snapshot_head must be supplied together")
     repo = repository_root(repo_arg)
     effective_policy_path = policy_path or repo / POLICY_RELATIVE_PATH
-    state = inspect(repo, policy_path=effective_policy_path)
+    state = inspect(
+        repo,
+        requested_task_ref=explicit_rag_task_ref(task_ref),
+        policy_path=effective_policy_path,
+    )
     task_id, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
     task = next((item for item in state["tasks"] if item["id"] == task_id), None)
     if task is None:
@@ -370,7 +379,11 @@ def check_slice_range(
     """Validate a complete Slice range against the union of configured Task scopes."""
     repo = repository_root(repo_arg)
     effective_policy_path = policy_path or repo / POLICY_RELATIVE_PATH
-    state = inspect(repo, policy_path=effective_policy_path)
+    state = inspect(
+        repo,
+        requested_task_ref=explicit_rag_task_ref(task_ref),
+        policy_path=effective_policy_path,
+    )
     task_id, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
     task = next((item for item in state["tasks"] if item["id"] == task_id), None)
     if task is None:

@@ -210,6 +210,20 @@ SLICE_11_DEPENDENCIES = {
     ),
     "T07": "T04, T06; explicit live smoke authority",
 }
+RAG_TITLES = {
+    "R01": "Identity binding, scope predicate, and regression matrix",
+    "R02": "External corpus adapter, failure/version/budget mapping",
+    "R03": "Preserve source-scope Evidence provenance",
+    "R04": "Integrate adapter with pilot composition without public schema change",
+    "R05": "Reconcile canonical-Variant beta planning/evidence boundary",
+}
+RAG_DEPENDENCIES = {
+    "R01": "Planning baseline; policy activation",
+    "R02": "R01; corpus readiness; policy activation",
+    "R03": "R01; policy activation",
+    "R04": "R02, R03; policy activation",
+    "R05": "R01, R02, R03, R04; policy activation",
+}
 
 
 def git(repo: Path, *args: str) -> str:
@@ -344,6 +358,11 @@ class TemporaryRepository:
             self.titles, self.dependencies = (
                 dict(SLICE_11_TITLES),
                 dict(SLICE_11_DEPENDENCIES),
+            )
+        elif slice_name == "rag-scope-corpus-adapter-reconciliation":
+            self.titles, self.dependencies = (
+                dict(RAG_TITLES),
+                dict(RAG_DEPENDENCIES),
             )
         else:
             self.titles, self.dependencies = (
@@ -579,6 +598,49 @@ class TemporaryRepository:
             path.write_text(content, encoding="utf-8")
         git(self.root, "add", ".")
         git(self.root, "commit", "-qm", "wip(WORKFLOW-S10-POLICY): snapshot")
+        return base, git(self.root, "rev-parse", "HEAD")
+
+    def rag_workflow_policy_snapshot(
+        self, *, extra_path: str | None = None, legacy_four_paths: bool = False
+    ) -> tuple[str, str]:
+        base = git(self.root, "rev-parse", "HEAD")
+        policy_path = (
+            self.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        changes = {
+            ".agents/skills/drone-slice-workflow/references/task-scope-policy.json": (
+                policy_path.read_text(encoding="utf-8") + "\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/inspect_state.py": (
+                "# rag workflow identity\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py": (
+                "# rag workflow regression\n"
+            ),
+            ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py": (
+                "# rag workflow review identity\n"
+            ),
+        }
+        if not legacy_four_paths:
+            changes.update(
+                {
+                    ".agents/skills/drone-slice-workflow/scripts/check_scope.py": (
+                        "# rag workflow explicit scope selection\n"
+                    ),
+                    ".agents/skills/drone-slice-workflow/scripts/verify_task.py": (
+                        "# rag workflow explicit verification selection\n"
+                    ),
+                }
+            )
+        if extra_path:
+            changes[extra_path] = "extra\n"
+        for relative, content in changes.items():
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(content, encoding="utf-8")
+        git(self.root, "add", ".")
+        git(self.root, "commit", "-qm", "wip(WORKFLOW-RAG-POLICY): snapshot")
         return base, git(self.root, "rev-parse", "HEAD")
 
     def write_planned_s05(self) -> None:
@@ -1904,6 +1966,327 @@ class WorkflowScriptTests(unittest.TestCase):
             "REQUIRED_IMPLEMENTATION_GATE_MISSING",
             state["tasks"][0]["execution_blockers"],
         )
+
+    def test_rag_policy_formalizes_tasks_and_fails_without_authority(self) -> None:
+        holder, repo = self.repo(slice_name="rag-scope-corpus-adapter-reconciliation")
+        self.addCleanup(holder.cleanup)
+
+        state = inspect(repo.root, requested_task_ref="RAG-R01")
+
+        self.assertEqual(
+            [task["canonical_id"] for task in state["tasks"]],
+            [f"RAG-R{i:02d}" for i in range(1, 6)],
+        )
+        self.assertEqual(state["slice_id"], "RAG")
+        self.assertEqual(state["ordered_candidate"], "RAG-R01")
+        self.assertIsNone(state["executable_task"])
+        self.assertIn(
+            "CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+        self.assertIn(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED",
+            state["tasks"][0]["execution_blockers"],
+        )
+
+        slice_authorized = inspect(repo.root, implementation_authorized_slice="RAG")
+        self.assertIsNone(slice_authorized["executable_task"])
+        self.assertIn(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED",
+            slice_authorized["tasks"][0]["execution_blockers"],
+        )
+
+        task_authorized = inspect(repo.root, implementation_authorized_task="RAG-R01")
+        self.assertEqual(task_authorized["executable_task"], "RAG-R01")
+
+    def test_rag_policy_declares_risk_order_and_verification_profiles(self) -> None:
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"][
+            "changes/rag-scope-corpus-adapter-reconciliation/tasks.md"
+        ]
+
+        self.assertEqual(slice_policy["completion_task"], "R05")
+        self.assertEqual(
+            [slice_policy["tasks"][f"R{i:02d}"]["risk_tier"] for i in range(1, 6)],
+            ["HIGH", "MEDIUM", "HIGH", "MEDIUM", "LOW"],
+        )
+        self.assertEqual(slice_policy["tasks"]["R02"]["dependency_policy"], "forbidden")
+        self.assertEqual(
+            slice_policy["tasks"]["R04"]["verification_marker"],
+            "unit or contract or integration",
+        )
+        self.assertIn("Data-Staging/", slice_policy["forbidden_path_prefixes"])
+        self.assertIn("add_runtime_dependency", slice_policy["forbidden_actions"])
+        self.assertIn(
+            "changes/slice-11-closed-beta-deployment/",
+            slice_policy["forbidden_path_prefixes"],
+        )
+
+    def test_rag_is_explicit_when_s11_and_rag_tasks_coexist(self) -> None:
+        holder, repo = self.repo(slice_name="slice-11-closed-beta-deployment")
+        self.addCleanup(holder.cleanup)
+        rag_tasks = (
+            repo.root / "changes/rag-scope-corpus-adapter-reconciliation/tasks.md"
+        )
+        rag_tasks.parent.mkdir(parents=True, exist_ok=True)
+        rag_tasks.write_text(
+            task_table(RAG_TITLES, RAG_DEPENDENCIES, status_map(list(RAG_TITLES))),
+            encoding="utf-8",
+        )
+        git(repo.root, "add", ".")
+        git(repo.root, "commit", "-qm", "fixture: add rag task table")
+
+        default_state = inspect(repo.root)
+        self.assertEqual(
+            default_state["tasks_file"],
+            repo.tasks_path.relative_to(repo.root).as_posix(),
+        )
+        self.assertEqual(default_state["slice_id"], "S11")
+        self.assertEqual(default_state["ordered_candidate"], "S11-T01")
+
+        explicit_s11 = inspect(repo.root, requested_task_ref="S11-T01")
+        self.assertEqual(
+            explicit_s11["tasks_file"],
+            repo.tasks_path.relative_to(repo.root).as_posix(),
+        )
+        self.assertEqual(explicit_s11["ordered_candidate"], "S11-T01")
+
+        explicit_rag = inspect(repo.root, requested_task_ref="RAG-R01")
+        self.assertEqual(
+            explicit_rag["tasks_file"],
+            "changes/rag-scope-corpus-adapter-reconciliation/tasks.md",
+        )
+        self.assertEqual(explicit_rag["slice_id"], "RAG")
+        self.assertEqual(explicit_rag["ordered_candidate"], "RAG-R01")
+
+        authorized_rag = inspect(repo.root, implementation_authorized_task="RAG-R01")
+        self.assertEqual(authorized_rag["tasks_file"], explicit_rag["tasks_file"])
+        self.assertEqual(authorized_rag["executable_task"], "RAG-R01")
+
+        authorized_s11 = inspect(repo.root, implementation_authorized_task="S11-T01")
+        self.assertEqual(
+            authorized_s11["tasks_file"],
+            repo.tasks_path.relative_to(repo.root).as_posix(),
+        )
+        self.assertEqual(authorized_s11["executable_task"], "S11-T01")
+
+        with self.assertRaises(Exception):
+            inspect(repo.root, requested_task_ref="RAG-R99")
+
+    def test_rag_scope_accepts_authorized_paths_and_blocks_boundaries(self) -> None:
+        allowed_cases = {
+            "R01": "backend/rag/scope_binding.py",
+            "R02": "backend/rag/external_adapter.py",
+            "R03": "backend/evidence/rag_provenance.py",
+            "R04": "backend/application/rag_composition.py",
+            "R05": "changes/rag-scope-corpus-adapter-reconciliation/plan.md",
+        }
+        for task_id, changed_path in allowed_cases.items():
+            holder, repo = self.repo(
+                slice_name="rag-scope-corpus-adapter-reconciliation"
+            )
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id=task_id, changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                f"RAG-{task_id}",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertTrue(scoped["ok"], (task_id, changed_path, scoped))
+
+        guarded_cases = {
+            "backend/common/contracts.py": "PATH_OUTSIDE_TASK_SCOPE",
+            "docs/PROJECT_SPEC.md": "CORE_ARTIFACT_CHANGED",
+            "pyproject.toml": "DEPENDENCY_FILE_CHANGED_WITHOUT_TASK_POLICY",
+            "Data-Staging/corpus/manifest.json": "PATH_OUTSIDE_TASK_SCOPE",
+            ".agents/skills/drone-slice-workflow/SKILL.md": (
+                "FORBIDDEN_SLICE_PATH_CHANGED"
+            ),
+            "official-docs/source.pdf": "SEMANTIC_SLICE_ACTION_FORBIDDEN",
+            "backend/rag/search_index.py": "SEMANTIC_SLICE_ACTION_FORBIDDEN",
+        }
+        for changed_path, reason in guarded_cases.items():
+            holder, repo = self.repo(
+                slice_name="rag-scope-corpus-adapter-reconciliation"
+            )
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id="R02", changed_path=changed_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                "RAG-R02",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertFalse(scoped["ok"], changed_path)
+            self.assertIn(reason, scoped["blocking_reasons"], changed_path)
+
+    def test_rag_unknown_identity_and_missing_policy_gate_fail_closed(self) -> None:
+        holder, repo = self.repo(slice_name="rag-scope-corpus-adapter-reconciliation")
+        self.addCleanup(holder.cleanup)
+        with self.assertRaises(Exception):
+            inspect(repo.root, implementation_authorized_task="S12-T01")
+        with self.assertRaises(Exception):
+            inspect(repo.root, implementation_authorized_task="RAG-R99")
+
+        policy_path = (
+            repo.root
+            / ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
+        )
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        policy["slices"][
+            "changes/rag-scope-corpus-adapter-reconciliation/tasks.md"
+        ].pop("implementation_gate")
+        policy_path.write_text(json.dumps(policy), encoding="utf-8")
+
+        state = inspect(repo.root, implementation_authorized_task="RAG-R01")
+        self.assertFalse(state["tasks"][0]["implementation_gate"]["satisfied"])
+        self.assertIn(
+            "REQUIRED_IMPLEMENTATION_GATE_MISSING",
+            state["tasks"][0]["execution_blockers"],
+        )
+
+    def test_rag_medium_requires_child_review_and_high_needs_human(self) -> None:
+        holder, repo = self.repo(slice_name="rag-scope-corpus-adapter-reconciliation")
+        self.addCleanup(holder.cleanup)
+        repo.snapshot(task_id="R01", changed_path="backend/rag/scope_binding.py")
+        base, snapshot = repo.snapshot(
+            task_id="R02", changed_path="backend/rag/external_adapter.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+        immutable = immutable_evidence("RAG-R02", base, snapshot, repo.root)
+        verification = successful_verification("RAG-R02", base, snapshot)
+        with patch("verify_commit_readiness.verify_task", return_value=verification):
+            blocked = checkpoint_readiness(
+                "RAG-R02",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=immutable["digest"],
+                reviewed_risk_tier="MEDIUM",
+            )
+        self.assertFalse(blocked["ok"])
+        self.assertIn("REVIEWER_EVIDENCE_REQUIRED", blocked["blocking_reasons"])
+
+        with patch("verify_commit_readiness.verify_task", return_value=verification):
+            ready = checkpoint_readiness(
+                "RAG-R02",
+                repo.root,
+                base_revision=base,
+                snapshot_revision=snapshot,
+                reviewed_digest=immutable["digest"],
+                reviewed_risk_tier="MEDIUM",
+                reviewer_evidence=reviewer_evidence(immutable),
+            )
+        self.assertTrue(ready["ok"])
+        self.assertEqual(ready["workflow_stage"], "AUTO_ADVANCE_ELIGIBLE")
+
+        high_base, high_snapshot = repo.snapshot(
+            task_id="R03", changed_path="backend/evidence/rag_provenance.py"
+        )
+        git(repo.root, "switch", "--detach", high_snapshot)
+        high_immutable = immutable_evidence(
+            "RAG-R03", high_base, high_snapshot, repo.root
+        )
+        high_verification = successful_verification("RAG-R03", high_base, high_snapshot)
+        with patch(
+            "verify_commit_readiness.verify_task", return_value=high_verification
+        ):
+            high = checkpoint_readiness(
+                "RAG-R03",
+                repo.root,
+                base_revision=high_base,
+                snapshot_revision=high_snapshot,
+                reviewed_digest=high_immutable["digest"],
+                reviewed_risk_tier="HIGH",
+            )
+        self.assertFalse(high["ok"])
+        self.assertTrue(high["human_approval_required"])
+        self.assertIn("HIGH_RISK_HUMAN_DECISION_REQUIRED", high["blocking_reasons"])
+
+    def test_rag_low_task_stays_in_authorized_scope(self) -> None:
+        holder, repo = self.repo(slice_name="rag-scope-corpus-adapter-reconciliation")
+        self.addCleanup(holder.cleanup)
+        repo.snapshot(task_id="R01", changed_path="backend/rag/scope_binding.py")
+        repo.snapshot(task_id="R02", changed_path="backend/rag/external_adapter.py")
+        repo.snapshot(task_id="R03", changed_path="backend/evidence/rag_provenance.py")
+        _, snapshot = repo.snapshot(
+            task_id="R04", changed_path="backend/application/rag_composition.py"
+        )
+        git(repo.root, "switch", "--detach", snapshot)
+
+        state = inspect(repo.root, implementation_authorized_slice="RAG")
+
+        self.assertEqual(state["selected_task"], "RAG-R05")
+        self.assertEqual(state["executable_task"], "RAG-R05")
+        self.assertEqual(state["low_batch"]["tasks"], ["RAG-R05"])
+
+    def test_workflow_rag_policy_identity_accepts_only_governance_paths(self) -> None:
+        holder, repo = self.repo(slice_name="rag-scope-corpus-adapter-reconciliation")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.rag_workflow_policy_snapshot()
+        git(repo.root, "switch", "--detach", snapshot)
+
+        evidence = immutable_evidence("WORKFLOW-RAG-POLICY", base, snapshot, repo.root)
+
+        self.assertTrue(evidence["ok"], evidence)
+        self.assertEqual(evidence["task"], "WORKFLOW-RAG-POLICY")
+        self.assertEqual(evidence["scope"]["scope_kind"], "workflow-policy")
+        self.assertEqual(evidence["risk_policy"]["effective_tier"], "HIGH")
+        self.assertEqual(
+            evidence["scope"]["allowed_patterns"],
+            [
+                ".agents/skills/drone-slice-workflow/references/task-scope-policy.json",
+                ".agents/skills/drone-slice-workflow/scripts/check_scope.py",
+                ".agents/skills/drone-slice-workflow/scripts/inspect_state.py",
+                ".agents/skills/drone-slice-workflow/scripts/test_workflow_scripts.py",
+                ".agents/skills/drone-slice-workflow/scripts/verify_commit_readiness.py",
+                ".agents/skills/drone-slice-workflow/scripts/verify_task.py",
+            ],
+        )
+        self.assertFalse(evidence["integration_authorized"])
+        self.assertFalse(evidence["push_authorized"])
+
+        legacy_holder, legacy_repo = self.repo(
+            slice_name="rag-scope-corpus-adapter-reconciliation"
+        )
+        self.addCleanup(legacy_holder.cleanup)
+        legacy_base, legacy_snapshot = legacy_repo.rag_workflow_policy_snapshot(
+            legacy_four_paths=True
+        )
+        git(legacy_repo.root, "switch", "--detach", legacy_snapshot)
+        legacy = immutable_evidence(
+            "WORKFLOW-RAG-POLICY",
+            legacy_base,
+            legacy_snapshot,
+            legacy_repo.root,
+        )
+        self.assertFalse(legacy["ok"])
+        self.assertIn("WORKFLOW_POLICY_PATH_SET_MISMATCH", legacy["blocking_reasons"])
+
+        extra_holder, extra_repo = self.repo(
+            slice_name="rag-scope-corpus-adapter-reconciliation"
+        )
+        self.addCleanup(extra_holder.cleanup)
+        extra_base, extra_snapshot = extra_repo.rag_workflow_policy_snapshot(
+            extra_path="README.md"
+        )
+        git(extra_repo.root, "switch", "--detach", extra_snapshot)
+        extra = immutable_evidence(
+            "WORKFLOW-RAG-POLICY",
+            extra_base,
+            extra_snapshot,
+            extra_repo.root,
+        )
+        self.assertFalse(extra["ok"])
+        self.assertIn("WORKFLOW_POLICY_PATH_SET_MISMATCH", extra["blocking_reasons"])
+        self.assertIn("PATH_OUTSIDE_WORKFLOW_POLICY_SCOPE", extra["blocking_reasons"])
 
     def test_workflow_s11_policy_formalizes_closed_beta_tasks(self) -> None:
         holder, repo = self.repo(slice_name="slice-11-closed-beta-deployment")

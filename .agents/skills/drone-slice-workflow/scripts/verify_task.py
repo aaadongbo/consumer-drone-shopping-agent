@@ -203,7 +203,14 @@ def verify(
         raise InspectionError("base_head and snapshot_head must be supplied together")
     repo = repository_root(repo_arg)
     effective_policy_path = policy_path or repo / POLICY_RELATIVE_PATH
-    state = inspect(repo, policy_path=effective_policy_path)
+    requested_task_ref = (
+        task_ref if task_ref.strip().upper().startswith("RAG-") else None
+    )
+    state = inspect(
+        repo,
+        requested_task_ref=requested_task_ref,
+        policy_path=effective_policy_path,
+    )
     task_id, canonical_task = normalize_task_ref(task_ref, state["slice_id"])
     if slice_review and not (base_head and snapshot_head):
         return {

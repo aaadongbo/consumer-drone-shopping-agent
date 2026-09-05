@@ -1321,6 +1321,169 @@
         }
       }
     },
+    "changes/rag-scope-corpus-adapter-reconciliation/tasks.md": {
+      "completion_task": "R05",
+      "execution_policy": {
+        "implementation_session": "slice",
+        "review": "boundary-and-slice",
+        "targeted_verification_per_task": true,
+        "full_suite": "slice-completion",
+        "delivery": "feature-delivery-proposed-non-operational",
+        "automation": {
+          "auto_advance": true,
+          "human_gate": "unplanned-exception",
+          "review_required": true,
+          "verification_mode": "targeted"
+        },
+        "review_cadence": {
+          "LOW": {"review": "batch-or-slice-completion", "max_tasks_per_invocation": 3},
+          "MEDIUM": {"review": "task"},
+          "HIGH": {"review": "human-decision"}
+        },
+        "task_validation": {
+          "lint": "changed-python-files",
+          "lock_check": "slice-completion-or-dependency-change"
+        }
+      },
+      "implementation_gate": {"type": "protected-workflow-baseline"},
+      "activation_policy": {
+        "formal_task_table_required": true,
+        "planned_rows_non_executable": false,
+        "canonical_task_prefix": "RAG",
+        "local_task_ids": ["R01", "R02", "R03", "R04", "R05"]
+      },
+      "scope_notes": {
+        "identity": "RAG-R01 through RAG-R05 are the only formal RAG reconciliation task identities; unknown identities fail closed.",
+        "baseline": "RAG implementation requires an integrated protected Workflow baseline or exact current-context Human-approved baseline OID.",
+        "data_boundary": "The RAG reconciliation must not copy protected corpus data, Shopify exports, indexes, embeddings, or training files into Git."
+      },
+      "forbidden_actions": [
+        "shopify_write",
+        "copy_raw_pdf",
+        "copy_official_text",
+        "copy_shopify_export",
+        "persist_external_corpus_records",
+        "create_embeddings",
+        "create_index",
+        "create_vector_store",
+        "add_reranker",
+        "add_model_provider",
+        "network_retrieval",
+        "add_runtime_dependency",
+        "public_contract_change",
+        "product_behavior_change",
+        "architecture_boundary_change",
+        "workflow_policy_self_modification",
+        "execute_without_current_context_authorization",
+        "auto_advance_high_risk_task"
+      ],
+      "semantic_escalations": [
+        "public Contract change",
+        "Product Behavior change",
+        "Architecture boundary change",
+        "Acceptance or Accepted Decision change",
+        "major or cross-Slice dependency",
+        "external-service or network behavior",
+        "raw PDF, official text, Shopify export, source corpus, index, embedding, Golden Set, or training artifact",
+        "Shopify-write capability",
+        "workflow baseline not integrated or current-context Human approved",
+        "missing implementation authorization"
+      ],
+      "core_artifacts": [
+        "docs/ARCHITECTURE.md",
+        "docs/DECISIONS.md",
+        "docs/PROJECT_SPEC.md",
+        "docs/REFERENCE_ANALYSIS.md"
+      ],
+      "dependency_files": [".python-version", "pyproject.toml", "uv.lock"],
+      "forbidden_path_prefixes": [
+        ".agents/skills/drone-slice-workflow/",
+        "Data-Staging/",
+        "changes/slice-01-product-facts/",
+        "changes/slice-02-single-turn-recommendation/",
+        "changes/slice-03-target-resolution/",
+        "changes/slice-04-variant-comparison/",
+        "changes/slice-05-product-rag/",
+        "changes/slice-06-evidence-recommendation/",
+        "changes/slice-07-storefront-closure/",
+        "changes/slice-08-data-backed-rag/",
+        "changes/slice-09-controlled-rag-experiment/",
+        "changes/slice-10-real-data-pilot/",
+        "changes/slice-11-closed-beta-deployment/",
+        "docs/",
+        "eval/golden/",
+        "eval/training/",
+        "official-docs/",
+        "shopify_exports/",
+        "training/"
+      ],
+      "risk_escalation_paths": [
+        "backend/common/contracts.py",
+        "docs/",
+        "pyproject.toml",
+        "uv.lock",
+        ".python-version"
+      ],
+      "semantic_path_rules": [
+        {
+          "tasks": ["R01", "R02", "R03", "R04", "R05"],
+          "path_patterns": [
+            "*.pdf", "**/*.pdf", "*raw*official*", "**/*raw*official*",
+            "*official*text*", "**/*official*text*", "*shopify*export*",
+            "**/*shopify*export*", "*corpus*source*", "**/*corpus*source*",
+            "*embedding*", "**/*embedding*", "*index*", "**/*index*",
+            "*vector*store*", "**/*vector*store*", "*golden*", "**/*golden*",
+            "*training*", "**/*training*", "*.env", "**/*.env", "*secret*",
+            "**/*secret*", "*token*", "**/*token*"
+          ],
+          "behavior": "rag_reconciliation_forbidden_data_or_secret_artifact",
+          "reason": "RAG reconciliation must stay ephemeral/read-only and must not commit protected data, generated retrieval artifacts, training assets, or secrets."
+        },
+        {
+          "tasks": ["R01", "R02", "R03", "R04", "R05"],
+          "path_patterns": ["backend/common/contracts.py", "docs/**"],
+          "behavior": "public_contract_or_core_artifact_change",
+          "reason": "RAG reconciliation keeps public Contracts, Architecture, Accepted Decisions, and Product Behavior unchanged unless separately approved."
+        }
+      ],
+      "tasks": {
+        "R01": {
+          "allowed_paths": ["backend/rag/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/rag-scope-corpus-adapter-reconciliation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "CorpusScopeBinding identity, checksum-bound manifest mapping, exact scope predicate, and regression matrix",
+          "risk_tier": "HIGH"
+        },
+        "R02": {
+          "allowed_paths": ["backend/rag/", "backend/application/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/rag-scope-corpus-adapter-reconciliation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "ExternalCorpusReader adapter/version/failure/budget mapping with no dependency or persistence change",
+          "risk_tier": "MEDIUM"
+        },
+        "R03": {
+          "allowed_paths": ["backend/rag/", "backend/evidence/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/rag-scope-corpus-adapter-reconciliation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "source-scope Evidence provenance preservation and no public Contract change",
+          "risk_tier": "HIGH"
+        },
+        "R04": {
+          "allowed_paths": ["backend/application/", "backend/rag/", "tests/unit/", "tests/contract/", "tests/integration/", "changes/rag-scope-corpus-adapter-reconciliation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or contract or integration",
+          "verification_rationale": "pilot composition injection boundary while preserving static/dynamic Evidence gates",
+          "risk_tier": "MEDIUM"
+        },
+        "R05": {
+          "allowed_paths": ["changes/rag-scope-corpus-adapter-reconciliation/plan.md", "changes/rag-scope-corpus-adapter-reconciliation/tasks.md"],
+          "dependency_policy": "forbidden",
+          "verification_marker": null,
+          "verification_rationale": "planning/evidence reconciliation only; canonical-Variant beta limitation and future-scope boundary",
+          "risk_tier": "LOW"
+        }
+      }
+    },
     "changes/slice-11-closed-beta-deployment/tasks.md": {
       "completion_task": "T07",
       "execution_policy": {

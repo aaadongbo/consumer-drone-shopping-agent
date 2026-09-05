@@ -13,15 +13,17 @@ from pathlib import Path
 from typing import Any
 
 TASK_ROW = re.compile(
-    r"^\|\s*(T\d{2})\s*\|\s*(.*?)\s*\|\s*"
+    r"^\|\s*((?:T|R)\d{2})\s*\|\s*(.*?)\s*\|\s*"
     r"(NOT_STARTED|IN_PROGRESS|BLOCKED|DONE)\s*\|\s*(.*?)\s*\|$"
 )
-TASK_ID = re.compile(r"T\d{2}")
+TASK_ID = re.compile(r"(?:T|R)\d{2}")
 SLICE_DIR = re.compile(r"^slice-(\d{2})-")
 CANONICAL_TASK = re.compile(r"^(S\d{2})-(T\d{2})$")
+RAG_TASK = re.compile(r"^RAG-(R\d{2})$")
 POLICY_RELATIVE_PATH = Path(
     ".agents/skills/drone-slice-workflow/references/task-scope-policy.json"
 )
+RAG_TASKS_FILE = Path("changes/rag-scope-corpus-adapter-reconciliation/tasks.md")
 EXPECTED_WORKFLOW_SCHEMA_VERSION = 4
 EXPECTED_WORKFLOW_BASELINE_MARKER = "workflow-slice-autopilot-v1"
 RISK_TIERS = {"LOW", "MEDIUM", "HIGH"}
@@ -42,6 +44,7 @@ WORKFLOW_GATED_TASK_FILES = {
     "changes/slice-08-data-backed-rag/tasks.md",
     "changes/slice-09-controlled-rag-experiment/tasks.md",
     "changes/slice-10-real-data-pilot/tasks.md",
+    "changes/rag-scope-corpus-adapter-reconciliation/tasks.md",
 }
 
 
@@ -98,7 +101,37 @@ def porcelain_paths(repo: Path, *extra: str) -> list[str]:
     return sorted(set(paths))
 
 
-def find_tasks_file(repo: Path) -> Path:
+def requested_tasks_file(
+    repo: Path, task_ref: str | None, slice_ref: str | None
+) -> Path | None:
+    requested_slice: str | None = None
+    if slice_ref:
+        requested_slice = slice_ref.strip().upper()
+    if task_ref:
+        normalized = task_ref.strip().upper()
+        rag_match = RAG_TASK.fullmatch(normalized)
+        slice_match = CANONICAL_TASK.fullmatch(normalized)
+        if rag_match:
+            requested_slice = "RAG"
+        elif slice_match:
+            requested_slice = slice_match.group(1)
+    if requested_slice is None:
+        return None
+    if requested_slice == "RAG":
+        return repo / RAG_TASKS_FILE
+    match = re.fullmatch(r"S(\d{2})", requested_slice)
+    if not match:
+        raise InspectionError(f"invalid requested Slice: {requested_slice}")
+    candidates = sorted((repo / "changes").glob(f"slice-{match.group(1)}-*/tasks.md"))
+    if len(candidates) != 1:
+        relative = [str(path.relative_to(repo)) for path in candidates]
+        raise InspectionError(
+            f"requested Slice {requested_slice} did not resolve uniquely: {relative}"
+        )
+    return candidates[0]
+
+
+def find_tasks_file(repo: Path, explicit_tasks_file: Path | None = None) -> Path:
     candidates = sorted((repo / "changes").glob("*/tasks.md"))
     if not candidates:
         raise InspectionError("no changes/*/tasks.md found")
@@ -111,6 +144,27 @@ def find_tasks_file(repo: Path) -> Path:
             if "no Task status rows found" not in str(exc):
                 raise
             skipped_drafts.append(path)
+    if not parsed:
+        relative = [str(path.relative_to(repo)) for path in skipped_drafts]
+        raise InspectionError(f"no executable Slice task files found: {relative}")
+    if explicit_tasks_file is not None:
+        explicit_path = explicit_tasks_file.resolve()
+        if not explicit_path.is_relative_to(repo):
+            raise InspectionError(
+                f"requested tasks file is outside repository: {explicit_path}"
+            )
+        matches = [path for path, _ in parsed if path.resolve() == explicit_path]
+        if len(matches) != 1:
+            relative_explicit = explicit_path.relative_to(repo)
+            raise InspectionError(
+                f"requested tasks file is not executable: {relative_explicit}"
+            )
+        return matches[0]
+    parsed = [
+        (path, tasks)
+        for path, tasks in parsed
+        if path.relative_to(repo) != RAG_TASKS_FILE
+    ]
     if not parsed:
         relative = [str(path.relative_to(repo)) for path in skipped_drafts]
         raise InspectionError(f"no executable Slice task files found: {relative}")
@@ -141,7 +195,10 @@ def parse_tasks(path: Path) -> list[dict[str, Any]]:
     tasks: list[dict[str, Any]] = []
     in_status_table = False
     for line in path.read_text(encoding="utf-8").splitlines():
-        if line.strip() == "| Task | Title | Status | Dependencies |":
+        if line.strip() in {
+            "| Task | Title | Status | Dependencies |",
+            "| Task | Title | Status | Depends on |",
+        }:
             in_status_table = True
             continue
         if in_status_table and not line.startswith("|"):
@@ -152,7 +209,7 @@ def parse_tasks(path: Path) -> list[dict[str, Any]]:
             # state model.  In particular, a completion snapshot could
             # otherwise remove an unfinished row simply by damaging its table
             # formatting, causing the remaining parsed rows to look complete.
-            if in_status_table and re.match(r"^\|\s*T\d{2}\b", line):
+            if in_status_table and re.match(r"^\|\s*(?:T|R)\d{2}\b", line):
                 raise InspectionError(f"malformed Task status row in {path}: {line}")
             continue
         if not in_status_table:
@@ -178,6 +235,8 @@ def parse_tasks(path: Path) -> list[dict[str, Any]]:
 
 def slice_id_from_tasks_file(tasks_file: str | Path) -> str:
     directory = Path(tasks_file).parent.name
+    if directory == "rag-scope-corpus-adapter-reconciliation":
+        return "RAG"
     match = SLICE_DIR.match(directory)
     if not match:
         raise InspectionError(f"cannot derive Slice ID from {tasks_file}")
@@ -188,6 +247,13 @@ def normalize_task_ref(task_ref: str, slice_id: str) -> tuple[str, str]:
     normalized = task_ref.strip().upper()
     if TASK_ID.fullmatch(normalized):
         return normalized, f"{slice_id}-{normalized}"
+    rag_match = RAG_TASK.fullmatch(normalized)
+    if rag_match:
+        if slice_id != "RAG":
+            raise InspectionError(
+                f"Task Slice mismatch: active {slice_id}, requested RAG"
+            )
+        return rag_match.group(1), normalized
     match = CANONICAL_TASK.fullmatch(normalized)
     if not match:
         raise InspectionError(f"invalid Task reference: {task_ref}")
@@ -535,17 +601,31 @@ def parse_worktrees(repo: Path) -> list[dict[str, Any]]:
 def inspect(
     repo_arg: str | Path = ".",
     *,
+    requested_task_ref: str | None = None,
     implementation_authorized_task: str | None = None,
     implementation_authorized_slice: str | None = None,
     approved_workflow_oid: str | None = None,
     policy_path: Path | None = None,
 ) -> dict[str, Any]:
     repo = repository_root(repo_arg)
-    tasks_path = find_tasks_file(repo)
+    tasks_path = find_tasks_file(
+        repo,
+        requested_tasks_file(
+            repo,
+            implementation_authorized_task or requested_task_ref,
+            implementation_authorized_slice,
+        ),
+    )
     tasks_file = str(tasks_path.relative_to(repo))
     slice_id = slice_id_from_tasks_file(tasks_file)
     tasks = parse_tasks(tasks_path)
     status_by_id = {task["id"]: task["status"] for task in tasks}
+    if requested_task_ref:
+        requested_local, requested_canonical = normalize_task_ref(
+            requested_task_ref, slice_id
+        )
+        if requested_local not in status_by_id:
+            raise InspectionError(f"unknown requested Task: {requested_canonical}")
     effective_policy_path = policy_path or repo / POLICY_RELATIVE_PATH
     policy = load_policy_document(effective_policy_path)
     slice_policy = policy["slices"].get(tasks_file)
@@ -555,9 +635,11 @@ def inspect(
 
     authorized_canonical: str | None = None
     if implementation_authorized_task:
-        _, authorized_canonical = normalize_task_ref(
+        authorized_local, authorized_canonical = normalize_task_ref(
             implementation_authorized_task, slice_id
         )
+        if authorized_local not in status_by_id:
+            raise InspectionError(f"unknown authorized Task: {authorized_canonical}")
     authorized_slice: str | None = None
     if implementation_authorized_slice:
         normalized_slice = implementation_authorized_slice.strip().upper()
