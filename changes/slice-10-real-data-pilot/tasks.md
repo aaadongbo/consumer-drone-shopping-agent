@@ -592,9 +592,22 @@ current-context implementation authority and the applicable data-readiness check
 - **Snapshot/review boundary**: T01-T05 are complete; T03 immutable review passed at
   `cd1fe1d62dc12890a6ee4bbf8dbcd788bed85756`, and T05 immutable review passed at
   `ba1abe0ea896d93cd24ac8f0719dd4cedcf451cf` with digest
-  `9fa85dafffe341e4aad48fe2491c4f1d1b9c15a5ec8a253ecb6f531bb22a4e1e`. The final
-  completion snapshot and independent Slice review remain the last workflow gate;
-  neither implies Human acceptance, integration, merge, or push.
+  `9fa85dafffe341e4aad48fe2491c4f1d1b9c15a5ec8a253ecb6f531bb22a4e1e`. The initial
+  completion snapshot reviewed before this final evidence note was
+  `86fda6d2854a757e1b3f8d60e35216e38cb2f697`, with immutable Slice-review digest
+  `a260c76efbd81339401d20a1d92c15875287f45359da2942b5c186bcd80915fa`.
+- **Final independent Slice review**: In a clean detached checkout at the completion
+  snapshot, `verify_task.py S10-T06 --slice-review` exited `0`; compile, lock, full
+  Ruff, format, diff, scope, dependency, core-artifact, and the full suite (`694
+  passed in 1.13s`) all passed. `verify_commit_readiness.py` exited `0` with the
+  digest above and correctly required a Human decision; integration and push remain
+  unauthorized. The immutable full-range data-boundary scanner conservatively
+  returned `accepted=false` only for T03's access-token shape check and synthetic
+  redaction fixtures. Manual inspection confirmed these contain no real credential,
+  Keychain output, response body, or private source data; the T06 changed-record scan
+  itself returned `accepted=true`. This is a documented scanner false positive and
+  no T03 code was changed during T06. Semantic result: `AI_REVIEW_PASS` with this
+  residual tooling limitation recorded for Human evaluation.
 - **Known limits**: Live evidence is one bounded v0.4 read smoke only; T04/T05
   composition and E2E evidence is synthetic and local. The result does not validate
   production traffic, deployment, customer auth, model behavior, hosted retrieval,
