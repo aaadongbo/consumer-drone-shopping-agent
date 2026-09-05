@@ -19,6 +19,14 @@ from backend.application.comparison import (
     ComparisonTraceEventType,
     ComparisonTraceResult,
 )
+from backend.application.pilot_composition import (
+    PilotComposition,
+    PilotCompositionConfig,
+    PilotCompositionError,
+    PilotConversationApplication,
+    PilotMode,
+    build_pilot_composition,
+)
 from backend.application.product_rag import (
     ProductRagApplicationService,
     ProductRagQuestionInterpreter,
@@ -47,6 +55,12 @@ __all__ = [
     "InMemoryTraceSink",
     "ProductRagApplicationService",
     "ProductRagQuestionInterpreter",
+    "PilotComposition",
+    "PilotCompositionConfig",
+    "PilotCompositionError",
+    "PilotConversationApplication",
+    "PilotMode",
+    "build_pilot_composition",
     "Slice1ApplicationService",
     "TargetFactIdentityAdapter",
     "TargetFactIdentityError",

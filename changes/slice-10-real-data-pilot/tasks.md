@@ -13,7 +13,7 @@
 | T01 | Pilot identity and data-readiness gate | DONE | S09 locally integrated; S10 planning approval |
 | T02 | Approved external corpus reader | DONE | T01 corpus lane `GO` |
 | T03 | Real read-only Shopify adapter | DONE | T01 Shopify lane `GO`; explicit external-access authorization |
-| T04 | Pilot composition root | NOT_STARTED | T02, T03 |
+| T04 | Pilot composition root | DONE | T02, T03 |
 | T05 | Three-product local pilot E2E | NOT_STARTED | T04 |
 | T06 | Slice 10 completion evidence | NOT_STARTED | T05 |
 
@@ -491,3 +491,28 @@ current-context implementation authority and the applicable data-readiness check
 - **Known limits**: The live v0.4 evidence validates the approved external read
   boundary only; repository integration still needs T04 composition, T05 pilot E2E,
   and T06 full-suite/completion evidence. No production-readiness claim is made.
+
+## S10-T04 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `cd1fe1d62dc12890a6ee4bbf8dbcd788bed85756`
+- **Authorization**: current-context Human authorization covers continuation through
+  S10-T06 after the successful v0.4 smoke. No live Shopify call was made for T04.
+- **Boundary**: Added an explicit internal `fixture`/`pilot` composition root that
+  wires the existing Conversation API, Slice 1 commerce service, bounded Product RAG
+  service, Shopify read port, trace sink, readiness gate, and store scope. Pilot mode
+  requires `RealShopifyReadAdapter` plus accepted three-product readiness; fixture mode
+  requires `DeterministicShopifyFixture`. No public wire schema or FastAPI domain
+  decision changed. Added the missing `多少钱` dynamic guard term so the existing
+  Slice 1 price question reaches the existing commerce path instead of static RAG.
+  The unapproved T04 contract-test path was removed; no contract file is included.
+- **Targeted verification**:
+  - `PYTHONDONTWRITEBYTECODE=1 python -m py_compile backend/application/__init__.py backend/application/pilot_composition.py backend/rag/static_dynamic_guards.py tests/integration/test_s10_t04_pilot_composition_integration.py tests/unit/test_s10_t04_pilot_composition.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff check backend/application/__init__.py backend/application/pilot_composition.py backend/rag/static_dynamic_guards.py tests/integration/test_s10_t04_pilot_composition_integration.py tests/unit/test_s10_t04_pilot_composition.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff format --check backend/application/__init__.py backend/application/pilot_composition.py backend/rag/static_dynamic_guards.py tests/integration/test_s10_t04_pilot_composition_integration.py tests/unit/test_s10_t04_pilot_composition.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run pytest -m 'unit or integration' tests/integration/test_s10_t04_pilot_composition_integration.py tests/unit/test_s10_t04_pilot_composition.py -q` exited `0` with `9 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S10-T04 --pretty` exited `0`; no disallowed, core-artifact, dependency, forbidden-slice, or semantic-action violations.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S10-T04 --pretty` exited `0`; syntax, Ruff, format, targeted tests, diff whitespace, core-artifact, and dependency gates passed.
+- **Known limits**: T04 verifies local composition with synthetic transport/retrieval
+  dependencies. The three-product pilot matrix, failure-path audit, full suite, and
+  final Slice review remain for T05/T06. No production-readiness claim is made.

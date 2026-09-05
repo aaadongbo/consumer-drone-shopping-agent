@@ -33,6 +33,7 @@ DYNAMIC_COMMERCE_TERMS = (
     "可售",
     "当前",
     "今天",
+    "多少钱",
 )
 
 
