@@ -12,7 +12,7 @@
 |---|---|---|---|
 | T01 | Pilot identity and data-readiness gate | DONE | S09 locally integrated; S10 planning approval |
 | T02 | Approved external corpus reader | DONE | T01 corpus lane `GO` |
-| T03 | Real read-only Shopify adapter | NOT_STARTED | T01 Shopify lane `GO`; explicit external-access authorization |
+| T03 | Real read-only Shopify adapter | DONE | T01 Shopify lane `GO`; explicit external-access authorization |
 | T04 | Pilot composition root | NOT_STARTED | T02, T03 |
 | T05 | Three-product local pilot E2E | NOT_STARTED | T04 |
 | T06 | Slice 10 completion evidence | NOT_STARTED | T05 |
@@ -428,3 +428,66 @@ current-context implementation authority and the applicable data-readiness check
     and dependency gates passed.
 - **Known limit**: T02 does not authorize or perform Shopify access. The LOW batch
   stop reason after T02 is the non-LOW/external boundary at `S10-T03`.
+
+## S10-T03 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `d95b04b31f099891833bd7dc05609a55093c3ad5`
+- **Authorization**: current-context Human authorization to execute the new v0.4
+  read-only smoke and continue S10-T03 through S10-T06. The live smoke was run once;
+  no additional Shopify smoke or retry was performed during implementation.
+- **Boundary**: added only an injected typed Shopify read transport, a protocol-
+  independent read adapter, and unit/contract/integration tests under the approved
+  T03 paths. No `backend/common/` contract, product, inventory, scope, old smoke,
+  repository dependency, Shopify mutation, or public wire schema was changed.
+- **v0.4 live evidence**: The new
+  `/Users/russeell/Documents/Data-Staging/consumer-drone-agent/outputs/shopify-adapter-smoke-20260905-v0.4`
+  version contains only `smoke-result.metadata.json` and `checksums.json`. The run
+  reports `PASS`, `read_calls=2`, `write_calls=0`, `retry_count=0`, exact
+  `read_inventory`/`read_products` scope match, and exact three-product
+  Product/Variant identity match. Metadata SHA-256 is
+  `78a45ab17e6aed9bd621dc36b4dd5e24f79f5fe1acbe0e6657781630c70de410`; raw response
+  bodies and credential values were not recorded. Existing v0.1, v0.2, and v0.3
+  smoke directories were not modified.
+- **Implementation**: Added `UrllibShopifyReadTransport` with explicit GET-only
+  Product, Variant, and commerce queries, exact Keychain access-token provider
+  boundary, explicit proxy/CA configuration, no redirects, no retries, safe HTTP/
+  network/malformed classification, and no response-body retention in the ledger.
+  Added `RealShopifyReadAdapter` implementing the existing `ShopifyReadPort`, exact
+  store and approved Variant guards, Product/Variant normalization, current
+  price/inventory/availability mapping, one shared `observed_at`, safe stop reasons,
+  a default two-read budget, one-attempt policy, and a zero-write ledger.
+- **Targeted verification**:
+  - `PYTHONDONTWRITEBYTECODE=1 python -m py_compile backend/shopify/transport.py
+    backend/shopify/adapter.py backend/shopify/__init__.py
+    tests/unit/test_s10_t03_shopify_adapter.py
+    tests/unit/test_s10_t03_shopify_transport.py
+    tests/contract/test_s10_t03_shopify_adapter_contract.py
+    tests/integration/test_s10_t03_shopify_adapter_integration.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff check
+    backend/shopify/transport.py backend/shopify/adapter.py backend/shopify/__init__.py
+    tests/unit/test_s10_t03_shopify_adapter.py
+    tests/unit/test_s10_t03_shopify_transport.py
+    tests/contract/test_s10_t03_shopify_adapter_contract.py
+    tests/integration/test_s10_t03_shopify_adapter_integration.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff format --check
+    backend/shopify/transport.py backend/shopify/adapter.py backend/shopify/__init__.py
+    tests/unit/test_s10_t03_shopify_adapter.py
+    tests/unit/test_s10_t03_shopify_transport.py
+    tests/contract/test_s10_t03_shopify_adapter_contract.py
+    tests/integration/test_s10_t03_shopify_adapter_integration.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run pytest -m unit
+    tests/unit/test_s10_t03_shopify_adapter.py
+    tests/unit/test_s10_t03_shopify_transport.py -q` exited `0` with `35 passed`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run pytest -m contract
+    tests/contract/test_s10_t03_shopify_adapter_contract.py -q` exited `0` with
+    `5 passed`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run pytest -m integration
+    tests/integration/test_s10_t03_shopify_adapter_integration.py -q` exited `0`
+    with `2 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S10-T03`
+    exited `0` with no disallowed, core-artifact, dependency, forbidden-slice, or
+    semantic-action violations.
+- **Known limits**: The live v0.4 evidence validates the approved external read
+  boundary only; repository integration still needs T04 composition, T05 pilot E2E,
+  and T06 full-suite/completion evidence. No production-readiness claim is made.
