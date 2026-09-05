@@ -11,7 +11,7 @@
 | Task | Title | Status | Dependencies |
 |---|---|---|---|
 | T01 | Pilot identity and data-readiness gate | DONE | S09 locally integrated; S10 planning approval |
-| T02 | Approved external corpus reader | NOT_STARTED | T01 corpus lane `GO` |
+| T02 | Approved external corpus reader | DONE | T01 corpus lane `GO` |
 | T03 | Real read-only Shopify adapter | NOT_STARTED | T01 Shopify lane `GO`; explicit external-access authorization |
 | T04 | Pilot composition root | NOT_STARTED | T02, T03 |
 | T05 | Three-product local pilot E2E | NOT_STARTED | T04 |
@@ -375,3 +375,56 @@ model-generated facts.
 
 The S10 Workflow Policy is activated separately. Do not execute T01 before the
 current-context implementation authority and the applicable data-readiness checks.
+
+## S10-T02 Execution Record
+
+- **Status**: `DONE`
+- **Start commit**: `beefd90a8e7600db50510c5a6ae57f32f8f853c6`
+- **Start worktree**: clean; no staged or untracked files before implementation.
+- **Authorization**: current-context Slice 10 implementation authorization; selected
+  by `inspect_state.py --authorize-slice S10` as executable `S10-T02`.
+- **Boundary**: internal read-only external corpus reader; no repository fixture raw
+  source text, PDF, chunk body, embedding, index, secret, dependency, public Contract,
+  or Data-Staging write was introduced.
+- **Implementation**: Added `ExternalCorpusReader`, `PdfPageTextRegionLoader`, typed
+  fail-closed stop reasons, injected `SourceRegionLoader`, and text-free
+  `safe_metadata()`. The reader validates corpus readiness metadata, corrected chunk
+  manifest acceptance, corpus-manifest checksum, source-inventory checksum,
+  scope-first controlled retrieval, source-region availability, UTF-8 decoding, and
+  per-region `text_sha256` before creating ephemeral in-memory `DocumentChunk`
+  retrieval inputs. `pdftotext` is used only by the default local PDF loader and
+  captured output is not logged.
+- **Read-only external check**: The integration smoke read the approved
+  `/Users/russeell/Documents/Data-Staging/consumer-drone-agent/outputs/rag-corpus-20260902-v0.1`
+  corpus and approved
+  `/Users/russeell/Documents/Data-Staging/consumer-drone-agent/outputs/rag-corrected-chunk-baseline-20260905-v0.1/corrected-chunk-baseline.manifest.json`
+  manifest. It selected the DJI Air 3 `下载调参软件` locator, extracted that PDF page to
+  memory with `pdftotext`, and matched the corrected manifest checksum. No raw text was
+  printed, committed, persisted, or written to Data-Staging.
+- **Targeted verification**:
+  - `PYTHONDONTWRITEBYTECODE=1 python -m py_compile
+    backend/rag/external_corpus_reader.py
+    tests/unit/test_s10_t02_external_corpus_reader.py
+    tests/integration/test_s10_t02_external_corpus_reader.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff check --fix
+    backend/rag/__init__.py` exited `0`; one import-order issue fixed.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff check
+    backend/rag/external_corpus_reader.py backend/rag/__init__.py
+    tests/unit/test_s10_t02_external_corpus_reader.py
+    tests/integration/test_s10_t02_external_corpus_reader_live.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run ruff format --check
+    backend/rag/external_corpus_reader.py backend/rag/__init__.py
+    tests/unit/test_s10_t02_external_corpus_reader.py
+    tests/integration/test_s10_t02_external_corpus_reader_live.py` exited `0`.
+  - `UV_CACHE_DIR=/private/tmp/consumer-drone-uv-cache uv run pytest -m 'unit or
+    integration' tests/unit/test_s10_t02_external_corpus_reader.py
+    tests/integration/test_s10_t02_external_corpus_reader_live.py -q` exited `0` with
+    `6 passed`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py S10-T02`
+    exited `0` with no disallowed, core-artifact, dependency, forbidden-slice, or
+    semantic-action violations.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py S10-T02`
+    exited `0`; syntax, Ruff, format, targeted tests, diff whitespace, core-artifact,
+    and dependency gates passed.
+- **Known limit**: T02 does not authorize or perform Shopify access. The LOW batch
+  stop reason after T02 is the non-LOW/external boundary at `S10-T03`.

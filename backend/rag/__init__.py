@@ -43,6 +43,13 @@ from backend.rag.data_boundary import (
     scan_changed_data_boundary,
     scan_data_boundary,
 )
+from backend.rag.external_corpus_reader import (
+    ExternalCorpusReader,
+    ExternalCorpusReadResult,
+    ExternalCorpusStopReason,
+    PdfPageTextRegionLoader,
+    SourceRegionLoader,
+)
 from backend.rag.locator_binding import (
     LocatorBinding,
     LocatorBindingRejectionReason,
@@ -127,6 +134,9 @@ __all__ = [
     "DocumentSource",
     "DocumentSourceType",
     "DYNAMIC_FACT_REQUIRED",
+    "ExternalCorpusReadResult",
+    "ExternalCorpusReader",
+    "ExternalCorpusStopReason",
     "ChunkBaselineState",
     "FORBIDDEN_PATH_PATTERNS",
     "FORBIDDEN_PATH_PREFIXES",
@@ -155,6 +165,7 @@ __all__ = [
     "OfflineLocatorRetrievalResult",
     "OfflineMetadataLocatorRetriever",
     "OverlayDecision",
+    "PdfPageTextRegionLoader",
     "RetrievalRequest",
     "RetrievalEvidenceBundle",
     "RetrievalResult",
@@ -167,6 +178,7 @@ __all__ = [
     "S08MatrixEvidence",
     "S08ReadinessHandoff",
     "SCOPED_CANDIDATE_LIMIT",
+    "SourceRegionLoader",
     "TURN_DEADLINE_MS",
     "ControlledRetrievalCandidate",
     "ControlledRetrievalRequest",
