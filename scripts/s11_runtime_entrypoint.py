@@ -120,7 +120,8 @@ class _RuntimeState:
             # Render mounts persistent disks after image build/pre-deploy.  Do
             # this idempotent metadata-only linking step from the running
             # process, once the mount is available, before corpus validation.
-            prepare_corpus_sidecars()
+            if self._environ.get("DRONE_CORPUS_ROOT"):
+                prepare_corpus_sidecars()
             dependencies = _build_dependencies(self.config, self._environ)
             composition = build_closed_beta_composition(self.config, dependencies)
         except (
