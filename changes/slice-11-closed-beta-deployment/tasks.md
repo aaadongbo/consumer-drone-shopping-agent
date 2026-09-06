@@ -680,6 +680,18 @@ provider, hosting, CI, staging, or Widget-origin changes.
     tests/unit/test_s07_t03_storefront_shell.py
     tests/integration/test_s07_t04_storefront_api_harness.py -q` exited `0`
     (`17 passed`).
+- **First independent AI Review**: snapshot
+  `b52ba17089d4bb6390508c0ba38a77443183f26f` with digest
+  `58c11593ecbaffe121a83d436b5beebb9944fb484b3538053ecc1e19bca9cad8`
+  returned `AI_REVIEW_NEEDS_CHANGES` because response mapping exceptions, such as a
+  product-card scope mismatch, escaped instead of becoming a safe Widget error
+  state. That snapshot remains immutable and is superseded by the post-fix snapshot.
+- **Review fix**: `StorefrontWidget.submit()` now converts envelope-to-view mapping
+  errors into the same safe retryable Widget error state used for unexpected
+  transport failures, and regression coverage proves mismatched server display data
+  is not leaked to the browser state. Corrected targeted checks exited `0`: Ruff
+  check, format check, targeted unit/integration pytest (`18 passed`), and
+  `verify_task.py T05` (`6 passed` in its policy-selected test subset).
 - **Known limits**: T05 uses injected exact origin values in config and deterministic
   test origins only; it does not select the real staging/beta URL or embed mechanism,
   does not write a Shopify theme, does not deploy Widget assets, and does not run a

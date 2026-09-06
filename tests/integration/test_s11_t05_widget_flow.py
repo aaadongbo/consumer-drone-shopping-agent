@@ -103,6 +103,31 @@ class _RetryApplication:
         )
 
 
+class _MismatchedCardApplication:
+    def answer(self, request: TurnRequest) -> AnswerEnvelope:
+        scope = ObjectScope(
+            store_id=request.store_id,
+            product_id=request.page_context.product_id,
+            variant_id=request.page_context.variant_id,
+        )
+        return AnswerEnvelope(
+            root=AnswerPayload(
+                schema_version=SCHEMA_VERSION,
+                outcome=EnvelopeOutcome.ANSWER,
+                conversation=request.conversation,
+                trace_correlation_id="correlation-widget-mismatch",
+                resolved_scope=scope,
+                text="Server returned mismatched display data.",
+                product_card=ProductCard(
+                    store_id=scope.store_id,
+                    product_id="wrong-product",
+                    variant_id=scope.variant_id,
+                    display_title="Wrong Product",
+                ),
+            )
+        )
+
+
 class _ExplodingTransport:
     def post(self, url: str, *, json: dict[str, object]) -> object:
         raise RuntimeError(f"secret-token leaked through {url}: {json}")
@@ -213,6 +238,20 @@ def test_transport_rejection_and_unexpected_error_are_safe_widget_states() -> No
         broken.message == "The storefront assistant is unavailable. Please try again."
     )
     assert "secret-token" not in broken.model_dump_json()
+
+
+def test_response_mapping_errors_are_safe_widget_states() -> None:
+    broken = StorefrontWidget(
+        config=_config(),
+        transport=TestClient(create_conversation_api(_MismatchedCardApplication())),
+        conversation_id="conversation-widget",
+    ).submit("hello")
+
+    assert broken.status is WidgetStatus.ERROR
+    assert (
+        broken.message == "The storefront assistant is unavailable. Please try again."
+    )
+    assert "wrong-product" not in broken.model_dump_json()
 
 
 def test_cors_accepts_only_the_explicit_widget_origin() -> None:

@@ -183,9 +183,17 @@ class StorefrontWidget:
             )
             return self._state
 
-        view = build_storefront_turn_view(envelope)
-        self._state = widget_state_from_turn_view(view)
-        return self._state
+        try:
+            view = build_storefront_turn_view(envelope)
+            self._state = widget_state_from_turn_view(view)
+            return self._state
+        except Exception:
+            self._state = WidgetRenderState(
+                status=WidgetStatus.ERROR,
+                message="The storefront assistant is unavailable. Please try again.",
+                retryable=True,
+            )
+            return self._state
 
     def retry(self) -> WidgetRenderState:
         if self._last_user_text is None or not self._state.retryable:
