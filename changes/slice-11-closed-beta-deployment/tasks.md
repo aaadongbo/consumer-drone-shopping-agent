@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T06 IN_PROGRESS
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T06 DONE / T07 NOT_STARTED
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -15,7 +15,7 @@
 | T03 | Health, error, CORS, and security guardrails | DONE | T02 |
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
-| T06 | CI, staging deployment, and rollback path | IN_PROGRESS | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
+| T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T07 | Closed-beta acceptance and completion evidence | NOT_STARTED | T04, T06; explicit live smoke authority |
 
 | Task | Risk |
@@ -884,3 +884,30 @@ provider, hosting, CI, staging, or Widget-origin changes.
   package. The corrected commit is `12e4e61`.
 - **Verification**: focused release/runtime tests exited `0` (`7 passed`), Ruff
   check/format and the direct Uvicorn import check exited `0`.
+
+### T06 Final Deployment Reconciliation
+
+- **Status**: `DONE - staging deployment and read-only smoke passed`
+- **Implementation commit**: `f3f8bc1fbf719ade4743d9efe0ca68c68887feef`
+- **Hosting**: Render Web Service `consumer-drone-agent-staging`, single container,
+  staging URL `https://consumer-drone-agent-staging.onrender.com`.
+- **Persistent corpus**: 1 GB disk mounted at `/var/data/drone-corpus`; approved
+  manifest, source inventory, three source PDFs, locator/overlay metadata, corrected
+  chunk baseline, and `corpus-bindings.json` are present. No token, secret, store
+  password, or full Shopify response was uploaded.
+- **Binding checksums**: corrected baseline
+  `72bec83f27d85b3b1833108f2bf9a3db0b70d45524f7b3a903b6a42e07c7d619`; bindings
+  `6d917621e8ff4fd1e2288f4afc6041e0ce0740443ecd1e2dd033011ef2ebe543`.
+- **Runtime behavior**: sidecar links are prepared after the Render disk mount by
+  the runtime initialization path; `/healthz` and `/readyz` return `200`.
+- **CORS**: the exact approved Shopify storefront origin receives the matching
+  `Access-Control-Allow-Origin`; an unapproved origin receives no such header.
+- **Verification**:
+  - targeted T06 tests: `33 passed`, Ruff and format checks passed;
+  - immutable-range `verify_task.py T06` (`4125423..f3f8bc1`) passed, including
+    full repository verification (`820 passed`);
+  - Render read-only smoke: `2` HTTP health/readiness requests, `pass`,
+    `conversation_turn_count=0`, `shopify_read_count=0`,
+    `shopify_write_count=0`, external model calls `0`.
+- **Boundary**: T07 remains `NOT_STARTED`; no closed-beta acceptance, Shopify write,
+  main integration, or further Task was performed.
