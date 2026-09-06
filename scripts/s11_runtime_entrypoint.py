@@ -43,12 +43,15 @@ from backend.shopify import (
     MacOSKeychainAccessTokenProvider,
     RealShopifyReadAdapter,
     ShopifyCredentialError,
+    ShopifyReadTransport,
     ShopifyTokenProvider,
+    ShopifyTransportResult,
     UrllibShopifyReadTransport,
 )
 from scripts.s11_prepare_corpus_sidecars import prepare as prepare_corpus_sidecars
 
 APPROVED_ORIGIN = "https://bys-user-store-578412-7a11gk0u.myshopify.com"
+APPROVED_SHOPIFY_STORE_DOMAIN = "bys-user-store-578412-7a11gk0u.myshopify.com"
 APPROVED_STORE_ID = "shopify-store:bys-user-store-578412-7a11gk0u"
 APPROVED_PRODUCTS = (
     ("Mini 3", "9278439686282", "50107364802698"),
@@ -59,6 +62,47 @@ APPROVED_PRODUCTS = (
 
 class RuntimeDependencyError(RuntimeError):
     """A required release dependency is absent or fails closed."""
+
+
+class _CanonicalStoreTransport:
+    """Translate the internal canonical store scope to Shopify's host key."""
+
+    def __init__(
+        self,
+        delegate: ShopifyReadTransport,
+        *,
+        canonical_store_id: str,
+        shopify_store_domain: str,
+    ) -> None:
+        self._delegate = delegate
+        self._canonical_store_id = canonical_store_id
+        self._shopify_store_domain = shopify_store_domain
+
+    def _domain(self, store_id: str) -> str:
+        if store_id != self._canonical_store_id:
+            raise RuntimeDependencyError("request store is outside the pilot scope")
+        return self._shopify_store_domain
+
+    def read_product(self, *, store_id: str, product_id: str) -> ShopifyTransportResult:
+        return self._delegate.read_product(
+            store_id=self._domain(store_id), product_id=product_id
+        )
+
+    def read_variants(
+        self, *, store_id: str, product_id: str
+    ) -> ShopifyTransportResult:
+        return self._delegate.read_variants(
+            store_id=self._domain(store_id), product_id=product_id
+        )
+
+    def read_commerce_state(
+        self, *, store_id: str, product_id: str, variant_id: str
+    ) -> ShopifyTransportResult:
+        return self._delegate.read_commerce_state(
+            store_id=self._domain(store_id),
+            product_id=product_id,
+            variant_id=variant_id,
+        )
 
 
 class _EnvironmentAccessTokenProvider:
@@ -277,11 +321,16 @@ def _build_dependencies(
         proxy_url=environ.get("DRONE_HTTPS_PROXY") or None,
         ca_bundle=environ.get("DRONE_CA_BUNDLE") or None,
     )
+    canonical_transport = _CanonicalStoreTransport(
+        transport,
+        canonical_store_id=config.store_id,
+        shopify_store_domain=APPROVED_SHOPIFY_STORE_DOMAIN,
+    )
     approved_variant_ids = {
         product_id: variant_id for _name, product_id, variant_id in APPROVED_PRODUCTS
     }
     shopify = RealShopifyReadAdapter(
-        transport=transport,
+        transport=canonical_transport,
         approved_store_id=config.store_id,
         approved_variant_ids=approved_variant_ids,
         max_read_calls=config.max_shopify_read_calls_per_turn,

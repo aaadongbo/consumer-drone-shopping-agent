@@ -7,10 +7,14 @@ import threading
 import pytest
 from fastapi.testclient import TestClient
 
-from backend.shopify import ShopifyCredentialError
+from backend.shopify import ShopifyCredentialError, ShopifyTransportResult
 from scripts import s11_runtime_entrypoint
 from scripts.s11_runtime_entrypoint import (
     APPROVED_ORIGIN,
+    APPROVED_SHOPIFY_STORE_DOMAIN,
+    APPROVED_STORE_ID,
+    RuntimeDependencyError,
+    _CanonicalStoreTransport,
     _EnvironmentAccessTokenProvider,
     create_runtime_app,
 )
@@ -120,3 +124,39 @@ def test_client_credentials_token_rejects_blank_or_whitespace_values() -> None:
 
         with pytest.raises(ShopifyCredentialError, match="unavailable"):
             provider.get_access_token()
+
+
+class _RecordingShopifyTransport:
+    def __init__(self) -> None:
+        self.store_ids: list[str] = []
+
+    def read_product(self, *, store_id: str, product_id: str) -> ShopifyTransportResult:
+        self.store_ids.append(store_id)
+        return ShopifyTransportResult(payload={})
+
+    def read_variants(
+        self, *, store_id: str, product_id: str
+    ) -> ShopifyTransportResult:
+        self.store_ids.append(store_id)
+        return ShopifyTransportResult(payload={})
+
+    def read_commerce_state(
+        self, *, store_id: str, product_id: str, variant_id: str
+    ) -> ShopifyTransportResult:
+        self.store_ids.append(store_id)
+        return ShopifyTransportResult(payload={})
+
+
+def test_canonical_store_scope_maps_only_to_approved_shopify_domain() -> None:
+    delegate = _RecordingShopifyTransport()
+    transport = _CanonicalStoreTransport(
+        delegate,
+        canonical_store_id=APPROVED_STORE_ID,
+        shopify_store_domain=APPROVED_SHOPIFY_STORE_DOMAIN,
+    )
+
+    transport.read_product(store_id=APPROVED_STORE_ID, product_id="9278439686282")
+
+    assert delegate.store_ids == [APPROVED_SHOPIFY_STORE_DOMAIN]
+    with pytest.raises(RuntimeDependencyError, match="outside the pilot scope"):
+        transport.read_product(store_id="other-store", product_id="9278439686282")
