@@ -67,7 +67,12 @@ class _EnvironmentAccessTokenProvider:
 
     def get_access_token(self) -> str:
         token = self._environ.get("DRONE_SHOPIFY_ACCESS_TOKEN", "").strip()
-        if not token.startswith("shpat_"):
+        # Shopify client-credentials access tokens are opaque values.  Unlike
+        # legacy Admin API tokens, they are not guaranteed to use the
+        # ``shpat_`` prefix.  Keep the startup gate limited to a safe, usable
+        # value check; scope and validity are verified by the read-only
+        # adapter when it performs its bounded Shopify request.
+        if not token or any(char.isspace() or ord(char) < 0x20 for char in token):
             raise ShopifyCredentialError("Shopify access token is unavailable")
         return token
 

@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
-from scripts.s11_runtime_entrypoint import APPROVED_ORIGIN, create_runtime_app
+from backend.shopify import ShopifyCredentialError
+from scripts.s11_runtime_entrypoint import (
+    APPROVED_ORIGIN,
+    _EnvironmentAccessTokenProvider,
+    create_runtime_app,
+)
+
+pytestmark = pytest.mark.unit
 
 
 def test_runtime_entrypoint_is_live_but_not_ready_without_configuration() -> None:
@@ -50,3 +58,21 @@ def test_runtime_entrypoint_keeps_exact_cors_and_never_wildcards() -> None:
     assert allowed.headers["access-control-allow-origin"] == APPROVED_ORIGIN
     assert rejected.status_code == 400
     assert "access-control-allow-origin" not in rejected.headers
+
+
+def test_client_credentials_token_does_not_require_legacy_shpat_prefix() -> None:
+    provider = _EnvironmentAccessTokenProvider(
+        {"DRONE_SHOPIFY_ACCESS_TOKEN": "opaque-client-credentials-token"}
+    )
+
+    assert provider.get_access_token() == "opaque-client-credentials-token"
+
+
+def test_client_credentials_token_rejects_blank_or_whitespace_values() -> None:
+    for value in ("", "   ", "opaque\ttoken"):
+        provider = _EnvironmentAccessTokenProvider(
+            {"DRONE_SHOPIFY_ACCESS_TOKEN": value}
+        )
+
+        with pytest.raises(ShopifyCredentialError, match="unavailable"):
+            provider.get_access_token()
