@@ -2343,6 +2343,41 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertFalse(forbidden["ok"])
         self.assertIn("SEMANTIC_SLICE_ACTION_FORBIDDEN", forbidden["blocking_reasons"])
 
+    def test_s11_t06_allows_only_planned_runtime_dependency_files(self) -> None:
+        for dependency_path in ("pyproject.toml", "uv.lock"):
+            holder, repo = self.repo(slice_name="slice-11-closed-beta-deployment")
+            self.addCleanup(holder.cleanup)
+            base, snapshot = repo.snapshot(task_id="T06", changed_path=dependency_path)
+            git(repo.root, "switch", "--detach", snapshot)
+
+            scoped = check(
+                "S11-T06",
+                repo.root,
+                base_head=base,
+                snapshot_head=snapshot,
+            )
+
+            self.assertTrue(scoped["ok"], (dependency_path, scoped))
+            self.assertEqual(
+                scoped["dependency_review"]["mode"], "plan-authorized-minimal"
+            )
+            self.assertTrue(scoped["dependency_review"]["manual_confirmation_required"])
+            self.assertIn(dependency_path, scoped["dependency_review"]["changed_paths"])
+            self.assertEqual(scoped["risk_policy"]["effective_tier"], "HIGH")
+
+        holder, repo = self.repo(slice_name="slice-11-closed-beta-deployment")
+        self.addCleanup(holder.cleanup)
+        base, snapshot = repo.snapshot(task_id="T06", changed_path="requirements.txt")
+        git(repo.root, "switch", "--detach", snapshot)
+        rejected = check(
+            "S11-T06",
+            repo.root,
+            base_head=base,
+            snapshot_head=snapshot,
+        )
+        self.assertFalse(rejected["ok"])
+        self.assertIn("PATH_OUTSIDE_TASK_SCOPE", rejected["blocking_reasons"])
+
     def test_s05_planned_table_is_nonexecutable_until_reconciled(self) -> None:
         holder, repo = self.repo(slice_name="slice-04-variant-comparison")
         self.addCleanup(holder.cleanup)
