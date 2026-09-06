@@ -18,7 +18,11 @@ services:
       - key: DRONE_SHOPIFY_ADAPTER_MODE
         value: pilot_read_only
       - key: DRONE_CREDENTIAL_REF
-        value: render-env-reference
+        value: secret://shopify-read-only
+      - key: DRONE_SECRET_STORE_REF
+        value: render://consumer-drone-agent-staging
+      - key: DRONE_CREDENTIAL_SCOPE
+        value: read_products,read_inventory
       - key: DRONE_WIDGET_ORIGINS
         value: https://bys-user-store-578412-7a11gk0u.myshopify.com
       - key: DRONE_INTENT_ADAPTER_MODE
@@ -27,6 +31,14 @@ services:
         value: s10-pilot-readiness-metadata
       - key: DRONE_CORPUS_MANIFEST_REF
         value: s10-corpus-manifest-metadata
+      - key: DRONE_CORPUS_ROOT
+        value: /var/data/drone-corpus
+      - key: DRONE_CHUNK_MANIFEST_PATH
+        value: /var/data/drone-corpus/corrected-chunk-baseline.manifest.json
+      - key: DRONE_CORPUS_BINDINGS_PATH
+        value: /var/data/drone-corpus/corpus-bindings.json
+      - key: DRONE_CORPUS_MANIFEST_SHA256
+        value: 72bec83f27d85b3b1833108f2bf9a3db0b70d45524f7b3a903b6a42e07c7d619
       - key: DRONE_MAX_SHOPIFY_READ_CALLS
         value: "2"
       - key: DRONE_ROLLBACK_WINDOW_MINUTES
