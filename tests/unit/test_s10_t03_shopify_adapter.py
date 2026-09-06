@@ -81,6 +81,28 @@ def commerce_response(
     )
 
 
+def commerce_fallback_product_response() -> ShopifyTransportResult:
+    return ShopifyTransportResult(
+        payload={
+            "product": {
+                "id": PRODUCT,
+                "title": "DJI Air 3",
+                "variants": [
+                    {
+                        "id": VARIANT,
+                        "product_id": PRODUCT,
+                        "title": "Default Title",
+                        "price": "3299.00",
+                        "inventory_quantity": 32,
+                        "inventory_policy": "deny",
+                    }
+                ],
+            }
+        },
+        http_status=200,
+    )
+
+
 class StaticTransport:
     def __init__(
         self,
@@ -153,6 +175,29 @@ def test_normalizes_product_variant_and_current_commerce_with_one_timestamp() ->
         TraceOperation.REFRESH_COMMERCE_STATE,
     ]
     assert all(entry.classification.value == "read" for entry in source.call_ledger)
+    assert source.write_call_count == 0
+
+
+def test_commerce_not_found_uses_one_exact_product_read_within_budget() -> None:
+    transport = StaticTransport(
+        product=commerce_fallback_product_response(),
+        commerce=ShopifyTransportResult(failure=ShopifyTransportFailure.NOT_FOUND),
+    )
+    source = adapter(transport)
+
+    result = source.refresh_commerce_state(
+        store_id=STORE, product_id=PRODUCT, variant_id=VARIANT
+    )
+
+    assert result.status is ToolStatus.SUCCESS
+    assert result.data is not None
+    assert result.data["price"].value == 3299
+    assert [entry.operation for entry in source.call_ledger] == [
+        TraceOperation.REFRESH_COMMERCE_STATE,
+        TraceOperation.GET_PRODUCTS,
+    ]
+    assert [call[0] for call in transport.calls] == ["commerce", "product"]
+    assert source.last_stop_reason is None
     assert source.write_call_count == 0
 
 

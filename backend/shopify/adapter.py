@@ -228,6 +228,12 @@ class RealShopifyReadAdapter(ShopifyReadPort):
                 variant_id=variant_id,
             )
         )
+        response = self._commerce_response_with_product_fallback(
+            response,
+            store_id=store_id,
+            product_id=product_id,
+            variant_id=variant_id,
+        )
         failure = self._transport_failure(response)
         if failure is not None:
             return self._error(source=source, failure=failure)
@@ -259,6 +265,52 @@ class RealShopifyReadAdapter(ShopifyReadPort):
                 missing_fields=missing_fields,
             )
         return self._success(data=data, source=source, observed_at=observed_at)
+
+    def _commerce_response_with_product_fallback(
+        self,
+        response: ShopifyTransportResult,
+        *,
+        store_id: str,
+        product_id: str,
+        variant_id: str,
+    ) -> ShopifyTransportResult:
+        """Use one same-product read for bounded commerce compatibility."""
+        malformed_payload = response.failure is None and not _has_variant_payload(
+            response.payload
+        )
+        if (
+            response.failure
+            not in {
+                ShopifyTransportFailure.NOT_FOUND,
+                ShopifyTransportFailure.MALFORMED_RESPONSE,
+            }
+            and not malformed_payload
+        ):
+            return response
+        if self._read_budget_exhausted():
+            return response
+        self._record_read(TraceOperation.GET_PRODUCTS, store_id, product_id)
+        product_response = self._transport_result(
+            lambda: self._transport.read_product(
+                store_id=store_id,
+                product_id=product_id,
+            )
+        )
+        if self._transport_failure(product_response) is not None:
+            return response
+        assert product_response.payload is not None
+        variant = _product_variant_for_commerce(
+            product_response.payload,
+            product_id=product_id,
+            variant_id=variant_id,
+        )
+        if variant is None:
+            return response
+        self._last_stop_reason = None
+        return ShopifyTransportResult(
+            payload={"variant": variant},
+            http_status=product_response.http_status,
+        )
 
     def _begin_call(self) -> None:
         self._last_stop_reason = None
@@ -372,6 +424,42 @@ def _product_payload(payload: Mapping[str, Any]) -> Mapping[str, Any]:
     if not isinstance(product, Mapping):
         raise _AdapterValidationError(ShopifyAdapterStopReason.MALFORMED_RESPONSE)
     return product
+
+
+def _has_variant_payload(payload: Mapping[str, Any] | None) -> bool:
+    return isinstance(payload, Mapping) and isinstance(payload.get("variant"), Mapping)
+
+
+def _product_variant_for_commerce(
+    payload: Mapping[str, Any], *, product_id: str, variant_id: str
+) -> Mapping[str, Any] | None:
+    """Select one exact Variant from a same-Product REST response."""
+    try:
+        product = _product_payload(payload)
+        if _numeric_id(product.get("id"), "Product") != product_id:
+            return None
+    except _AdapterValidationError:
+        return None
+    raw_variants = product.get("variants")
+    if not isinstance(raw_variants, list):
+        return None
+    matches: list[Mapping[str, Any]] = []
+    for raw_variant in raw_variants:
+        if not isinstance(raw_variant, Mapping):
+            continue
+        try:
+            if _numeric_id(raw_variant.get("id"), "Variant") != variant_id:
+                continue
+            raw_product_id = raw_variant.get("product_id")
+            if (
+                raw_product_id is not None
+                and _numeric_id(raw_product_id, "Product") != product_id
+            ):
+                continue
+        except _AdapterValidationError:
+            continue
+        matches.append(raw_variant)
+    return matches[0] if len(matches) == 1 else None
 
 
 def _variants_payload(
