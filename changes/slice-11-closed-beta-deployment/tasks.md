@@ -860,3 +860,16 @@ provider, hosting, CI, staging, or Widget-origin changes.
   read-only Shopify credential, and mounted corpus metadata before `/readyz` can
   pass. Live staging smoke has not run; T07 remains blocked by this external
   staging boundary.
+
+### T06 Docker Runtime Correction
+
+- **Status**: `BLOCKED - Render latest commit deployment/configuration pending`
+- **Fixes**: the Docker image now installs the locked runtime environment with
+  `uv sync --frozen --no-dev` and uses `/app/.venv/bin` on `PATH` before starting
+  the Uvicorn server. This keeps the image runtime aligned with `uv.lock`.
+- **Verification**: the focused T06 release/runtime tests exited `0` (`7 passed`),
+  Ruff check/format and `git diff --check` exited `0`; local Docker build could
+  not run because the Docker daemon socket was unavailable.
+- **Observed staging state**: the public endpoint still returns the previous
+  health-only response, so Render must deploy the pushed `codex/s11-t05` commit
+  `adece48` before environment, corpus, and `/readyz` validation can proceed.
