@@ -7,9 +7,12 @@ Evidence gates.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from numbers import Real
+from threading import Thread
 from typing import Protocol
 
 from backend.common import TurnRequest
@@ -96,26 +99,48 @@ class RestrictedIntentRouter:
         if self._adapter is None:
             return self._deterministic(request, IntentSignalStatus.ROUTED)
         try:
-            signal = self._adapter.route(request, budget=self._budget)
+            signal = _validate_signal(self._call_adapter(request))
         except TimeoutError:
             return self._deterministic(request, IntentSignalStatus.TIMEOUT)
         except Exception:
             return self._deterministic(request, IntentSignalStatus.PROVIDER_FAILURE)
 
-        accepted = self._accepted_adapter_signal(signal)
+        accepted = self._accepted_adapter_signal(request, signal)
         if accepted is not None:
             return accepted
-        if signal.status is IntentSignalStatus.UNSUPPORTED_INTENT:
-            return IntentRoutingDecision(
-                route=IntentRoute.SAFE_FALLBACK,
-                source=IntentDecisionSource.SAFE_FALLBACK,
-                reason=IntentSignalStatus.UNSUPPORTED_INTENT,
-                metadata=_safe_metadata(signal.metadata),
-            )
+        if signal.status in {
+            IntentSignalStatus.UNSUPPORTED_INTENT,
+            IntentSignalStatus.BUDGET_EXHAUSTED,
+        }:
+            return self._safe_fallback(signal.status, signal.metadata)
         return self._deterministic(request, signal.status)
 
+    def _call_adapter(self, request: TurnRequest) -> IntentAdapterSignal:
+        """Run a blocking adapter in a daemon worker bounded by the turn budget."""
+        adapter = self._adapter
+        assert adapter is not None
+        result: list[IntentAdapterSignal] = []
+        errors: list[Exception] = []
+
+        def invoke() -> None:
+            try:
+                result.append(adapter.route(request, budget=self._budget))
+            except Exception as error:
+                errors.append(error)
+
+        worker = Thread(target=invoke, daemon=True)
+        worker.start()
+        worker.join(self._budget.timeout_ms / 1000)
+        if worker.is_alive():
+            raise TimeoutError("intent adapter exceeded its time budget")
+        if errors:
+            raise errors[0]
+        if not result:
+            raise RuntimeError("intent adapter returned no signal")
+        return result[0]
+
     def _accepted_adapter_signal(
-        self, signal: IntentAdapterSignal
+        self, request: TurnRequest, signal: IntentAdapterSignal
     ) -> IntentRoutingDecision | None:
         if signal.status is not IntentSignalStatus.ROUTED:
             return None
@@ -132,6 +157,13 @@ class RestrictedIntentRouter:
         if signal.confidence is None or signal.confidence < self._minimum_confidence:
             return None
         if signal.token_count > self._budget.max_model_tokens:
+            return self._safe_fallback(
+                IntentSignalStatus.BUDGET_EXHAUSTED, signal.metadata
+            )
+        if (
+            signal.route is IntentRoute.COMMERCE_FACT
+            and not self._deterministic_classifier(request.user_text)
+        ):
             return None
         return IntentRoutingDecision(
             route=signal.route,
@@ -139,6 +171,18 @@ class RestrictedIntentRouter:
             reason=IntentSignalStatus.ROUTED,
             confidence=signal.confidence,
             metadata=_safe_metadata(signal.metadata),
+        )
+
+    def _safe_fallback(
+        self,
+        reason: IntentSignalStatus,
+        metadata: Mapping[str, object] | None,
+    ) -> IntentRoutingDecision:
+        return IntentRoutingDecision(
+            route=IntentRoute.SAFE_FALLBACK,
+            source=IntentDecisionSource.SAFE_FALLBACK,
+            reason=reason,
+            metadata=_safe_metadata(metadata),
         )
 
     def _deterministic(
@@ -164,7 +208,24 @@ def _safe_metadata(metadata: Mapping[str, object] | None) -> Mapping[str, object
         key_text = str(key)
         if any(
             fragment in key_text.casefold()
-            for fragment in ("credential", "prompt", "raw", "secret", "token")
+            for fragment in (
+                "answer",
+                "claim",
+                "content",
+                "credential",
+                "evidence",
+                "fact",
+                "payload",
+                "product",
+                "prompt",
+                "query",
+                "raw",
+                "secret",
+                "source",
+                "token",
+                "tool",
+                "variant",
+            )
         ):
             safe[key_text] = "[REDACTED]"
         elif isinstance(value, (str, int, float, bool)) or value is None:
@@ -172,6 +233,32 @@ def _safe_metadata(metadata: Mapping[str, object] | None) -> Mapping[str, object
         else:
             safe[key_text] = "[OMITTED]"
     return safe
+
+
+def _validate_signal(signal: object) -> IntentAdapterSignal:
+    if not isinstance(signal, IntentAdapterSignal):
+        raise TypeError("intent adapter returned an invalid signal")
+    if not isinstance(signal.status, IntentSignalStatus):
+        raise ValueError("intent adapter signal status is invalid")
+    if signal.route is not None and not isinstance(signal.route, IntentRoute):
+        raise ValueError("intent adapter signal route is invalid")
+    confidence = signal.confidence
+    if confidence is not None and (
+        isinstance(confidence, bool)
+        or not isinstance(confidence, Real)
+        or not math.isfinite(confidence)
+        or not 0.0 <= confidence <= 1.0
+    ):
+        raise ValueError("intent adapter signal confidence is invalid")
+    if (
+        isinstance(signal.token_count, bool)
+        or not isinstance(signal.token_count, int)
+        or signal.token_count < 0
+    ):
+        raise ValueError("intent adapter signal token count is invalid")
+    if signal.metadata is not None and not isinstance(signal.metadata, Mapping):
+        raise ValueError("intent adapter signal metadata is invalid")
+    return signal
 
 
 __all__ = [

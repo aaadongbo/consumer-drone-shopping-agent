@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import pytest
 
+from backend.agent import IntentAdapterSignal, IntentRoute, IntentSignalStatus
 from backend.catalog import (
     PilotDataReadinessReport,
     PilotLaneReport,
@@ -30,6 +31,15 @@ class _NoopTransport:
 class _NoopRetriever:
     def retrieve(self, _request):
         raise AssertionError("runtime config tests must not retrieve documents")
+
+
+class _IntentAdapter:
+    def route(self, request, *, budget):
+        return IntentAdapterSignal(
+            status=IntentSignalStatus.ROUTED,
+            route=IntentRoute.STATIC_PRODUCT_QA,
+            confidence=0.9,
+        )
 
 
 def _env(**overrides: str) -> dict[str, str]:
@@ -171,3 +181,47 @@ def test_closed_beta_composition_accepts_injected_read_only_adapter() -> None:
 
     assert composition.mode.value == "pilot"
     assert composition.store_id == "shopify-store:test"
+
+
+def test_provider_mode_requires_and_forwards_restricted_intent_adapter(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = ReleaseConfig.from_env(
+        _env(
+            DRONE_INTENT_ADAPTER_MODE="provider",
+            DRONE_MODEL_PROVIDER="test-provider",
+            DRONE_MODEL_ID="test-model",
+        )
+    )
+    dependencies = ReleaseDependencies(
+        shopify=RealShopifyReadAdapter(transport=_NoopTransport()),
+        static_retriever=_NoopRetriever(),
+        readiness=_readiness(),
+    )
+
+    with pytest.raises(ReleaseConfigError, match="intent adapter"):
+        build_closed_beta_composition(config, dependencies)
+
+    adapter = _IntentAdapter()
+    captured = []
+
+    def capture(pilot_config):
+        captured.append(pilot_config)
+        return object()
+
+    monkeypatch.setattr("backend.runtime.composition.build_pilot_composition", capture)
+    result = build_closed_beta_composition(
+        config,
+        ReleaseDependencies(
+            shopify=dependencies.shopify,
+            static_retriever=dependencies.static_retriever,
+            readiness=dependencies.readiness,
+            intent_adapter=adapter,
+        ),
+    )
+
+    assert result is not None
+    assert captured[0].intent_adapter is adapter
+    assert captured[0].intent_budget.timeout_ms == config.request_timeout_ms
+    max_tokens = captured[0].intent_budget.max_model_tokens
+    assert max_tokens == config.max_model_tokens_per_turn

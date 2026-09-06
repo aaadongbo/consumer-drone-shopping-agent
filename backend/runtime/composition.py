@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from backend.agent import IntentAdapterBudget, ProductRagBudget, ProductRagRetriever
+from backend.agent import (
+    IntentAdapterBudget,
+    ProductRagBudget,
+    ProductRagRetriever,
+    RestrictedIntentAdapter,
+)
 from backend.application.pilot_composition import (
     PilotComposition,
     PilotCompositionConfig,
@@ -12,7 +17,11 @@ from backend.application.pilot_composition import (
     build_pilot_composition,
 )
 from backend.catalog import PilotDataReadinessReport
-from backend.runtime.config import ReleaseConfig, ReleaseConfigError
+from backend.runtime.config import (
+    IntentAdapterMode,
+    ReleaseConfig,
+    ReleaseConfigError,
+)
 from backend.shopify import RealShopifyReadAdapter, ShopifyReadPort
 
 
@@ -23,6 +32,7 @@ class ReleaseDependencies:
     shopify: ShopifyReadPort
     static_retriever: ProductRagRetriever
     readiness: PilotDataReadinessReport
+    intent_adapter: RestrictedIntentAdapter | None = None
 
 
 def build_closed_beta_composition(
@@ -39,6 +49,11 @@ def build_closed_beta_composition(
         raise ReleaseConfigError("pilot readiness is not accepted")
     if dependencies.readiness.store_id != config.store_id:
         raise ReleaseConfigError("pilot readiness scope does not match config")
+    if config.intent_adapter_mode is IntentAdapterMode.PROVIDER:
+        if dependencies.intent_adapter is None:
+            raise ReleaseConfigError("provider intent adapter is required")
+    elif dependencies.intent_adapter is not None:
+        raise ReleaseConfigError("deterministic mode cannot inject an intent adapter")
     rag_budget = ProductRagBudget(
         max_action_rounds=config.max_action_rounds,
         max_tool_calls=config.max_tool_calls_per_turn,
@@ -52,6 +67,7 @@ def build_closed_beta_composition(
             static_retriever=dependencies.static_retriever,
             readiness=dependencies.readiness,
             rag_budget=rag_budget,
+            intent_adapter=dependencies.intent_adapter,
             intent_budget=IntentAdapterBudget(
                 timeout_ms=config.request_timeout_ms,
                 max_model_tokens=config.max_model_tokens_per_turn,

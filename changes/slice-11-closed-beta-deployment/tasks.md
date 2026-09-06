@@ -552,7 +552,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ## S11-T04 Execution Record
 
-- **Status**: `DONE — Awaiting HIGH Task Human Review`
+- **Status**: `DONE — Awaiting HIGH Task Human Review (fresh snapshot after review fixes)`
 - **Start commit**: `9ea6053bc4c48833c061837b5e8415c6b61821aa`
 - **Start worktree**: clean detached task worktree; no staged or untracked files
   before T04.
@@ -568,12 +568,15 @@ provider, hosting, CI, staging, or Widget-origin changes.
   `backend/runtime/composition.py`,
   `tests/contract/test_s11_t04_intent_adapter_contract.py`,
   `tests/unit/test_s10_t04_pilot_composition.py`,
+  `tests/unit/test_s11_t02_runtime_config.py`,
   `tests/unit/test_s11_t04_intent_adapter.py`, and this Task record.
 - **Acceptance**: optional adapter output is restricted to bounded route candidates
-  and safe metadata; deterministic fallback remains the default; provider timeout,
-  provider failure, low confidence, token-budget exhaustion, unsupported intent, and
-  explicit safe fallback all return through safe deterministic or fallback semantics
-  without generating product facts or bypassing Evidence gates. No live provider,
+  and safe metadata; deterministic fallback remains the default; adapter timeout is
+  enforced, malformed/provider-failed/low-confidence signals use deterministic
+  fallback, and token-budget exhaustion, unsupported intent, and explicit safe
+  fallback use safe fallback semantics without generating product facts or bypassing
+  Evidence gates. Provider mode requires an injected restricted adapter and forwards
+  only the hard timeout/token budgets. No live provider,
   provider/model ID, credential, external service, public Contract, Product Behavior,
   Architecture, dependency, Shopify write, deployment, or Widget change was made.
 - **Verification**:
@@ -605,6 +608,20 @@ provider, hosting, CI, staging, or Widget-origin changes.
   - Focused redaction scan found only redaction-test strings and existing redaction
     key names; no credential value, raw provider payload, prompt secret, Shopify raw
     response, official text, index, embedding, or training artifact was added.
+- **First independent AI Review**: snapshot `48e6d3dd311e4e43f865b629dd4e8424f8f68073`
+  with digest `51f23254b72aad011dc4d56e2791f67ee752e930f405fc601886357c97df7baa`
+  returned `AI_REVIEW_NEEDS_CHANGES`. Findings were missing provider-mode adapter
+  wiring, timeout forwarding without enforcement, and insufficient malformed-signal
+  and unsupported-commerce-route isolation. That snapshot remains immutable and its
+  review evidence is superseded by this fresh snapshot.
+- **Review fixes**: runtime now requires/forwards an injected adapter in provider
+  mode, the router enforces the timeout in a daemon worker, validates signal shape and
+  redacts fact/evidence/product/variant metadata, token exhaustion returns safe
+  fallback, and unsupported commerce routes cannot escape the existing interpreter
+  boundary. Unit coverage includes timeout, malformed signal, route isolation, and
+  provider-mode composition forwarding.
+- **Post-fix verification**: targeted Ruff check and format check both exited `0`;
+  targeted unit/contract pytest exited `0` (`37 passed`).
 - **Known limits**: provider/model ID remains `OD-S11-03` and no real-model smoke was
   run or authorized. T04 creates only the deterministic/restricted boundary; later
   deployment, Widget, CI, staging, rollback, and closed-beta acceptance Tasks remain

@@ -224,3 +224,35 @@ def test_intent_adapter_can_only_force_safe_fallback_not_answer_generation() -> 
     )
 
     assert response.root.outcome.value == "FALLBACK"
+
+
+def test_unsupported_commerce_route_is_converted_to_safe_fallback() -> None:
+    composition = build_pilot_composition(
+        config(
+            shopify=fixture(),
+            static_retriever=StaticRetriever(),
+            intent_adapter=FakeIntentAdapter(
+                IntentAdapterSignal(
+                    status=IntentSignalStatus.ROUTED,
+                    route=IntentRoute.COMMERCE_FACT,
+                    confidence=1.0,
+                )
+            ),
+        )
+    )
+
+    response = composition.application.answer(
+        TurnRequest(
+            schema_version="1.0",
+            store_id=STORE,
+            conversation=ConversationRef(
+                conversation_id="conversation-1",
+                message_id="message-1",
+            ),
+            user_text="这款现在库存如何？",
+            locale="zh-CN",
+            page_context=PageContext(product_id="p1", variant_id="v1"),
+        )
+    )
+
+    assert response.root.outcome.value == "FALLBACK"

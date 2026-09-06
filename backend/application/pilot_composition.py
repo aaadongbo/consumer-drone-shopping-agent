@@ -104,7 +104,15 @@ class PilotConversationApplication:
             raise PilotCompositionError("request store is outside the pilot scope")
         decision = self._intent_router.decide(request)
         if decision.route is IntentRoute.COMMERCE_FACT:
-            return self._commerce.answer(request)
+            try:
+                return self._commerce.answer(request)
+            except Exception:
+                # A bounded route suggestion cannot let an unsupported exact
+                # interpreter path escape the public answer boundary.
+                return self._static.fallback_resolved(
+                    request,
+                    _page_context_resolution(request),
+                )
         if decision.route is IntentRoute.SAFE_FALLBACK:
             return self._static.fallback_resolved(
                 request,
