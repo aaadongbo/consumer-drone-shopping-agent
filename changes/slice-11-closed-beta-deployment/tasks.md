@@ -736,3 +736,98 @@ provider, hosting, CI, staging, or Widget-origin changes.
   GitHub Actions check names; rollback target/operator/previous-version retention and
   acceptable window; exact immutable commit/image tagging strategy; explicit staging
   smoke authority. Without those values, T06 must remain blocked.
+
+### T06 Authorized Implementation Attempt
+
+- **Status**: `BLOCKED - approved staging URL has no running Render service`
+- **Resume commit**: `988a1def0bb361eec379495c54360d78d3447123`
+- **Authorization**: current-context Human direct authorization to execute
+  `S11-T06` HIGH deployment-boundary changes, with permission to modify
+  `.github/workflows/`, `deploy/`, `scripts/`, `tests/`, `Dockerfile`, and this Task
+  record only; no `main` integration, no push, no `S11-T07`, and no Slice 12.
+- **Changed paths**: `.github/workflows/quality.yml`, `Dockerfile`,
+  `deploy/render.yaml`, `deploy/render_staging_release.json`,
+  `scripts/s11_release_boundary.py`, `scripts/s11_staging_health_server.py`,
+  `scripts/s11_staging_smoke.py`,
+  `tests/unit/test_s11_t06_release_boundary.py`,
+  `tests/integration/test_s11_t06_release_artifacts.py`, and this Task record.
+- **Release boundary implemented**: Render single-container Web Service metadata,
+  non-Free `starter` plan, exact staging URL
+  `https://consumer-drone-agent-staging.onrender.com`, exact CORS origin
+  `https://bys-user-store-578412-7a11gk0u.myshopify.com`, Render environment
+  variable/secret-file boundary, local macOS Keychain boundary, required check names
+  `quality / lock`, `quality / ruff`, `quality / unit`, `quality / contract`,
+  `quality / integration`, `quality / build`, `quality / config-validation`,
+  `quality / data-boundary`, and `quality / widget`, full-40-hex Git SHA/image-tag
+  identity validation, deterministic/restricted smoke plan, zero Shopify writes,
+  no external model calls, and Render deployment-history rollback metadata for
+  operator `russeell`.
+- **Local verification**:
+  - Initial sandboxed `uv run ruff check ...` exited `2` because the sandbox could
+    not access `/Users/russeell/.cache/uv`; the same checks were rerun with approved
+    cache access.
+  - Initial `python scripts/s11_release_boundary.py smoke-plan --config
+    deploy/render_staging_release.json` exited `1` and
+    `python scripts/s11_release_boundary.py rollback-plan --config
+    deploy/render_staging_release.json --git-sha
+    0123456789abcdef0123456789abcdef01234567` exited `1` because the subcommands
+    required subdocuments; the CLI was fixed to accept the full manifest.
+  - Initial Ruff check exited `1` for one line-length issue and one unused local in
+    the smoke runner; targeted pytest exited `1` because approved `request_count`
+    metadata was incorrectly rejected by the forbidden-key scan. Both defects were
+    fixed.
+  - `python scripts/s11_release_boundary.py release-candidate --config
+    deploy/render_staging_release.json` exited `0`; checksum
+    `16970ae0c46d8e4a668ac2c6245dc0de820fe95c1e9900a74b60ebf74d7c5ca1`.
+  - `python scripts/s11_release_boundary.py smoke-plan --config
+    deploy/render_staging_release.json` exited `0`; checksum
+    `772ee8218cf0b47f71dfa27dfd844f5d68f15d8ac6a1094bdda64a085b9397fd`.
+  - `python scripts/s11_release_boundary.py rollback-plan --config
+    deploy/render_staging_release.json --git-sha
+    0123456789abcdef0123456789abcdef01234567` exited `0`; checksum
+    `efb92f14d648d8d3cf875c6949462f216a273f710117a53c74daae430b4d04a4`.
+  - `uv run ruff check scripts/s11_release_boundary.py
+    scripts/s11_staging_health_server.py scripts/s11_staging_smoke.py
+    tests/unit/test_s11_t06_release_boundary.py
+    tests/integration/test_s11_t06_release_artifacts.py` exited `0`.
+  - `uv run ruff format --check scripts/s11_release_boundary.py
+    scripts/s11_staging_health_server.py scripts/s11_staging_smoke.py
+    tests/unit/test_s11_t06_release_boundary.py
+    tests/integration/test_s11_t06_release_artifacts.py` exited `0`
+    (`5 files already formatted`).
+  - `uv run pytest -m 'unit or integration'
+    tests/unit/test_s11_t06_release_boundary.py
+    tests/integration/test_s11_t06_release_artifacts.py -q` exited `0`
+    (`33 passed`).
+  - `uv lock --check` exited `0` (`Resolved 23 packages`).
+  - `uv run python scripts/check_s08_data_boundary.py` exited `0`; checked changed
+    T06 paths and reported no violations.
+  - `uv run pytest -m 'unit or integration' tests/unit/test_s11_t05_widget.py
+    tests/integration/test_s11_t05_widget_flow.py -q` exited `0` (`9 passed`).
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py T06` exited
+    `0` while T06 was `IN_PROGRESS`; changed paths were within the T06 allowlist.
+  - `python .agents/skills/drone-slice-workflow/scripts/verify_task.py T06 --pretty`
+    exited `0`; policy-selected compile, Ruff, format, pytest (`32 passed` before
+    smoke-runner test was added), diff, core-artifact, and dependency checks passed.
+  - `docker build --tag
+    consumer-drone-agent:0123456789abcdef0123456789abcdef01234567 .` exited `1`
+    because the local Docker daemon socket did not exist at
+    `/Users/russeell/.docker/run/docker.sock`.
+- **Restricted staging smoke**:
+  - `python scripts/s11_staging_smoke.py --config deploy/render_staging_release.json
+    --live` exited `1` after one approved health/readiness smoke attempt; it made no
+    Conversation turns, no Shopify reads, no Shopify writes, no model calls, and
+    recorded metadata only.
+  - `curl -i --max-time 10 -H 'Origin:
+    https://bys-user-store-578412-7a11gk0u.myshopify.com'
+    https://consumer-drone-agent-staging.onrender.com/healthz` exited `0` but the
+    HTTP result was `404 Not Found` with `x-render-routing: no-server`.
+  - `curl -i --max-time 10 -H 'Origin:
+    https://bys-user-store-578412-7a11gk0u.myshopify.com'
+    https://consumer-drone-agent-staging.onrender.com/readyz` exited `0` but the
+    HTTP result was `404 Not Found` with `x-render-routing: no-server`.
+- **Blocker**: the approved staging URL currently resolves to Render routing but no
+  backing service is attached, so T06 cannot produce passing staging deployment or
+  smoke evidence. `S11-T07` remains dependency-blocked until a Render service is
+  created/attached at the approved URL, or Human supplies a different exact URL and
+  authorizes rerunning origin/config validation.

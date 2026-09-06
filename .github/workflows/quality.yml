@@ -1,0 +1,79 @@
+name: quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - codex/s11-t05
+
+jobs:
+  lock:
+    name: lock
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
+      - run: uv lock --check
+
+  ruff:
+    name: ruff
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+
+  unit:
+    name: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
+      - run: uv run pytest -m unit -q
+
+  contract:
+    name: contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
+      - run: uv run pytest -m contract -q
+
+  integration:
+    name: integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
+      - run: uv run pytest -m integration -q
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: docker build --pull --tag consumer-drone-agent:${{ github.sha }} .
+
+  config-validation:
+    name: config-validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - run: python scripts/s11_release_boundary.py release-candidate --config deploy/render_staging_release.json
+
+  data-boundary:
+    name: data-boundary
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
+      - run: uv run python scripts/check_s08_data_boundary.py
+
+  widget:
+    name: widget
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v8
+      - run: uv run pytest -m "unit or integration" tests/unit/test_s11_t05_widget.py tests/integration/test_s11_t05_widget_flow.py -q

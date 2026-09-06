@@ -1,0 +1,73 @@
+{
+  "hosting_vendor": "Render",
+  "service_type": "web_service",
+  "runtime": "single_container",
+  "region_count": 1,
+  "plan": "starter",
+  "kubernetes": false,
+  "multi_region": false,
+  "staging_url": "https://consumer-drone-agent-staging.onrender.com",
+  "allowed_cors_origins": ["https://bys-user-store-578412-7a11gk0u.myshopify.com"],
+  "secret_store": "Render Environment Variables/Files",
+  "local_credential_store": "macOS Keychain",
+  "required_checks": [
+    "quality / lock",
+    "quality / ruff",
+    "quality / unit",
+    "quality / contract",
+    "quality / integration",
+    "quality / build",
+    "quality / config-validation",
+    "quality / data-boundary",
+    "quality / widget"
+  ],
+  "git_sha": "0123456789abcdef0123456789abcdef01234567",
+  "render_deployment_id": "render-deploy-placeholder",
+  "image_tag": "sha-0123456789abcdef0123456789abcdef01234567",
+  "write_capable_credentials": false,
+  "external_model_calls": false,
+  "database_migration": false,
+  "force_push": false,
+  "storefront_password_protected": true,
+  "smoke_plan": {
+    "authority": "single_authorized_staging_smoke",
+    "staging_url": "https://consumer-drone-agent-staging.onrender.com",
+    "allowed_origin": "https://bys-user-store-578412-7a11gk0u.myshopify.com",
+    "products": [
+      ["Mini3", "9278439686282", "50107364802698"],
+      ["Air3", "9278460821642", "50107426603146"],
+      ["Mavic3", "9278439719050", "50107364901002"]
+    ],
+    "max_http_requests": 20,
+    "max_conversation_turns": 12,
+    "max_shopify_reads_per_turn": 2,
+    "max_shopify_reads_total": 18,
+    "shopify_writes": 0,
+    "retry_count": 0,
+    "external_model_calls": false,
+    "intent_adapter": "deterministic_restricted",
+    "save_raw_payloads": false,
+    "metadata_fields": [
+      "checksum",
+      "correlation_id",
+      "git_sha",
+      "latency_ms",
+      "render_deployment_id",
+      "request_count",
+      "shopify_read_count",
+      "shopify_write_count",
+      "status"
+    ]
+  },
+  "rollback_plan": {
+    "operator": "russeell",
+    "window_minutes": 30,
+    "method": "render_deployment_history",
+    "previous_known_good_git_sha": "89abcdef0123456789abcdef0123456789abcdef",
+    "previous_render_deployment_id": "render-previous-placeholder",
+    "health_smoke_after": true,
+    "disable_traffic_on_failure": true,
+    "database_migration": false,
+    "destructive_data_operation": false
+  }
+}

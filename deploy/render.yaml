@@ -1,0 +1,33 @@
+services:
+  - type: web
+    name: consumer-drone-agent-staging
+    runtime: docker
+    plan: starter
+    branch: codex/s11-t05
+    autoDeploy: false
+    healthCheckPath: /readyz
+    envVars:
+      - key: DRONE_RELEASE_MODE
+        value: closed_beta
+      - key: DRONE_ENVIRONMENT
+        value: staging
+      - key: DRONE_HOSTING_RUNTIME
+        value: single_container
+      - key: DRONE_STORE_ID
+        value: shopify-store:bys-user-store-578412-7a11gk0u
+      - key: DRONE_SHOPIFY_ADAPTER_MODE
+        value: pilot_read_only
+      - key: DRONE_CREDENTIAL_REF
+        value: render-env-reference
+      - key: DRONE_WIDGET_ORIGINS
+        value: https://bys-user-store-578412-7a11gk0u.myshopify.com
+      - key: DRONE_INTENT_ADAPTER_MODE
+        value: deterministic
+      - key: DRONE_PILOT_READINESS_REF
+        value: s10-pilot-readiness-metadata
+      - key: DRONE_CORPUS_MANIFEST_REF
+        value: s10-corpus-manifest-metadata
+      - key: DRONE_MAX_SHOPIFY_READ_CALLS
+        value: "2"
+      - key: DRONE_ROLLBACK_WINDOW_MINUTES
+        value: "30"
