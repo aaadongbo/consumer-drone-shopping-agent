@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T06 BLOCKED
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T06 IN_PROGRESS
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -15,7 +15,7 @@
 | T03 | Health, error, CORS, and security guardrails | DONE | T02 |
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
-| T06 | CI, staging deployment, and rollback path | BLOCKED | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
+| T06 | CI, staging deployment, and rollback path | IN_PROGRESS | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T07 | Closed-beta acceptance and completion evidence | NOT_STARTED | T04, T06; explicit live smoke authority |
 
 | Task | Risk |
@@ -831,3 +831,32 @@ provider, hosting, CI, staging, or Widget-origin changes.
   smoke evidence. `S11-T07` remains dependency-blocked until a Render service is
   created/attached at the approved URL, or Human supplies a different exact URL and
   authorizes rerunning origin/config validation.
+
+### T06 Production Conversation API Entry Point Continuation
+
+- **Status**: `BLOCKED - external staging configuration still required`
+- **Authorization**: current-context Human authorization to add the production ASGI
+  entry point and Uvicorn dependency within T06; no public Contract change,
+  Shopify write, T07 execution, main integration, or push.
+- **Changed paths**: `Dockerfile`, `pyproject.toml`, `uv.lock`,
+  `scripts/s11_runtime_entrypoint.py`, `scripts/s11_runtime_server.py`,
+  `tests/unit/test_s11_t06_runtime_entrypoint.py`,
+  `tests/integration/test_s11_t06_release_artifacts.py`.
+- **Implementation**: Docker now starts Uvicorn on Render's `PORT` and serves the
+  existing Conversation API composition. The entry point uses only the approved
+  read-only Shopify adapter and external corpus adapter when exact runtime metadata,
+  scope, checksum, and mounted paths are present; otherwise liveness remains safe,
+  readiness is `503`, and conversation requests fail closed without fixture fallback.
+- **Verification**:
+  - `uv lock` exited `0`; lock resolves 25 packages including `uvicorn==0.46.0`.
+  - Targeted ASGI/config/guardrail/release/Widget tests exited `0` (`67 passed`,
+    `2 deselected`).
+  - Ruff check, Ruff format check, Python compile, and `git diff --check` exited `0`.
+- **Policy reconciliation**: the separately reviewed S11-T06 Workflow Policy now
+  allows only the planned `pyproject.toml` and `uv.lock` dependency changes under
+  `plan-authorized-minimal`; manual confirmation remains required and T06 remains
+  HIGH risk.
+- **Remaining blocker**: the deployment service still needs its hosted Secret Store,
+  read-only Shopify credential, and mounted corpus metadata before `/readyz` can
+  pass. Live staging smoke has not run; T07 remains blocked by this external
+  staging boundary.

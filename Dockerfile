@@ -6,4 +6,4 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY . /app
 
-CMD ["python", "scripts/s11_staging_health_server.py"]
+CMD ["python", "scripts/s11_runtime_server.py"]
