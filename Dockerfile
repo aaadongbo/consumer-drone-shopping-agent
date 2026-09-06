@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir uv==0.11.19 \
     && uv sync --frozen --no-dev
 
 ENV PATH="/app/.venv/bin:${PATH}"
+ENV PYTHONPATH="/app"
 
 COPY . /app
 

@@ -37,6 +37,7 @@ def test_render_and_docker_artifacts_keep_single_container_boundary() -> None:
     assert "kubernetes" not in render_yaml.lower()
     assert "python:3.12-slim" in dockerfile
     assert "scripts/s11_runtime_server.py" in dockerfile
+    assert 'PYTHONPATH="/app"' in dockerfile
 
 
 def test_release_boundary_cli_outputs_metadata_only() -> None:
