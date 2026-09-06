@@ -46,6 +46,7 @@ from backend.shopify import (
     ShopifyTokenProvider,
     UrllibShopifyReadTransport,
 )
+from scripts.s11_prepare_corpus_sidecars import prepare as prepare_corpus_sidecars
 
 APPROVED_ORIGIN = "https://bys-user-store-578412-7a11gk0u.myshopify.com"
 APPROVED_STORE_ID = "shopify-store:bys-user-store-578412-7a11gk0u"
@@ -116,9 +117,19 @@ class _RuntimeState:
     def _initialize_dependencies(self) -> None:
         assert self.config is not None
         try:
+            # Render mounts persistent disks after image build/pre-deploy.  Do
+            # this idempotent metadata-only linking step from the running
+            # process, once the mount is available, before corpus validation.
+            prepare_corpus_sidecars()
             dependencies = _build_dependencies(self.config, self._environ)
             composition = build_closed_beta_composition(self.config, dependencies)
-        except (ReleaseConfigError, RuntimeDependencyError, ValueError):
+        except (
+            OSError,
+            ReleaseConfigError,
+            RuntimeError,
+            RuntimeDependencyError,
+            ValueError,
+        ):
             with self._lock:
                 self.failure_code = "RUNTIME_NOT_READY"
             return

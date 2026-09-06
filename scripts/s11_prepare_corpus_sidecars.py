@@ -34,13 +34,13 @@ def prepare() -> None:
     """Create the manifest-referenced directories and metadata-only links."""
 
     if not CORPUS_ROOT.is_dir():
-        raise SystemExit("corpus root is unavailable")
+        raise RuntimeError("corpus root is unavailable")
     if not SIDECAR_ROOT.is_dir():
-        raise SystemExit("corpus sidecar directory is unavailable")
+        raise RuntimeError("corpus sidecar directory is unavailable")
 
     for destination, source in _LINKS.items():
         if not source.is_file():
-            raise SystemExit(f"required sidecar is unavailable: {source}")
+            raise RuntimeError(f"required sidecar is unavailable: {source}")
         destination.parent.mkdir(parents=True, exist_ok=True)
         if destination.is_symlink() or destination.exists():
             destination.unlink()
