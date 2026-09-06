@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import threading
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
@@ -82,16 +83,72 @@ class _RuntimeState:
         self.config: ReleaseConfig | None = None
         self.composition = None
         self.failure_code: str | None = None
+        self._initialization_started = False
+        self._lock = threading.Lock()
         try:
             self.config = ReleaseConfig.from_env(environ)
-            dependencies = _build_dependencies(self.config, environ)
-            self.composition = build_closed_beta_composition(self.config, dependencies)
         except (ReleaseConfigError, RuntimeDependencyError, ValueError):
             self.failure_code = "RUNTIME_NOT_READY"
 
+        self._environ = environ
+
+    def start_initialization(self) -> None:
+        """Initialize external dependencies after Uvicorn can bind its port.
+
+        Corpus validation is intentionally fail-closed, but it can involve a
+        mounted source region.  It must not block Render's process/port
+        detection.  Until initialization succeeds, ``/readyz`` and the turn
+        endpoint retain their explicit unavailable behavior.
+        """
+
+        if self.config is None:
+            return
+        with self._lock:
+            if self._initialization_started:
+                return
+            self._initialization_started = True
+        threading.Thread(
+            target=self._initialize_dependencies,
+            name="s11-runtime-readiness",
+            daemon=True,
+        ).start()
+
+    def _initialize_dependencies(self) -> None:
+        assert self.config is not None
+        try:
+            dependencies = _build_dependencies(self.config, self._environ)
+            composition = build_closed_beta_composition(self.config, dependencies)
+        except (ReleaseConfigError, RuntimeDependencyError, ValueError):
+            with self._lock:
+                self.failure_code = "RUNTIME_NOT_READY"
+            return
+        with self._lock:
+            self.composition = composition
+            self.failure_code = None
+
     @property
     def ready(self) -> bool:
-        return self.composition is not None and self.failure_code is None
+        with self._lock:
+            return self.composition is not None and self.failure_code is None
+
+    def current_api(self) -> FastAPI | None:
+        with self._lock:
+            return self.composition.api if self.composition is not None else None
+
+
+class _CompositionDispatch:
+    """Delegate non-health requests once the closed-beta composition is ready."""
+
+    def __init__(self, state: _RuntimeState, unavailable_app: FastAPI) -> None:
+        self._state = state
+        self._unavailable_app = unavailable_app
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        application = self._state.current_api()
+        if application is None:
+            await self._unavailable_app(scope, receive, send)
+            return
+        await application(scope, receive, send)
 
 
 def create_runtime_app(
@@ -101,11 +158,7 @@ def create_runtime_app(
 
     source = os.environ if environ is None else environ
     state = _RuntimeState(source)
-    api = (
-        state.composition.api
-        if state.composition is not None
-        else FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-    )
+    api = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
     install_cors_guardrail(api, _configured_origins(state.config))
     install_safe_exception_handler(api)
 
@@ -123,20 +176,29 @@ def create_runtime_app(
             content=_health_payload(state, ready=True),
         )
 
-    if state.composition is None:
-
-        @api.post("/v1/conversation/turn")
-        def unavailable_turn() -> JSONResponse:
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "error_code": "RUNTIME_NOT_READY",
-                    "message": "The conversation service is not ready.",
-                    "retryable": False,
-                },
-            )
+    api.mount("/", _CompositionDispatch(state, _unavailable_application()))
+    state.start_initialization()
 
     return api
+
+
+def _unavailable_application() -> FastAPI:
+    """Return the stable unavailable response without exposing dependencies."""
+
+    fallback = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+
+    @fallback.post("/v1/conversation/turn")
+    def unavailable_turn() -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error_code": "RUNTIME_NOT_READY",
+                "message": "The conversation service is not ready.",
+                "retryable": False,
+            },
+        )
+
+    return fallback
 
 
 def _configured_origins(config: ReleaseConfig | None) -> tuple[str, ...]:

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import threading
+
 import pytest
 from fastapi.testclient import TestClient
 
 from backend.shopify import ShopifyCredentialError
+from scripts import s11_runtime_entrypoint
 from scripts.s11_runtime_entrypoint import (
     APPROVED_ORIGIN,
     _EnvironmentAccessTokenProvider,
@@ -58,6 +61,47 @@ def test_runtime_entrypoint_keeps_exact_cors_and_never_wildcards() -> None:
     assert allowed.headers["access-control-allow-origin"] == APPROVED_ORIGIN
     assert rejected.status_code == 400
     assert "access-control-allow-origin" not in rejected.headers
+
+
+def test_slow_dependency_initialization_does_not_block_liveness(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    started = threading.Event()
+    release = threading.Event()
+
+    def slow_dependencies(*_args: object, **_kwargs: object) -> object:
+        started.set()
+        assert release.wait(timeout=1)
+        raise s11_runtime_entrypoint.RuntimeDependencyError("not ready")
+
+    monkeypatch.setattr(
+        s11_runtime_entrypoint,
+        "_build_dependencies",
+        slow_dependencies,
+    )
+    app = create_runtime_app(
+        {
+            "DRONE_RELEASE_MODE": "closed_beta",
+            "DRONE_ENVIRONMENT": "staging",
+            "DRONE_HOSTING_RUNTIME": "single_container",
+            "DRONE_STORE_ID": "shopify-store:bys-user-store-578412-7a11gk0u",
+            "DRONE_SHOPIFY_ADAPTER_MODE": "pilot_read_only",
+            "DRONE_CREDENTIAL_REF": "secret://shopify-read-only",
+            "DRONE_SECRET_STORE_REF": "render://consumer-drone-agent-staging",
+            "DRONE_WIDGET_ORIGINS": APPROVED_ORIGIN,
+            "DRONE_INTENT_ADAPTER_MODE": "deterministic",
+            "DRONE_PILOT_READINESS_REF": "pilot",
+            "DRONE_CORPUS_MANIFEST_REF": "corpus",
+        }
+    )
+    try:
+        assert started.wait(timeout=0.2)
+        client = TestClient(app, raise_server_exceptions=False)
+        assert client.get("/healthz").status_code == 200
+        assert client.get("/readyz").status_code == 503
+        assert client.post("/v1/conversation/turn", json={}).status_code == 503
+    finally:
+        release.set()
 
 
 def test_client_credentials_token_does_not_require_legacy_shpat_prefix() -> None:
