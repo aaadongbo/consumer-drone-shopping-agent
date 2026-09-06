@@ -616,10 +616,15 @@ provider, hosting, CI, staging, or Widget-origin changes.
   review evidence is superseded by this fresh snapshot.
 - **Review fixes**: runtime now requires/forwards an injected adapter in provider
   mode, the router enforces the timeout in a daemon worker, validates signal shape and
-  redacts fact/evidence/product/variant metadata, token exhaustion returns safe
+  drops all provider metadata at the route boundary, token exhaustion returns safe
   fallback, and unsupported commerce routes cannot escape the existing interpreter
-  boundary. Unit coverage includes timeout, malformed signal, route isolation, and
-  provider-mode composition forwarding.
+  boundary. Unit coverage includes timeout, malformed signal, metadata isolation,
+  route isolation, and provider-mode composition forwarding.
+- **Second independent AI Review**: refreshed snapshot `f6af10f645cf2e7f3265df103e1ef8449a9c6a4e`
+  with digest `2e11b57bbfbec531263573b231e39bda8225b51b93968a648237837cdc30be24`
+  returned `AI_REVIEW_NEEDS_CHANGES` because key-name redaction could preserve
+  provider-controlled sensitive scalar values under innocuous metadata keys. That
+  snapshot remains immutable; all adapter metadata is now dropped instead.
 - **Post-fix verification**: targeted Ruff check and format check both exited `0`;
   targeted unit/contract pytest exited `0` (`37 passed`).
 - **Known limits**: provider/model ID remains `OD-S11-03` and no real-model smoke was

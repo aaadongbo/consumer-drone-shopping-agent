@@ -201,38 +201,8 @@ class RestrictedIntentRouter:
 
 
 def _safe_metadata(metadata: Mapping[str, object] | None) -> Mapping[str, object]:
-    if metadata is None:
-        return {}
-    safe: dict[str, object] = {}
-    for key, value in metadata.items():
-        key_text = str(key)
-        if any(
-            fragment in key_text.casefold()
-            for fragment in (
-                "answer",
-                "claim",
-                "content",
-                "credential",
-                "evidence",
-                "fact",
-                "payload",
-                "product",
-                "prompt",
-                "query",
-                "raw",
-                "secret",
-                "source",
-                "token",
-                "tool",
-                "variant",
-            )
-        ):
-            safe[key_text] = "[REDACTED]"
-        elif isinstance(value, (str, int, float, bool)) or value is None:
-            safe[key_text] = value
-        else:
-            safe[key_text] = "[OMITTED]"
-    return safe
+    """Keep provider metadata entirely outside the routing decision boundary."""
+    return {}
 
 
 def _validate_signal(signal: object) -> IntentAdapterSignal:

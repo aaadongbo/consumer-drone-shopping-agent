@@ -101,7 +101,7 @@ def test_high_confidence_adapter_route_is_accepted_without_facts() -> None:
 
     assert decision.route is IntentRoute.STATIC_PRODUCT_QA
     assert decision.source is IntentDecisionSource.ADAPTER
-    assert decision.metadata == {"provider": "fake", "raw_response": "[REDACTED]"}
+    assert decision.metadata == {}
 
 
 def test_adapter_timeout_is_enforced_and_uses_deterministic_fallback() -> None:
@@ -206,7 +206,7 @@ def test_unsupported_intent_returns_safe_fallback() -> None:
     assert decision.route is IntentRoute.SAFE_FALLBACK
     assert decision.source is IntentDecisionSource.SAFE_FALLBACK
     assert decision.reason is IntentSignalStatus.UNSUPPORTED_INTENT
-    assert decision.metadata == {"prompt": "[REDACTED]", "provider": "fake"}
+    assert decision.metadata == {}
 
 
 def test_adapter_receives_only_hard_budget_values() -> None:
