@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T05 DONE, REVIEW PENDING
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T06 BLOCKED
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -15,7 +15,7 @@
 | T03 | Health, error, CORS, and security guardrails | DONE | T02 |
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
-| T06 | CI, staging deployment, and rollback path | NOT_STARTED | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
+| T06 | CI, staging deployment, and rollback path | BLOCKED | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T07 | Closed-beta acceptance and completion evidence | NOT_STARTED | T04, T06; explicit live smoke authority |
 
 | Task | Risk |
@@ -697,3 +697,42 @@ provider, hosting, CI, staging, or Widget-origin changes.
   does not write a Shopify theme, does not deploy Widget assets, and does not run a
   browser or live staging smoke. Hosting vendor, staging URL, Secret Store, rollback
   operator, CI check names, and live smoke authority remain later Human decisions.
+
+## S11-T06 Execution Record
+
+- **Status**: `BLOCKED - Human release-infrastructure decisions required before
+  coding`
+- **Start commit**: `410d793f9edb537ebde82a576222eb1ad41e8339`
+- **Start worktree**: clean `codex/s11-t05` task worktree after T05 MEDIUM
+  checkpoint returned `AUTO_ADVANCE_ELIGIBLE`; no staged or untracked files before
+  T06 inspection.
+- **Authorization**: current-context continuation instruction requested S11-T06 only
+  inside the existing S11 planning scope and explicitly required `BLOCKED` if exact
+  hosting/vendor, staging URL, Secret Store, rollback operator, or other external
+  service decisions were needed.
+- **Boundary decision**: T06 is a HIGH Task. Its own Acceptance requires Human
+  approval of exact hosting vendor, staging URL, Secret Store, required GitHub
+  Actions check names, rollback operator, and immutable commit/image strategy before
+  coding. The S11 plan still lists these as open decisions (`OD-S11-01`,
+  `OD-S11-02`, `OD-S11-06`, `OD-S11-07`, `OD-S11-08`, and `OD-S11-10`), so no CI,
+  deployment, staging, rollback, external-service, credential, or live smoke file was
+  created or changed.
+- **Verification**:
+  - `python .agents/skills/drone-slice-workflow/scripts/inspect_state.py
+    --authorize-slice S11` exited `0`; `S11-T06` was the selected ready Task, but
+    not executable because of `HIGH_RISK_HUMAN_DECISION_REQUIRED`,
+    `CURRENT_CONTEXT_IMPLEMENTATION_AUTHORIZATION_REQUIRED`, and
+    `SLICE_AUTHORIZATION_REQUIRED`.
+  - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py T06` exited
+    `1` before any T06 code changes, with allowed paths reported as
+    `.github/workflows/`, `deploy/`, `scripts/`, `tests/`, `Dockerfile`, and this
+    Task record.
+  - `rg` over the S11 plan/tasks confirmed the exact unresolved T06 decision inputs:
+    hosting vendor, staging URL, Secret Store, required check names, rollback
+    operator/details, access control, smoke-test authority, and immutable
+    commit/image strategy.
+- **Required Human decisions to unblock**: exact single-container hosting vendor;
+  exact hosted Secret Store; exact staging URL and access control; exact required
+  GitHub Actions check names; rollback target/operator/previous-version retention and
+  acceptable window; exact immutable commit/image tagging strategy; explicit staging
+  smoke authority. Without those values, T06 must remain blocked.
