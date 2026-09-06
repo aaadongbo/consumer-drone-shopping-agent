@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T04 DONE, REVIEW PENDING
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T05 DONE, REVIEW PENDING
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -14,7 +14,7 @@
 | T02 | Production-like composition and config boundary | DONE | T01 |
 | T03 | Health, error, CORS, and security guardrails | DONE | T02 |
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
-| T05 | Embeddable Storefront Widget | NOT_STARTED | T02, T03; exact staging/beta Widget origin values |
+| T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | NOT_STARTED | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T07 | Closed-beta acceptance and completion evidence | NOT_STARTED | T04, T06; explicit live smoke authority |
 
@@ -631,3 +631,57 @@ provider, hosting, CI, staging, or Widget-origin changes.
   run or authorized. T04 creates only the deterministic/restricted boundary; later
   deployment, Widget, CI, staging, rollback, and closed-beta acceptance Tasks remain
   `NOT_STARTED`.
+
+## S11-T05 Execution Record
+
+- **Status**: `DONE - Awaiting MEDIUM Task Review`
+- **Start commit**: `3153532c54734655f3ddbbf65f224e47291c1ba6`
+- **Start worktree**: clean `codex/s11-t05` task worktree at local `main` after the
+  Human-authorized S11-T04 integration; no staged or untracked files before T05.
+- **Authorization**: current-context S11 continuation authorization for `S11-T05`
+  through `S11-T07`, with explicit instruction not to repeat T04, not to push, and
+  not to modify `main` directly.
+- **Boundary**: embeddable storefront Widget client and display-state boundary only.
+  The Widget accepts an injected, exact, non-wildcard origin allowlist and fixed
+  Conversation API endpoint; it performs no product eligibility, recommendation
+  ranking, Shopify API access, Evidence validation, credential handling, deployment,
+  theme write, CI, or external service call.
+- **Changed paths**: `storefront/__init__.py`, `storefront/widget.py`,
+  `tests/unit/test_s11_t05_widget.py`,
+  `tests/integration/test_s11_t05_widget_flow.py`, and this Task record.
+- **Acceptance**: `WidgetEmbedConfig` rejects wildcard, path/query-bearing,
+  unallowlisted, and non-Conversation API endpoints; `StorefrontWidget` maps the
+  current page Product/Variant context into the existing `TurnRequest`, posts only
+  `/v1/conversation/turn`, and renders loading, final answer, fallback, retry,
+  reset, transport rejection, safe error, target, evidence, and freshness states
+  from the existing public response schema. CORS integration coverage uses the T03
+  exact-origin guardrail and proves unapproved origins are rejected.
+- **Verification**:
+  - Initial sandboxed `uv` commands exited `2` because the sandbox could not access
+    `/Users/russeell/.cache/uv`; the same targeted commands were rerun with approved
+    cache access.
+  - Initial Ruff check exited `1` for one unused import and line-length findings;
+    Ruff format check exited `1` for required formatting. Minimal fixes and Ruff
+    formatting were applied.
+  - Initial pytest collection exited `2` because unit and integration tests shared
+    the same basename; the integration file was renamed to
+    `test_s11_t05_widget_flow.py`.
+  - Initial corrected pytest exited `1` because an empty-text local `TurnRequest`
+    validation failure was being used as a transport-rejection fixture; the test was
+    changed to a deterministic 422 fake transport.
+  - `uv run ruff check storefront tests/unit/test_s11_t05_widget.py
+    tests/integration/test_s11_t05_widget_flow.py` exited `0`.
+  - `uv run ruff format --check storefront tests/unit/test_s11_t05_widget.py
+    tests/integration/test_s11_t05_widget_flow.py` exited `0`
+    (`6 files already formatted`).
+  - `uv run pytest -m 'unit or integration' tests/unit/test_s11_t05_widget.py
+    tests/integration/test_s11_t05_widget_flow.py
+    tests/unit/test_s07_t01_storefront_view_model.py
+    tests/unit/test_s07_t03_storefront_shell.py
+    tests/integration/test_s07_t04_storefront_api_harness.py -q` exited `0`
+    (`17 passed`).
+- **Known limits**: T05 uses injected exact origin values in config and deterministic
+  test origins only; it does not select the real staging/beta URL or embed mechanism,
+  does not write a Shopify theme, does not deploy Widget assets, and does not run a
+  browser or live staging smoke. Hosting vendor, staging URL, Secret Store, rollback
+  operator, CI check names, and live smoke authority remain later Human decisions.

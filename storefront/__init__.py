@@ -22,6 +22,14 @@ from storefront.view_model import (
     build_storefront_turn_view,
     build_transport_rejection_view,
 )
+from storefront.widget import (
+    StorefrontWidget,
+    WidgetEmbedConfig,
+    WidgetEvidenceDisplay,
+    WidgetRenderState,
+    WidgetStatus,
+    widget_state_from_turn_view,
+)
 
 __all__ = [
     "ConstraintPresentationState",
@@ -38,4 +46,10 @@ __all__ = [
     "StorefrontActionRequest",
     "StorefrontShellState",
     "StorefrontUserAction",
+    "StorefrontWidget",
+    "WidgetEmbedConfig",
+    "WidgetEvidenceDisplay",
+    "WidgetRenderState",
+    "WidgetStatus",
+    "widget_state_from_turn_view",
 ]
