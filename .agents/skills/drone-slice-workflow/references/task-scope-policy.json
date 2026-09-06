@@ -1650,8 +1650,8 @@
           "risk_tier": "MEDIUM"
         },
         "T06": {
-          "allowed_paths": [".github/workflows/", "deploy/", "scripts/", "tests/", "Dockerfile", "changes/slice-11-closed-beta-deployment/tasks.md"],
-          "dependency_policy": "forbidden",
+          "allowed_paths": [".github/workflows/", "deploy/", "scripts/", "tests/", "Dockerfile", "pyproject.toml", "uv.lock", "changes/slice-11-closed-beta-deployment/tasks.md"],
+          "dependency_policy": "plan-authorized-minimal",
           "verification_marker": "unit or integration",
           "verification_rationale": "CI, staging, immutable release, and rollback path",
           "risk_tier": "HIGH"
