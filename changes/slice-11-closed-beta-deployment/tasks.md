@@ -873,3 +873,14 @@ provider, hosting, CI, staging, or Widget-origin changes.
 - **Observed staging state**: the public endpoint still returns the previous
   health-only response, so Render must deploy the pushed `codex/s11-t05` commit
   `adece48` before environment, corpus, and `/readyz` validation can proceed.
+
+### T06 Render Startup Module Correction
+
+- **Observed failure**: the Render deployment of `9da618b` exited with
+  `ModuleNotFoundError: No module named 'scripts'` while Uvicorn imported the
+  configured ASGI target.
+- **Fix**: the runtime server now imports `s11_runtime_entrypoint:app` from the
+  container's `scripts` directory instead of relying on `scripts` being a Python
+  package. The corrected commit is `12e4e61`.
+- **Verification**: focused release/runtime tests exited `0` (`7 passed`), Ruff
+  check/format and the direct Uvicorn import check exited `0`.
