@@ -106,3 +106,23 @@ def test_metadata_smoke_cli_records_only_safe_counts() -> None:
     assert payload["metadata"]["request_count"] == 0
     assert payload["metadata"]["shopify_write_count"] == 0
     assert "raw" not in json.dumps(payload).lower()
+
+
+def test_closed_beta_acceptance_matrix_is_exactly_three_read_only_products() -> None:
+    config = json.loads(Path("deploy/render_staging_release.json").read_text())
+    smoke = config["smoke_plan"]
+
+    assert config["allowed_cors_origins"] == [
+        "https://bys-user-store-578412-7a11gk0u.myshopify.com"
+    ]
+    assert smoke["products"] == [
+        ["Mini3", "9278439686282", "50107364802698"],
+        ["Air3", "9278460821642", "50107426603146"],
+        ["Mavic3", "9278439719050", "50107364901002"],
+    ]
+    assert smoke["shopify_writes"] == 0
+    assert smoke["retry_count"] == 0
+    assert smoke["external_model_calls"] is False
+    assert smoke["max_conversation_turns"] == 12
+    assert smoke["max_shopify_reads_total"] == 18
+    assert smoke["save_raw_payloads"] is False

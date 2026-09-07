@@ -991,7 +991,10 @@ provider, hosting, CI, staging, or Widget-origin changes.
   writes, zero automatic retries, and zero external model calls. Evidence was
   limited to redacted metadata and correlation IDs.
 - **Verification**: immutable T07 checks exited `0`; `uv lock --check`, Ruff,
-  format, diff, and the full suite exited `0` (`824 passed`).
+  format, diff, and the full suite exited `0` (`825 passed`). Added
+  `test_closed_beta_acceptance_matrix_is_exactly_three_read_only_products` to
+  lock the approved three-product, exact-origin, zero-write, zero-retry, and
+  zero-external-model acceptance boundary.
 - **Final review boundary**: this T07 completion record is subject to a fresh
   detached MEDIUM review and Slice completion review before S11 is marked
   complete.
