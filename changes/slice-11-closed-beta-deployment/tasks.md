@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: S11 COMPLETE / T01-T07 DONE / CLOSED-BETA EVIDENCE RECORDED
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T07 BLOCKED BY WORKFLOW SCOPE
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -16,7 +16,7 @@
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
-| T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06; explicit live smoke authority |
+| T07 | Closed-beta acceptance and completion evidence | BLOCKED | T04, T06; explicit live smoke authority |
 
 | Task | Risk |
 |---|---|
@@ -979,4 +979,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 - **Verification**: targeted adapter/composition/runtime tests exited `0`
   (`39 passed`); full suite exited `0` (`824 passed`); Ruff check and format
   check exited `0`; `git diff --check` exited `0`.
-- **Verdict**: `T07_COMPLETE_PENDING_FINAL_SNAPSHOT_REVIEW`.
+- **Verdict**: `BLOCKED - final acceptance passed, but the immutable verifier rejects
+  the approved internal adapter paths because the active T07 Workflow allowlist
+  contains only scripts/tests/tasks.md. A separate governance decision is required
+  before completion snapshot/review can be recorded.
