@@ -11,7 +11,7 @@ import hashlib
 import json
 import math
 import time
-from collections import Counter
+from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
@@ -193,6 +193,15 @@ def _candidate_matches_scope(candidate: Any, scope: ObjectScope) -> bool:
     )
 
 
+def _benchmark_scope_label(row: dict[str, Any]) -> str:
+    product_scope = str(row.get("product_scope", "")).casefold()
+    if row.get("variant_id") is not None:
+        return "variant"
+    if "all" in product_scope or "three" in product_scope:
+        return "multi_product"
+    return "product"
+
+
 def _first_gold_rank(
     result: Any, source_id: str | None, gold_pages: list[int]
 ) -> int | None:
@@ -271,21 +280,64 @@ def evaluate(
     scope_leakage = 0
     stop_reasons: Counter[str] = Counter()
     latencies: list[float] = []
+    by_intent: defaultdict[str, Counter[str]] = defaultdict(Counter)
+    by_scope: defaultdict[str, Counter[str]] = defaultdict(Counter)
+    exclusion_reasons: Counter[str] = Counter()
+    failure_classification: Counter[str] = Counter()
+
+    def record_coverage(row: dict[str, Any], status: str, reason: str) -> None:
+        intent = str(row.get("intent", "unknown"))
+        scope_label = _benchmark_scope_label(row)
+        by_intent[intent][status] += 1
+        by_intent[intent]["total"] += 1
+        by_scope[scope_label][status] += 1
+        by_scope[scope_label]["total"] += 1
+        if status.startswith("EXCLUDED"):
+            exclusion_reasons[reason] += 1
 
     for row in rows:
+        common_metadata = {
+            "query_id": row["query_id"],
+            "query_text_hash": row["query_text_hash"],
+            "intent": row.get("intent"),
+            "product_scope": row.get("product_scope"),
+            "variant_id": row.get("variant_id"),
+            "expected_route": row["expected_route"],
+            "expected_answer_scope": row.get("expected_answer_scope"),
+            "static_eval_eligibility": row["static_eval_eligibility"],
+        }
         if row["static_eval_eligibility"] != "gold_page_annotated":
-            continue
-        scope = _scope_for_row(row)
-        if scope is None:
+            record_coverage(
+                row,
+                "EXCLUDED_COVERAGE_ONLY",
+                "coverage_only_not_page_annotated",
+            )
             evaluated.append(
                 {
-                    "query_id": row["query_id"],
-                    "query_text_hash": row["query_text_hash"],
-                    "evaluation_status": "UNSUPPORTED_MULTI_PRODUCT_SCOPE",
-                    "expected_route": row["expected_route"],
+                    **common_metadata,
+                    "evaluation_status": "EXCLUDED_COVERAGE_ONLY",
+                    "evaluation_reason": "coverage_only_not_page_annotated",
                 }
             )
             continue
+        scope = _scope_for_row(row)
+        if scope is None:
+            if row.get("store_id") != STORE_ID:
+                reason = "store_identity_mismatch"
+            elif _benchmark_scope_label(row) == "multi_product":
+                reason = "multi_product_scope_not_supported_by_single_target_evaluator"
+            else:
+                reason = "product_or_variant_identity_not_in_approved_mapping"
+            record_coverage(row, "EXCLUDED_UNSUPPORTED_SCOPE", reason)
+            evaluated.append(
+                {
+                    **common_metadata,
+                    "evaluation_status": "EXCLUDED_UNSUPPORTED_SCOPE",
+                    "evaluation_reason": reason,
+                }
+            )
+            continue
+        record_coverage(row, "EVALUATED", "page_annotated_single_scope")
         started = time.perf_counter()
         result = index.search(
             Bm25Request(
@@ -310,6 +362,7 @@ def evaluate(
         if expected_answer:
             answerable_total += 1
             if rank is not None:
+                failure_classification["ANSWERABLE_GOLD_HIT"] += 1
                 answerable_hits += 1
                 answerable_top5 += rank <= 5
                 reciprocal_ranks.append(1 / rank)
@@ -322,15 +375,24 @@ def evaluate(
                 )
                 idcg = 1.0
                 ndcg_values.append(dcg / idcg)
+            else:
+                failure_classification[
+                    result.stop_reason.value
+                    if result.stop_reason
+                    else "ANSWERABLE_NO_GOLD_HIT"
+                ] += 1
         else:
             abstention_total += 1
+            if result.candidates:
+                failure_classification["ABSTENTION_CANDIDATES_PRESENT"] += 1
+            else:
+                failure_classification["ABSTENTION_CORRECT"] += 1
             abstention_correct += int(not result.candidates)
         evaluated.append(
             {
-                "query_id": row["query_id"],
-                "query_text_hash": row["query_text_hash"],
+                **common_metadata,
                 "evaluation_status": "EVALUATED",
-                "expected_route": row["expected_route"],
+                "evaluation_reason": "page_annotated_single_scope",
                 "gold_source_id": source_id,
                 "gold_pages": gold_pages,
                 "first_gold_rank": rank,
@@ -355,8 +417,24 @@ def evaluate(
     evaluated_count = sum(
         item["evaluation_status"] == "EVALUATED" for item in evaluated
     )
+    coverage_summary = {
+        "total_queries": len(rows),
+        "page_annotated_total": golden_manifest["expert_static_gold_count"],
+        "coverage_only_total": golden_manifest["coverage_only_count"],
+        "evaluated_total": evaluated_count,
+        "excluded_total": len(rows) - evaluated_count,
+        "by_intent": {
+            key: dict(sorted(value.items())) for key, value in sorted(by_intent.items())
+        },
+        "by_scope": {
+            key: dict(sorted(value.items())) for key, value in sorted(by_scope.items())
+        },
+        "exclusion_reasons": dict(sorted(exclusion_reasons.items())),
+        "failure_classification": dict(sorted(failure_classification.items())),
+    }
     result = {
         "schema_version": "bm25-baseline-evaluation.v0.1",
+        "report_revision": "r7",
         "status": "EXECUTED_OFFLINE_METADATA_ONLY",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "golden_set": {
@@ -364,6 +442,8 @@ def evaluate(
             "manifest_sha256": _sha256(golden_dir / "manifest.json"),
             "query_file_sha256": query_sha256,
             "query_count": golden_manifest["query_count"],
+            "coverage_only_count": golden_manifest["coverage_only_count"],
+            "page_annotated_count": golden_manifest["expert_static_gold_count"],
             "evaluated_page_annotated_count": evaluated_count,
         },
         "corpus": {
@@ -432,6 +512,7 @@ def evaluate(
             else None,
         },
         "stop_reasons": dict(sorted(stop_reasons.items())),
+        "coverage_summary": coverage_summary,
         "confidence_interval_method": (
             "Wilson 95% for binary recall; paired CI/net-benefit comparison is "
             "not applicable to the single BM25 arm."

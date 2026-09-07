@@ -1,18 +1,19 @@
 # Retrieval Upgrade Roadmap — Expert Benchmark to Hybrid Retrieval
 
-> Status: DRAFT / NON-EXECUTABLE / HUMAN REVIEW REQUIRED
+> Status: BM25 BASELINE COMPLETE / EMBEDDING-HYBRID PLANNING ONLY / HUMAN AUTHORIZATION REQUIRED
 >
-> This artifact defines a future capability route only. It does not create a
-> Slice, formalize Workflow Tasks, authorize implementation, select a model or
-> vector provider, access Shopify, write Data-Staging, modify public Contracts,
-> or change the approved S11 closed-beta boundary.
+> This artifact records the completed offline BM25 baseline and the future
+> capability route. It does not create a Slice, formalize Workflow Tasks,
+> authorize Embedding/Hybrid/Reranker implementation, select a model or vector
+> provider, access Shopify, modify public Contracts, or change the approved S11
+> closed-beta boundary.
 
 ## 1. Purpose
 
-The project has a deterministic metadata/keyword retrieval baseline and a
-verified Product-shared / Variant-specific scope model. BM25, Embedding,
-Hybrid Retrieval, and Reranker remain planned capability directions, but they
-must be evaluated against a reproducible benchmark before they are introduced.
+The project has a deterministic metadata/keyword retrieval baseline, a frozen
+expert benchmark, and a completed offline BM25 baseline evaluation. Embedding,
+Hybrid Retrieval, and Reranker remain planned capability directions; none is
+authorized or implemented by this artifact.
 
 The route is deliberately ordered:
 
@@ -28,9 +29,9 @@ Candidate-only Reranker
 Evidence-based decision on provider and durable state
 \`\`\`
 
-The benchmark supports planning and reproducible evaluation design. It does not
-authorize engineering implementation, and it must not be described as evidence
-of real-user satisfaction until de-identified beta queries are available.
+The benchmark supports reproducible evaluation. It is expert evidence only and
+must not be described as evidence of real-user satisfaction until de-identified
+beta queries are available.
 
 ## 2. Current baseline and target state
 
@@ -42,6 +43,9 @@ of real-user satisfaction until de-identified beta queries are available.
 - S09/S10 retrieval is deterministic metadata/keyword overlap with explicit
   identity and Evidence gates; it is not yet BM25, embedding, vector search, or
   reranking.
+- Expert Golden Set `expert-golden-set-v0.1-r2` is frozen externally with 51
+  rows. BM25 `bm25-baseline-evaluation-v0.1-r8` is an offline, metadata-only
+  baseline; it is not a production serving index.
 - Product-shared corpus records may be inherited by a confirmed Variant;
   Variant-specific records and dynamic Shopify facts remain exact-Variant
   scoped.
@@ -66,7 +70,7 @@ Contract, or a durable state migration.
 
 ## 3. Expert Golden Set v0.1
 
-The first implementation prerequisite is a frozen expert benchmark built from
+The completed implementation prerequisite is a frozen expert benchmark built from
 approved official manuals, FAQ/specification supplements, and the three approved
 Shopify Product/Variant identities.
 
@@ -116,6 +120,8 @@ log records the evaluator version and reason for each later amendment.
 
 ### Stage A — BM25 baseline
 
+Status: **COMPLETED (offline baseline only)**.
+
 Build a local or otherwise controlled lexical index over the already admitted
 Product-shared and Variant-specific records. Preserve the existing exact scope
 predicate before scoring. The baseline must report at least Recall@k, MRR or
@@ -126,11 +132,16 @@ The index must be reproducible from the admitted manifest and checksum-bound
 records. It must not silently ingest unapproved sources, cross Store/Product
 records, or promote Variant facts to Product scope.
 
-BM25 is the first independently authorized implementation stage after the
-Golden Set. A BM25 result is a baseline, not a claim that lexical retrieval is
-adequate.
+The frozen benchmark currently reports 13 single-target page-annotated rows;
+36 coverage-only rows and 2 multi-product rows are explicitly excluded from
+page-level evidence recall. The baseline reports Recall@10 `0.5556`, MRR
+`0.9000`, nDCG@10 `0.9262`, scope leakage `0`, and abstention correctness
+`0.0` on 4 abstention rows. These results are diagnostic evidence, not a
+Hybrid admission decision and not a claim that lexical retrieval is adequate.
 
 ### Stage B — Embedding and Hybrid Retrieval
+
+Status: **PLANNING ONLY / NOT AUTHORIZED**.
 
 Only after the BM25 report is frozen, and under a separate implementation
 authorization, evaluate embedding candidates and a
@@ -223,20 +234,15 @@ This roadmap does not authorize:
   durable state without a task-scoped Human decision;
 - claiming real-user satisfaction from the Expert Golden Set.
 
-Future work should be a separately authorized delivery scope or planning
-baseline, beginning with the Golden Set and BM25. It is an unnumbered future
-capability roadmap gated on S11 completion, not a new Slice.
+Future Embedding/Hybrid/Reranker work should be a separately authorized
+delivery scope or planning baseline after this BM25 evidence. It is an
+unnumbered future capability roadmap gated on S11 completion, not a new Slice.
 
 ## 7. Review and authorization boundary
 
-This document is ready for independent planning review only. A passing review
-does not authorize dataset creation or BM25 implementation.
-
-After review, Human authorization should be granted in two separate decisions:
-
-1. create/freeze \`expert-golden-set-v0.1\` within the approved Data-Staging and
-   metadata/checksum boundary;
-2. implement and evaluate the BM25 baseline against that frozen set.
-
-The BM25 scope must define exact files, dependency policy, index location,
-targeted tests, evidence artifacts, and stop conditions before implementation.
+The Expert Golden Set and BM25 baseline have completed their separate Human
+authorizations and are recorded by the frozen Data-Staging artifacts and the
+immutable implementation snapshot. A passing review of this reconciliation
+does not authorize Embedding/Hybrid/Reranker implementation. Those stages
+still require a separate planning decision covering provider, model, data
+egress, index format, persistence, cost, and deterministic fallback.
