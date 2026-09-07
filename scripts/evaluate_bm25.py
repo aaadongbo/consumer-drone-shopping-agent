@@ -29,6 +29,8 @@ PRODUCT_IDS = {
 }
 STORE_ID = "shopify-store:bys-user-store-578412-7a11gk0u"
 STORE_KEY = "bys-user-store-578412-7a11gk0u.myshopify.com"
+REPORT_REVISION = "r9"
+REPORT_DATASET_VERSION = "bm25-baseline-evaluation-20260907-v0.1-" + REPORT_REVISION
 VARIANT_IDS = {
     PRODUCT_IDS["DJI Mini 3"]: "50107364802698",
     PRODUCT_IDS["DJI Air 3"]: "50107426603146",
@@ -236,6 +238,21 @@ def evaluate(
     rows = _load_jsonl(query_path)
     if len(rows) != golden_manifest["query_count"]:
         raise ValueError("golden query count mismatch")
+    query_ids = [str(row.get("query_id", "")) for row in rows]
+    if len(query_ids) != len(set(query_ids)) or not all(query_ids):
+        raise ValueError("golden query_id values must be unique and non-empty")
+    eligibility_counts = Counter(
+        str(row.get("static_eval_eligibility", "")) for row in rows
+    )
+    allowed_eligibility = {"gold_page_annotated", "coverage_only"}
+    if set(eligibility_counts) - allowed_eligibility:
+        raise ValueError("golden query static_eval_eligibility value is invalid")
+    if (
+        eligibility_counts["gold_page_annotated"]
+        != golden_manifest["expert_static_gold_count"]
+        or eligibility_counts["coverage_only"] != golden_manifest["coverage_only_count"]
+    ):
+        raise ValueError("golden query eligibility counts do not match manifest")
     for row in rows:
         expected_hash = (
             "sha256:" + hashlib.sha256(str(row["query_text"]).encode()).hexdigest()
@@ -376,6 +393,8 @@ def evaluate(
                 idcg = 1.0
                 ndcg_values.append(dcg / idcg)
             else:
+                reciprocal_ranks.append(0.0)
+                ndcg_values.append(0.0)
                 failure_classification[
                     result.stop_reason.value
                     if result.stop_reason
@@ -434,7 +453,7 @@ def evaluate(
     }
     result = {
         "schema_version": "bm25-baseline-evaluation.v0.1",
-        "report_revision": "r7",
+        "report_revision": REPORT_REVISION,
         "status": "EXECUTED_OFFLINE_METADATA_ONLY",
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "golden_set": {
@@ -482,10 +501,12 @@ def evaluate(
             if answerable_total
             else None,
             "evidence_recall_at_10_ci95": _wilson(answerable_hits, answerable_total),
-            "mrr": sum(reciprocal_ranks) / len(reciprocal_ranks)
-            if reciprocal_ranks
+            "mrr": sum(reciprocal_ranks) / answerable_total
+            if answerable_total
             else None,
-            "ndcg_at_10": sum(ndcg_values) / len(ndcg_values) if ndcg_values else None,
+            "ndcg_at_10": sum(ndcg_values) / answerable_total
+            if answerable_total
+            else None,
             "answer_correctness_proxy": answerable_hits / answerable_total
             if answerable_total
             else None,
@@ -552,7 +573,7 @@ def main() -> int:
     }
     checksums = {
         "schema_version": "checksums.v0.1",
-        "dataset_version": "bm25-baseline-evaluation-20260907-v0.1",
+        "dataset_version": REPORT_DATASET_VERSION,
         "files": files,
         "self_reference_policy": "This sidecar excludes its own sha256.",
     }

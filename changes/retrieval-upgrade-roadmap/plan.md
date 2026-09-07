@@ -44,7 +44,7 @@ beta queries are available.
   identity and Evidence gates; it is not yet BM25, embedding, vector search, or
   reranking.
 - Expert Golden Set `expert-golden-set-v0.1-r2` is frozen externally with 51
-  rows. BM25 `bm25-baseline-evaluation-v0.1-r8` is an offline, metadata-only
+  rows. BM25 `bm25-baseline-evaluation-v0.1-r9` is an offline, metadata-only
   baseline; it is not a production serving index.
 - Product-shared corpus records may be inherited by a confirmed Variant;
   Variant-specific records and dynamic Shopify facts remain exact-Variant
@@ -135,9 +135,10 @@ records, or promote Variant facts to Product scope.
 The frozen benchmark currently reports 13 single-target page-annotated rows;
 36 coverage-only rows and 2 multi-product rows are explicitly excluded from
 page-level evidence recall. The baseline reports Recall@10 `0.5556`, MRR
-`0.9000`, nDCG@10 `0.9262`, scope leakage `0`, and abstention correctness
-`0.0` on 4 abstention rows. These results are diagnostic evidence, not a
-Hybrid admission decision and not a claim that lexical retrieval is adequate.
+`0.5000`, nDCG@10 `0.5145` using the full 9-query answerable denominator,
+scope leakage `0`, and abstention correctness `0.0` on 4 abstention rows. These
+results are diagnostic evidence, not a Hybrid admission decision and not a
+claim that lexical retrieval is adequate.
 
 ### Stage B — Embedding and Hybrid Retrieval
 
