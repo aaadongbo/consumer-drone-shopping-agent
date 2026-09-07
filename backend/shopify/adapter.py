@@ -86,6 +86,16 @@ class RealShopifyReadAdapter(ShopifyReadPort):
     def last_stop_reason(self) -> ShopifyAdapterStopReason | None:
         return self._last_stop_reason
 
+    def _begin_turn(self) -> None:
+        """Reset the bounded read ledger at the start of one conversation turn.
+
+        The adapter instance is intentionally reused by the runtime, while
+        ``max_read_calls`` is a per-turn budget.  Keeping this hook private
+        avoids expanding the Shopify port or public contract surface.
+        """
+        self._call_ledger.clear()
+        self._last_stop_reason = None
+
     def get_products(
         self, *, store_id: str, product_id: str
     ) -> ToolResult[list[ProductRecord]]:

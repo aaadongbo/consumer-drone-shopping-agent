@@ -126,6 +126,44 @@ def test_pilot_api_routes_dynamic_to_shopify_and_static_to_controlled_rag() -> N
     }
 
 
+def test_shopify_read_budget_resets_between_conversation_turns() -> None:
+    transport = PilotTransport()
+    adapter = RealShopifyReadAdapter(
+        transport=transport,
+        clock=lambda: NOW,
+        approved_store_id=STORE,
+        approved_variant_ids={PRODUCT: VARIANT},
+        max_read_calls=1,
+    )
+    composition = build_pilot_composition(
+        PilotCompositionConfig(
+            mode=PilotMode.PILOT,
+            store_id=STORE,
+            shopify=adapter,
+            readiness=_ready_report(),
+            static_retriever=InMemoryProductRetriever(
+                (_static_chunk(),), index_version="docs-2026-09-01"
+            ),
+            clock=lambda: NOW,
+            correlation_id_factory=lambda: "correlation-s10-t04-budget",
+        )
+    )
+    client = TestClient(composition.api)
+
+    first = client.post("/v1/conversation/turn", json=_turn_payload("这款现在多少钱？"))
+    second = client.post(
+        "/v1/conversation/turn", json=_turn_payload("这款现在多少钱？")
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["outcome"] == "ANSWER"
+    assert second.json()["outcome"] == "ANSWER"
+    assert transport.calls == ["commerce", "commerce"]
+    assert len(adapter.call_ledger) == 1
+    assert adapter.write_call_count == 0
+
+
 def _turn_payload(user_text: str) -> dict[str, object]:
     return {
         "schema_version": SCHEMA_VERSION,

@@ -178,6 +178,9 @@ class Slice1ApplicationService:
         self._clock = clock
 
     def answer(self, request: TurnRequest) -> AnswerEnvelope:
+        begin_turn = getattr(self._shopify, "_begin_turn", None)
+        if callable(begin_turn):
+            begin_turn()
         correlation_id = _safe_trace_value(self._correlation_id_factory())
         request_scope = _request_scope(request)
         self._trace(
