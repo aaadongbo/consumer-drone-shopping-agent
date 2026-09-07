@@ -5,6 +5,15 @@ from backend.rag.adapters import (
     RetrievalResultAdapter,
     adapt_retrieval_result,
 )
+from backend.rag.bm25 import (
+    Bm25Candidate,
+    Bm25Document,
+    Bm25Index,
+    Bm25Request,
+    Bm25Result,
+    Bm25StopReason,
+    tokenize_bm25,
+)
 from backend.rag.chunk_baseline import (
     EXPECTED_CHUNK_BASELINE_SCHEMA,
     EXPECTED_CHUNK_BASELINE_STATUS,
@@ -112,6 +121,12 @@ from backend.rag.static_dynamic_guards import (
 __all__ = [
     "AuthorizationState",
     "APPROVED_CHUNK_BASELINE_STATUS",
+    "Bm25Candidate",
+    "Bm25Document",
+    "Bm25Index",
+    "Bm25Request",
+    "Bm25Result",
+    "Bm25StopReason",
     "ChunkBaselineManifest",
     "ChunkBaselineRecord",
     "ChunkBaselineStopReason",
@@ -190,6 +205,7 @@ __all__ = [
     "is_dynamic_commerce_question",
     "report_to_dict",
     "retrieve_controlled_chunk_metadata",
+    "tokenize_bm25",
     "run_ephemeral_chunk_metadata_experiment",
     "scan_changed_data_boundary",
     "scan_data_boundary",
