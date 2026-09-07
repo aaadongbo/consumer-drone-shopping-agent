@@ -9,7 +9,11 @@ import pytest
 
 from backend.rag.chunk_baseline import ChunkBaselineManifest, ChunkBaselineRecord
 from scripts import evaluate_bm25
-from scripts.evaluate_bm25 import _build_documents, _scope_for_row
+from scripts.evaluate_bm25 import (
+    _benchmark_scope_label,
+    _build_documents,
+    _scope_for_row,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -107,6 +111,18 @@ def test_scope_conversion_preserves_exact_variant_identity() -> None:
     assert scope is not None
     assert scope.variant_id == "50107426603146"
     assert _scope_for_row({**scope.model_dump(), "variant_id": "wrong"}) is None
+
+
+def test_multi_product_scope_is_rejected_even_when_product_id_is_present() -> None:
+    row = {
+        "store_id": "shopify-store:bys-user-store-578412-7a11gk0u",
+        "product_id": "9278439686282",
+        "variant_id": None,
+        "product_scope": "DJI Mini 3, DJI Air 3, DJI Mavic 3",
+    }
+
+    assert _benchmark_scope_label(row) == "multi_product"
+    assert _scope_for_row(row) is None
 
 
 def test_cli_writes_metadata_only_and_refuses_nonempty_output(

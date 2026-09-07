@@ -29,7 +29,7 @@ PRODUCT_IDS = {
 }
 STORE_ID = "shopify-store:bys-user-store-578412-7a11gk0u"
 STORE_KEY = "bys-user-store-578412-7a11gk0u.myshopify.com"
-REPORT_REVISION = "r9"
+REPORT_REVISION = "r10"
 REPORT_DATASET_VERSION = "bm25-baseline-evaluation-20260907-v0.1-" + REPORT_REVISION
 VARIANT_IDS = {
     PRODUCT_IDS["DJI Mini 3"]: "50107364802698",
@@ -167,6 +167,8 @@ def _scope_for_row(row: dict[str, Any]) -> ObjectScope | None:
     """Convert a benchmark turn target to the canonical internal scope."""
     if row.get("store_id") != STORE_ID:
         return None
+    if _benchmark_scope_label(row) == "multi_product":
+        return None
     product_id = str(row.get("product_id") or "")
     if product_id not in PRODUCT_IDS.values():
         product_id = _product_id_for_scope(str(row.get("product_scope", ""))) or ""
@@ -199,7 +201,8 @@ def _benchmark_scope_label(row: dict[str, Any]) -> str:
     product_scope = str(row.get("product_scope", "")).casefold()
     if row.get("variant_id") is not None:
         return "variant"
-    if "all" in product_scope or "three" in product_scope:
+    known_products = sum(label.casefold() in product_scope for label in PRODUCT_IDS)
+    if "all" in product_scope or "three" in product_scope or known_products > 1:
         return "multi_product"
     return "product"
 

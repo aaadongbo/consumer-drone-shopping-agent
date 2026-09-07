@@ -44,7 +44,7 @@ beta queries are available.
   identity and Evidence gates; it is not yet BM25, embedding, vector search, or
   reranking.
 - Expert Golden Set `expert-golden-set-v0.1-r2` is frozen externally with 51
-  rows. BM25 `bm25-baseline-evaluation-v0.1-r9` is an offline, metadata-only
+  rows. BM25 `bm25-baseline-evaluation-v0.1-r10` is an offline, metadata-only
   baseline; it is not a production serving index.
 - Product-shared corpus records may be inherited by a confirmed Variant;
   Variant-specific records and dynamic Shopify facts remain exact-Variant
