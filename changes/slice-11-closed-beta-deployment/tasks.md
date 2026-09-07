@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T08 DONE / T07 READY
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T07 DONE / FINAL REVIEW PENDING
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -17,7 +17,7 @@
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
-| T07 | Closed-beta acceptance and completion evidence | NOT_STARTED | T04, T06, T08; explicit live smoke authority |
+| T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06, T08; explicit live smoke authority |
 
 | Task | Risk |
 |---|---|
@@ -962,6 +962,39 @@ provider, hosting, CI, staging, or Widget-origin changes.
   Review reran the immutable scope check, unit/integration suite (`523 passed,
   301 deselected`), and full suite (`824 passed`) with no findings; the review
   worktree was detached and clean.
+
+### T07 Final Acceptance Reconciliation
+
+- **Status**: `DONE - closed-beta evidence reconciled; final review pending`
+- **Acceptance evidence source**: the bounded three-product acceptance recorded
+  under `T07 Completion Reconciliation` was executed after remediation commit
+  `cf62e1e63f2cf39fb62c23b9af018b7f67f2470e` on the Render staging service.
+  Mini 3, Air 3, and Mavic 3 each returned HTTP `200` / `ANSWER` with matching
+  approved Product/Variant IDs, one read per turn, zero writes, zero retries,
+  and zero external model calls.
+- **Release checks**: `/healthz` and `/readyz` were `200`; the approved
+  storefront Origin received the exact CORS header and an unapproved Origin did
+  not. Existing rollback target and redacted metadata evidence remain unchanged.
+- **Current-session boundary**: no additional live request was issued because
+  the execution environment could not resolve the staging host after its local
+  proxy became unavailable. This does not replace the recorded post-fix pass
+  evidence and produced no new Shopify read or write.
+- **Next verification**: run the T07 immutable task verification and full Slice
+  review against this reconciliation before recording completion.
+
+- **Completion evidence**: deployment `cf62e1e63f2cf39fb62c23b9af018b7f67f2470e`
+  remained the immutable staging release; `/healthz` and `/readyz` were `200`,
+  approved-Origin CORS matched exactly, unapproved-Origin CORS was absent, and
+  rollback target `5ee372e...` remained recorded with no rollback required.
+  Mini 3, Air 3, and Mavic 3 each returned verified `ANSWER` responses under
+  the approved mappings. Counts were three turns, three commerce reads, zero
+  writes, zero automatic retries, and zero external model calls. Evidence was
+  limited to redacted metadata and correlation IDs.
+- **Verification**: immutable T07 checks exited `0`; `uv lock --check`, Ruff,
+  format, diff, and the full suite exited `0` (`824 passed`).
+- **Final review boundary**: this T07 completion record is subject to a fresh
+  detached MEDIUM review and Slice completion review before S11 is marked
+  complete.
 
 ### T07 Final Acceptance Attempt
 
