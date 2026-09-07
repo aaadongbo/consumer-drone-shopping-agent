@@ -16,7 +16,7 @@
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
-| T08 | Read-only Shopify commerce compatibility remediation | NOT_STARTED | T04, T06; explicit HIGH-risk remediation authority |
+| T08 | Read-only Shopify commerce compatibility remediation | IN_PROGRESS | T04, T06; explicit HIGH-risk remediation authority |
 | T07 | Closed-beta acceptance and completion evidence | BLOCKED | T04, T06, T08; explicit live smoke authority |
 
 | Task | Risk |
@@ -916,7 +916,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ### T08 - Read-only Shopify Commerce Compatibility Remediation
 
-- **Status**: `NOT_STARTED`
+- **Status**: `IN_PROGRESS`
 - **Risk**: `HIGH`
 - **Scope**: only the already-identified read-only compatibility path for the
   approved Air 3 and Mavic 3 Product/Variant identities; no mapping, credential,
@@ -931,6 +931,32 @@ provider, hosting, CI, staging, or Widget-origin changes.
 - **Verification**: targeted adapter/transport/composition tests, Ruff, and one
   fresh bounded three-product read-only recheck; no completion evidence is
   accepted until the independent HIGH-risk review passes.
+
+#### T08 Execution Record
+
+- **Implementation boundary**: the approved compatibility remediation is carried
+  by `5ee372e7828e5541c142832cf1a1f254071d11ba` (direct single-Variant REST
+  reads) and `cf62e1e63f2cf39fb62c23b9af018b7f67f2470e` (per-turn read-ledger
+  reset). No Product/Variant mapping, credential, public Contract, dependency,
+  CORS, deployment, or Workflow files were changed by this remediation.
+- **Policy verification**: `check_scope.py T08` exited `0`; the integrated
+  baseline is `main@7fac7ae6ac4647562e4bc8daeeefd79bae3ca5ff`, and the only
+  current working-tree path is this task record.
+- **Targeted verification**: `verify_task.py T08` exited `0`; the selected
+  unit/integration run exited `0` with `523 passed, 301 deselected`; Ruff
+  check and format check exited `0`; `git diff --check` exited `0`.
+- **Full verification**: the full suite exited `0` with `824 passed`; repository
+  Ruff check and format check exited `0` (`206 files already formatted`).
+- **Bounded commerce evidence**: the fresh three-product read-only acceptance
+  already recorded below under `T07 Completion Reconciliation` was executed
+  after both remediation commits on deployment `cf62e1e...`: Mini 3, Air 3,
+  and Mavic 3 each returned `ANSWER` with matching approved Product/Variant
+  IDs, one commerce read per turn, zero writes, zero retries, and zero external
+  model calls. A separate current-session attempt could not obtain an HTTP
+  response because the local proxy/DNS path was unavailable; it produced no
+  Shopify read and does not replace the recorded pass evidence.
+- **Review boundary**: T08 remains `IN_PROGRESS` until an independent clean
+  HIGH-risk review binds this snapshot and reports `AI_REVIEW_PASS`.
 
 ### T07 Final Acceptance Attempt
 
