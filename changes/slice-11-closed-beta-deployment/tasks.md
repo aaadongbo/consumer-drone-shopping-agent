@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T07 BLOCKED BY WORKFLOW SCOPE
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T08 DONE / T07 BLOCKED PENDING REVIEW
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -16,7 +16,7 @@
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
-| T08 | Read-only Shopify commerce compatibility remediation | IN_PROGRESS | T04, T06; explicit HIGH-risk remediation authority |
+| T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
 | T07 | Closed-beta acceptance and completion evidence | BLOCKED | T04, T06, T08; explicit live smoke authority |
 
 | Task | Risk |
@@ -916,7 +916,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ### T08 - Read-only Shopify Commerce Compatibility Remediation
 
-- **Status**: `IN_PROGRESS`
+- **Status**: `DONE - remediation verification complete; fresh review pending`
 - **Risk**: `HIGH`
 - **Scope**: only the already-identified read-only compatibility path for the
   approved Air 3 and Mavic 3 Product/Variant identities; no mapping, credential,
