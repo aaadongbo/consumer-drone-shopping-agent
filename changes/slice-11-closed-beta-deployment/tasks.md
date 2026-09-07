@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T08 DONE / T07 BLOCKED PENDING REVIEW
+> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T08 DONE / T07 READY
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -17,7 +17,7 @@
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
-| T07 | Closed-beta acceptance and completion evidence | BLOCKED | T04, T06, T08; explicit live smoke authority |
+| T07 | Closed-beta acceptance and completion evidence | NOT_STARTED | T04, T06, T08; explicit live smoke authority |
 
 | Task | Risk |
 |---|---|
@@ -916,7 +916,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ### T08 - Read-only Shopify Commerce Compatibility Remediation
 
-- **Status**: `DONE - remediation verification complete; fresh review pending`
+- **Status**: `DONE - remediation verification and fresh review complete`
 - **Risk**: `HIGH`
 - **Scope**: only the already-identified read-only compatibility path for the
   approved Air 3 and Mavic 3 Product/Variant identities; no mapping, credential,
@@ -955,8 +955,13 @@ provider, hosting, CI, staging, or Widget-origin changes.
   model calls. A separate current-session attempt could not obtain an HTTP
   response because the local proxy/DNS path was unavailable; it produced no
   Shopify read and does not replace the recorded pass evidence.
-- **Review boundary**: T08 remains `IN_PROGRESS` until an independent clean
-  HIGH-risk review binds this snapshot and reports `AI_REVIEW_PASS`.
+- **Independent review**: `AI_REVIEW_PASS`; detached clean review snapshot
+  `4c3f2b162aa3b355a0961d492e6077ad12c9316e`, base
+  `7fac7ae6ac4647562e4bc8daeeefd79bae3ca5ff`, digest
+  `f41382406889c41f3b39aec47abc45e36e8667cd15449e27d513ad654fc6282c`.
+  Review reran the immutable scope check, unit/integration suite (`523 passed,
+  301 deselected`), and full suite (`824 passed`) with no findings; the review
+  worktree was detached and clean.
 
 ### T07 Final Acceptance Attempt
 
