@@ -16,7 +16,8 @@
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
-| T07 | Closed-beta acceptance and completion evidence | BLOCKED | T04, T06; explicit live smoke authority |
+| T08 | Read-only Shopify commerce compatibility remediation | NOT_STARTED | T04, T06; explicit HIGH-risk remediation authority |
+| T07 | Closed-beta acceptance and completion evidence | BLOCKED | T04, T06, T08; explicit live smoke authority |
 
 | Task | Risk |
 |---|---|
@@ -27,6 +28,7 @@
 | T05 | MEDIUM |
 | T06 | HIGH |
 | T07 | MEDIUM |
+| T08 | HIGH |
 
 Risk labels are provisional planning labels. HIGH Tasks stop for current-context Human
 authority before implementation because they involve external providers, release
@@ -911,6 +913,24 @@ provider, hosting, CI, staging, or Widget-origin changes.
     `shopify_write_count=0`, external model calls `0`.
 - **Boundary at T06 completion**: T07 was then `NOT_STARTED`; no closed-beta
   acceptance, Shopify write, main integration, or further Task was performed.
+
+### T08 - Read-only Shopify Commerce Compatibility Remediation
+
+- **Status**: `NOT_STARTED`
+- **Risk**: `HIGH`
+- **Scope**: only the already-identified read-only compatibility path for the
+  approved Air 3 and Mavic 3 Product/Variant identities; no mapping, credential,
+  Shopify write, Contract, dependency, CORS, deployment, or Workflow changes.
+- **Planned allowlist**: `backend/shopify/transport.py`,
+  `backend/shopify/adapter.py`, `backend/application/slice_1.py`, the focused
+  adapter/transport/composition tests, and this `tasks.md`.
+- **Acceptance**: direct single-Variant REST reads are normalized safely; the
+  Shopify read budget resets at Conversation-turn boundaries; each turn remains
+  bounded to the configured maximum; Mini 3, Air 3, and Mavic 3 return only
+  verified read-only commerce evidence under the approved mappings.
+- **Verification**: targeted adapter/transport/composition tests, Ruff, and one
+  fresh bounded three-product read-only recheck; no completion evidence is
+  accepted until the independent HIGH-risk review passes.
 
 ### T07 Final Acceptance Attempt
 

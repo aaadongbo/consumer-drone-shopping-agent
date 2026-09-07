@@ -1662,6 +1662,22 @@
           "verification_marker": null,
           "verification_rationale": "closed-beta acceptance matrix and Slice completion evidence",
           "risk_tier": "MEDIUM"
+        },
+        "T08": {
+          "allowed_paths": [
+            "backend/shopify/adapter.py",
+            "backend/shopify/transport.py",
+            "backend/application/slice_1.py",
+            "tests/unit/test_s10_t03_shopify_adapter.py",
+            "tests/unit/test_s10_t03_shopify_transport.py",
+            "tests/integration/test_s10_t03_shopify_adapter_integration.py",
+            "tests/integration/test_s10_t04_pilot_composition_integration.py",
+            "changes/slice-11-closed-beta-deployment/tasks.md"
+          ],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration",
+          "verification_rationale": "HIGH-risk read-only Shopify response compatibility remediation under approved Product/Variant mappings",
+          "risk_tier": "HIGH"
         }
       }
     }
