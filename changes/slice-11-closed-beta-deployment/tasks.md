@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: IMPLEMENTATION IN PROGRESS / S11 AUTHORIZED / T06 DONE / T07 NOT_STARTED
+> Status: S11 COMPLETE / T01-T07 DONE / CLOSED-BETA EVIDENCE RECORDED
 >
 > The ordered table below is a planning proposal only. It does not authorize
 > implementation, external service use, credential access, CI changes, deployment,
@@ -16,7 +16,7 @@
 | T04 | Model or restricted intent adapter boundary | DONE | T02; Human provider/model ID decision if live model is used |
 | T05 | Embeddable Storefront Widget | DONE | T02, T03; exact staging/beta Widget origin values |
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
-| T07 | Closed-beta acceptance and completion evidence | NOT_STARTED | T04, T06; explicit live smoke authority |
+| T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06; explicit live smoke authority |
 
 | Task | Risk |
 |---|---|
@@ -909,5 +909,74 @@ provider, hosting, CI, staging, or Widget-origin changes.
   - Render read-only smoke: `2` HTTP health/readiness requests, `pass`,
     `conversation_turn_count=0`, `shopify_read_count=0`,
     `shopify_write_count=0`, external model calls `0`.
-- **Boundary**: T07 remains `NOT_STARTED`; no closed-beta acceptance, Shopify write,
-  main integration, or further Task was performed.
+- **Boundary at T06 completion**: T07 was then `NOT_STARTED`; no closed-beta
+  acceptance, Shopify write, main integration, or further Task was performed.
+
+### T07 Final Acceptance Attempt
+
+- **Status**: `BLOCKED - Air 3 and Mavic 3 returned VARIANT_NOT_FOUND`
+- **Authorization**: current-context Human authorization for one budgeted final
+  three-product read-only acceptance. This record includes the earlier credential
+  recovery follow-up as a separate diagnostic; it is not counted as T07 acceptance.
+- **Deployment under test**: Render `consumer-drone-agent-staging`, commit
+  `d3d9d65f7cb567d244ae9efa196bfdea02e25c28`, deployment
+  `dep-daf00snqj5pc73b4utpg`.
+- **Credential boundary**: the hosted read-only token was refreshed through the
+  approved Client Credentials Grant; store identity matched and the required
+  `read_products`/`read_inventory` scopes were present. The token value was not
+  recorded here or in repository artifacts.
+- **Health/CORS verification**:
+  - `/healthz` returned HTTP `200`.
+  - `/readyz` returned HTTP `200`.
+  - The approved Shopify storefront origin returned matching
+    `Access-Control-Allow-Origin`.
+  - An unapproved origin returned no CORS allow-origin header.
+- **Three-product smoke**: exactly three Conversation turns, one price question
+  per approved Product/Variant, no automatic retry and no external model calls.
+  Mini 3 returned HTTP `200` / `ANSWER` with one claim and one evidence item.
+  Air 3 returned HTTP `200` / `FALLBACK` with `VARIANT_NOT_FOUND`. Mavic 3
+  returned HTTP `200` / `FALLBACK` with `VARIANT_NOT_FOUND`. The resolved IDs in
+  all three responses matched the approved mappings; no mapping was changed.
+- **Operation boundary**: no Shopify write was observed; no raw response, token,
+  secret, header, or user text was stored. The acceptance stopped immediately
+  after the failed product outcomes; no additional retry or direct Shopify
+  diagnostic was issued.
+- **Local verification**: `uv run pytest -q` exited `0` (`822 passed`); the
+  earlier targeted unit/contract/integration run exited `0` (`745 passed`, `77
+  deselected`).
+- **Verdict**: `HOLD`; T07 completion evidence and final Slice snapshot/review
+  must not be produced until the Air 3 and Mavic 3 commerce path is separately
+  diagnosed under fresh explicit authority.
+
+### T07 Completion Reconciliation
+
+- **Status**: `DONE - three-product closed-beta acceptance passed`
+- **Authorization**: ongoing current-context Human authorization to continue S11;
+  this record covers only the internal read-budget correction, its targeted
+  verification, redeployment, and one final bounded read-only acceptance. No
+  public Contract, Product/Variant mapping, Workflow, dependency, Shopify write,
+  main integration, or push outside the approved feature branch was performed.
+- **Internal fixes**:
+  - `5ee372e7828e5541c142832cf1a1f254071d11ba` uses Shopify's direct single-
+    Variant REST resource for commerce reads.
+  - `cf62e1e63f2cf39fb62c23b9af018b7f67f2470e` resets the adapter read ledger at
+    each Conversation turn, preserving the configured per-turn maximum while
+    preventing cross-turn budget leakage.
+- **Deployment**: Render Web Service `consumer-drone-agent-staging` deployed
+  `cf62e1e63f2cf39fb62c23b9af018b7f67f2470e` from `codex/s11-t05`; the previous
+  immutable deployment `5ee372e7828e5541c142832cf1a1f254071d11ba` remained the
+  rollback target. No rollback was required.
+- **Health/CORS**: `/healthz` returned HTTP `200`; `/readyz` returned HTTP `200`.
+  The approved Shopify storefront origin received the exact matching
+  `Access-Control-Allow-Origin`; an unapproved origin received no allow-origin
+  header.
+- **Final three-product acceptance**: three Conversation turns (Mini 3, Air 3,
+  Mavic 3), one bounded commerce read per turn, HTTP `200` and `ANSWER` for all
+  three, one claim and one evidence item per response, freshness present, and
+  resolved Product/Variant IDs equal to the approved mappings. Shopify writes
+  were `0`, automatic retries `0`, and external model calls `0`. Only redacted
+  metadata, counts, and correlation IDs were retained.
+- **Verification**: targeted adapter/composition/runtime tests exited `0`
+  (`39 passed`); full suite exited `0` (`824 passed`); Ruff check and format
+  check exited `0`; `git diff --check` exited `0`.
+- **Verdict**: `T07_COMPLETE_PENDING_FINAL_SNAPSHOT_REVIEW`.
