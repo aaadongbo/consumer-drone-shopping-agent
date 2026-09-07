@@ -52,9 +52,14 @@ class RecordedResponseOpener:
         self.calls.append((request.full_url, timeout))
         path = urlsplit(request.full_url).path
         parts = path.split("/")
-        product_id = parts[5].removesuffix(".json")
-        variant_id, title, price, inventory = PRODUCTS[product_id]
         if "/variants/" in path:
+            variant_id = parts[5].removesuffix(".json")
+            product_id = next(
+                product_id
+                for product_id, details in PRODUCTS.items()
+                if details[0] == variant_id
+            )
+            _variant_id, title, price, inventory = PRODUCTS[product_id]
             body = {
                 "variant": {
                     "id": variant_id,
@@ -66,6 +71,8 @@ class RecordedResponseOpener:
                 }
             }
         else:
+            product_id = parts[5].removesuffix(".json")
+            variant_id, title, price, inventory = PRODUCTS[product_id]
             body = {
                 "product": {
                     "id": product_id,

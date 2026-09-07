@@ -133,6 +133,23 @@ def test_timeout_is_returned_after_one_attempt_without_retry() -> None:
     assert len(opener.calls) == 1
 
 
+def test_commerce_read_uses_single_variant_resource_path() -> None:
+    opener = Opener(Response(b'{"variant": {"id": 456}}'))
+
+    result = transport(opener).read_commerce_state(
+        store_id=STORE, product_id="123", variant_id="456"
+    )
+
+    assert result.failure is None
+    assert len(opener.calls) == 1
+    request, _timeout = opener.calls[0]
+    parsed = urlsplit(request.full_url)
+    assert parsed.path == "/admin/api/2026-07/variants/456.json"
+    assert parse_qs(parsed.query)["fields"] == [
+        "id,product_id,title,price,inventory_quantity,inventory_policy,available_for_sale"
+    ]
+
+
 @pytest.mark.parametrize("body", [b"not-json", b"\xff", b"[]"])
 def test_malformed_body_is_classified_without_retaining_body(body: bytes) -> None:
     result = transport(Opener(Response(body))).read_product(

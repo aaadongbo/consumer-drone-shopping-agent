@@ -181,7 +181,6 @@ class UrllibShopifyReadTransport:
     def read_commerce_state(
         self, *, store_id: str, product_id: str, variant_id: str
     ) -> ShopifyTransportResult:
-        product_id = _path_id(product_id)
         variant_id = _path_id(variant_id)
         query = urlencode(
             {
@@ -193,7 +192,11 @@ class UrllibShopifyReadTransport:
         )
         return self._read_json(
             store_id=store_id,
-            path=f"/products/{product_id}/variants/{variant_id}.json?{query}",
+            # Shopify's single-Variant REST resource is addressed by Variant
+            # ID directly.  The product-scoped collection endpoint is only
+            # for listing variants and can return NOT_FOUND for a valid
+            # Variant when used as a single-resource read.
+            path=f"/variants/{variant_id}.json?{query}",
         )
 
     def _read_json(self, *, store_id: str, path: str) -> ShopifyTransportResult:
