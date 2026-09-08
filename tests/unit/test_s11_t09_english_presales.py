@@ -18,20 +18,73 @@ from backend.common import (
     RouteIntent,
     TurnRequest,
 )
-from backend.shopify import DeterministicShopifyFixture
+from backend.shopify import RealShopifyReadAdapter, ShopifyTransportResult
 
 pytestmark = pytest.mark.unit
 
+STORE = "shopify-store:bys-user-store-578412-7a11gk0u"
+PRODUCT = "9278439686282"
+VARIANT = "50107364802698"
 
-def _request(text: str, *, variant_id: str | None = "mini-standard") -> TurnRequest:
+
+def _request(text: str, *, variant_id: str | None = VARIANT) -> TurnRequest:
     return TurnRequest(
         schema_version=SCHEMA_VERSION,
-        store_id="store-drone-cn",
+        store_id=STORE,
         conversation=ConversationRef(conversation_id="t09", message_id=text),
         user_text=text,
         locale="en-US",
-        page_context=PageContext(product_id="drone-mini", variant_id=variant_id),
+        page_context=PageContext(product_id=PRODUCT, variant_id=variant_id),
     )
+
+
+class _UsCommerceTransport:
+    def read_product(self, *, store_id: str, product_id: str):
+        return ShopifyTransportResult(
+            payload={
+                "product": {
+                    "id": product_id,
+                    "title": "DJI Mini 3",
+                    "variants": [
+                        {
+                            "id": VARIANT,
+                            "product_id": product_id,
+                            "title": "Default Title",
+                        }
+                    ],
+                }
+            },
+            http_status=200,
+        )
+
+    def read_variants(self, *, store_id: str, product_id: str):
+        return ShopifyTransportResult(
+            payload={
+                "variants": [
+                    {
+                        "id": VARIANT,
+                        "product_id": product_id,
+                        "title": "Default Title",
+                    }
+                ]
+            },
+            http_status=200,
+        )
+
+    def read_commerce_state(self, *, store_id: str, product_id: str, variant_id: str):
+        return ShopifyTransportResult(
+            payload={
+                "variant": {
+                    "id": variant_id,
+                    "product_id": product_id,
+                    "title": "Default Title",
+                    "price": "549.00",
+                    "inventory_quantity": 7,
+                    "available_for_sale": True,
+                }
+            },
+            http_status=200,
+        )
 
 
 def test_english_commerce_and_variant_questions_are_bounded() -> None:
@@ -54,11 +107,15 @@ def test_english_order_and_payment_questions_are_store_support_handoffs() -> Non
 
 
 def test_english_dynamic_answer_is_read_only_and_localized() -> None:
-    fixture = DeterministicShopifyFixture(
-        clock=lambda: datetime(2026, 9, 8, tzinfo=UTC)
+    shopify = RealShopifyReadAdapter(
+        transport=_UsCommerceTransport(),
+        approved_store_id=STORE,
+        approved_variant_ids={PRODUCT: VARIANT},
+        commerce_currency="USD",
+        clock=lambda: datetime(2026, 9, 8, tzinfo=UTC),
     )
     service = Slice1ApplicationService(
-        shopify=fixture,
+        shopify=shopify,
         interpreter=DeterministicQuestionInterpreter(),
         trace_sink=InMemoryTraceSink(),
         correlation_id_factory=lambda: "t09-correlation",
@@ -68,7 +125,10 @@ def test_english_dynamic_answer_is_read_only_and_localized() -> None:
     payload = service.answer(_request("What is the current price?")).root
     assert payload.outcome is EnvelopeOutcome.ANSWER
     assert payload.text.startswith("The current price")
-    assert fixture.write_call_count == 0
+    assert "USD" in payload.text
+    assert payload.evidence[0].fact is not None
+    assert payload.evidence[0].fact.unit == "USD"
+    assert shopify.write_call_count == 0
 
 
 def test_product_only_english_variant_question_fails_closed() -> None:

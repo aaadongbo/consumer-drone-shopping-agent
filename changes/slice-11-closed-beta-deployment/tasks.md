@@ -1190,7 +1190,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ### T09 Execution Record
 
-- **Status**: `IN_PROGRESS — approved HIGH-risk implementation authority; final staging acceptance pending`
+- **Status**: `IN_PROGRESS — approved HIGH-risk commerce compatibility remediation and staging acceptance`
 - **Start commit**: `56dfa6655300f8411ebf31dbf7bacba2e2c5b632`
 - **Worktree**: `/private/tmp/s11-t09-implementation`; feature branch
   `codex/s11-t09-implementation`; unrelated root/worktree changes were not touched.
@@ -1222,5 +1222,72 @@ provider, hosting, CI, staging, or Widget-origin changes.
   - `python .agents/skills/drone-slice-workflow/scripts/check_scope.py T09`
     exited `0`; `verify_task.py T09 --pretty` exited `0` with no scope or
     dependency violations.
-- **Remaining gate**: live staging/browser acceptance is still pending. No
-  deployment, Shopify reads, or T09 completion snapshot is claimed yet.
+- **Remaining gate**: live staging Conversation acceptance is still pending on
+  restored commerce authorization. The browser/theme portion is recorded below;
+  no additional deployment, Shopify Admin read, or T09 completion snapshot is
+  claimed yet.
+- **Staging deployment attempt (2026-09-08)**: Render service
+  `consumer-drone-agent-staging` was switched to branch
+  `codex/s11-t09-implementation` and deployed immutable commit
+  `2ace0ba30b669b87e3a57d69ce8d19610c5213d` as deployment
+  `dep-dag22d8u01pc73chtrug`. `/healthz` and `/readyz` returned HTTP `200`;
+  the approved Origin returned the exact CORS allow header and an unapproved
+  Origin returned none. The deployed Widget asset contained the T09
+  support-destination and context-reset markers. No token, secret, cookie,
+  header, or full response was retained.
+- **Read-only staging acceptance attempt**: one Conversation API turn for the
+  approved Mini 3 Product/Variant returned HTTP `200` with redacted outcome
+  `FALLBACK / TOOL_UNAUTHORIZED`; no answer or evidence was produced. The
+  fail-closed rule stopped further Air 3/Mavic 3 turns, so Shopify reads were
+  not counted beyond the single attempted commerce path, writes remained `0`,
+  automatic retries `0`, and external model calls `0`.
+- **Storefront browser check before mount**: the `aaadongbo` Chrome session
+  passed the password page and rendered the three approved product pages in
+  US/USD plus `/pages/contact`. Before the remediation, the pages did not
+  expose a mounted `data-presales-widget` root.
+- **Theme mount remediation (2026-09-09)**: with current-context HIGH-risk
+  authorization, the existing live password-protected Horizon Product template
+  received one Custom Liquid section containing only the approved staging CSS/JS
+  assets, Liquid `product.id` and
+  `product.selected_or_first_available_variant.id`, the canonical store ID,
+  API origin/endpoint, and the verified support URL. No token, secret, product,
+  Variant, price, inventory, order, customer, cart, checkout, or publish-state
+  write was performed. Shopify reported `更改已保存` (changes saved).
+- **Post-save browser verification**: the actual US/English password-protected
+  storefront rendered `Product assistant` / `Ask about this product` on each
+  approved Product/Variant URL: Mini 3 `50107364802698`, Air 3
+  `50107426603146`, and Mavic 3 `50107364901002`. The preview bar reported
+  country `美国` and language `英语`; the Contact link resolved to the verified
+  `/pages/contact` destination. No Conversation turn was issued during this
+  verification, so no additional Shopify Admin read or write was incurred.
+- **Credential recovery and redeploy (2026-09-09)**: the existing local
+  Keychain Client Credentials Grant returned a fresh temporary token for the
+  approved store with `read_products` and `read_inventory`; only redacted
+  metadata was retained. The token was written to the existing Render Secret
+  `DRONE_SHOPIFY_ACCESS_TOKEN` and not to Git, logs, or artifacts. Render
+  redeployed the same immutable commit `2ace0ba30b669b87e3a57d69ce8d19610c5213d`
+  as deployment `dep-dag3vv0hchos73fpe220`. `/healthz` and `/readyz` both
+  returned HTTP `200`; the transient clipboard used for the secret handoff was
+  immediately cleared.
+- **Post-recovery Widget diagnostic**: one Air 3 Conversation turn was issued
+  through the password-protected storefront Widget after redeploy. It returned
+  the redacted safe fallback `FALLBACK` / unable to verify current store
+  information; no answer or evidence was produced. No automatic retry,
+  additional product turn, external model call, or Shopify write occurred.
+- **Current verdict**: `BLOCKED` — health/readiness and the live Widget mount
+  pass, but commerce authorization/adapter behavior is still not proven by the
+  post-recovery Air 3 turn. T09 remains `IN_PROGRESS`; no completion snapshot,
+  final Slice Review, push, or main integration was created.
+- **Render log check (2026-09-09)**: the service application-log view showed
+  successful deployment/startup and port binding only; redacted searches for
+  `401` and `error` returned no matching application logs. This is diagnostic
+  absence, not evidence of a successful commerce read, so no retry or additional
+  Conversation turn was issued.
+- **US commerce currency remediation (2026-09-09)**: the scoped HIGH-risk
+  compatibility change keeps the adapter's legacy fixture default (`CNY`) but
+  accepts an explicit ISO uppercase commerce currency; the approved staging
+  runtime now passes `USD` explicitly. T09's English unit and integration
+  paths use the approved US store/product/Variant identity and assert USD
+  evidence units, exact identity checks, and zero Shopify writes. This is
+  local implementation evidence only; no new deployment or live acceptance is
+  claimed yet.

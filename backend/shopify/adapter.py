@@ -61,16 +61,25 @@ class RealShopifyReadAdapter(ShopifyReadPort):
         approved_store_id: str | None = None,
         max_read_calls: int = 2,
         max_attempts: int = 1,
+        commerce_currency: str = "CNY",
     ) -> None:
         if max_read_calls <= 0:
             raise ValueError("Shopify read-call budget must be positive")
         if max_attempts != 1:
             raise ValueError("Shopify adapter permits one attempt and no retries")
+        if (
+            not isinstance(commerce_currency, str)
+            or len(commerce_currency) != 3
+            or not commerce_currency.isascii()
+            or not commerce_currency.isupper()
+        ):
+            raise ValueError("Shopify commerce currency must be an ISO uppercase code")
         self._transport = transport
         self._clock = clock or (lambda: datetime.now(UTC))
         self._approved_variant_ids = MappingProxyType(dict(approved_variant_ids or {}))
         self._approved_store_id = approved_store_id
         self._max_read_calls = max_read_calls
+        self._commerce_currency = commerce_currency
         self._call_ledger: list[ReadCallLedgerEntry] = []
         self._last_stop_reason: ShopifyAdapterStopReason | None = None
 
@@ -256,6 +265,7 @@ class RealShopifyReadAdapter(ShopifyReadPort):
                 variant_id=variant_id,
                 source=source,
                 observed_at=observed_at,
+                commerce_currency=self._commerce_currency,
             )
         except _AdapterValidationError as error:
             return self._validation_error(
@@ -575,6 +585,7 @@ def _commerce_payload(
     variant_id: str,
     source: str,
     observed_at: datetime,
+    commerce_currency: str,
 ) -> tuple[CommerceState, list[str]]:
     variant = payload.get("variant")
     if not isinstance(variant, Mapping):
@@ -594,7 +605,13 @@ def _commerce_payload(
     if price is None:
         missing.append("price")
     else:
-        data["price"] = _known(price, source, "price", observed_at, unit="CNY")
+        data["price"] = _known(
+            price,
+            source,
+            "price",
+            observed_at,
+            unit=commerce_currency,
+        )
 
     inventory = _integer_value(variant.get("inventory_quantity"))
     if inventory is None:

@@ -54,6 +54,7 @@ from scripts.s11_prepare_corpus_sidecars import prepare as prepare_corpus_sideca
 APPROVED_ORIGIN = "https://bys-user-store-578412-7a11gk0u.myshopify.com"
 APPROVED_SHOPIFY_STORE_DOMAIN = "bys-user-store-578412-7a11gk0u.myshopify.com"
 APPROVED_STORE_ID = "shopify-store:bys-user-store-578412-7a11gk0u"
+APPROVED_STAGING_COMMERCE_CURRENCY = "USD"
 APPROVED_PRODUCTS = (
     ("Mini 3", "9278439686282", "50107364802698"),
     ("Air 3", "9278460821642", "50107426603146"),
@@ -342,6 +343,7 @@ def _build_dependencies(
         approved_variant_ids=approved_variant_ids,
         max_read_calls=config.max_shopify_read_calls_per_turn,
         max_attempts=1,
+        commerce_currency=APPROVED_STAGING_COMMERCE_CURRENCY,
     )
 
     corpus_root = _required_path(environ, "DRONE_CORPUS_ROOT")
