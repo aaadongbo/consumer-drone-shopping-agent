@@ -2373,6 +2373,7 @@ class WorkflowScriptTests(unittest.TestCase):
             "backend/application/recommendation.py",
             "backend/application/slice_1.py",
             "backend/application/us_presales.py",
+            "backend/shopify/adapter.py",
             "backend/conversation/typed_handoff.py",
             "backend/runtime/config.py",
             "scripts/s11_runtime_entrypoint.py",
@@ -2434,6 +2435,41 @@ class WorkflowScriptTests(unittest.TestCase):
         self.addCleanup(rejected_holder.cleanup)
         bad_base, bad_snapshot = rejected_repo.snapshot(
             task_id="T09", changed_path="storefront/unplanned-widget.js"
+        )
+        git(rejected_repo.root, "switch", "--detach", bad_snapshot)
+        rejected = check(
+            "S11-T09",
+            rejected_repo.root,
+            base_head=bad_base,
+            snapshot_head=bad_snapshot,
+        )
+        self.assertFalse(rejected["ok"])
+        self.assertIn("PATH_OUTSIDE_TASK_SCOPE", rejected["blocking_reasons"])
+
+    def test_s11_t09_allows_only_the_planned_shopify_adapter_file(self) -> None:
+        allowed_holder, allowed_repo = self.repo(
+            slice_name="slice-11-closed-beta-deployment"
+        )
+        self.addCleanup(allowed_holder.cleanup)
+        base, snapshot = allowed_repo.snapshot(
+            task_id="T09", changed_path="backend/shopify/adapter.py"
+        )
+        git(allowed_repo.root, "switch", "--detach", snapshot)
+        allowed = check(
+            "S11-T09",
+            allowed_repo.root,
+            base_head=base,
+            snapshot_head=snapshot,
+        )
+        self.assertTrue(allowed["ok"], allowed)
+        self.assertEqual(allowed["risk_policy"]["effective_tier"], "HIGH")
+
+        rejected_holder, rejected_repo = self.repo(
+            slice_name="slice-11-closed-beta-deployment"
+        )
+        self.addCleanup(rejected_holder.cleanup)
+        bad_base, bad_snapshot = rejected_repo.snapshot(
+            task_id="T09", changed_path="backend/shopify/transport.py"
         )
         git(rejected_repo.root, "switch", "--detach", bad_snapshot)
         rejected = check(

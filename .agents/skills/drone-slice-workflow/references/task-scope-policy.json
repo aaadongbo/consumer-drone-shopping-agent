@@ -1695,6 +1695,7 @@
             "backend/application/recommendation.py",
             "backend/application/slice_1.py",
             "backend/application/us_presales.py",
+            "backend/shopify/adapter.py",
             "backend/conversation/typed_handoff.py",
             "backend/runtime/config.py",
             "scripts/s11_runtime_entrypoint.py",
