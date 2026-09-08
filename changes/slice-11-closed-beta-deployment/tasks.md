@@ -20,7 +20,7 @@
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
 | T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06, T08; explicit live smoke authority |
-| T09 | US-market English storefront acceptance remediation | NOT_STARTED | T07; reviewed T09 planning baseline; separately reviewed and integrated T09 Workflow Policy; current-context HIGH-risk implementation authority |
+| T09 | US-market English storefront acceptance remediation | NOT_STARTED | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
 
 | Task | Risk |
 |---|---|
