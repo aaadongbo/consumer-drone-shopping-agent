@@ -1303,3 +1303,14 @@ provider, hosting, CI, staging, or Widget-origin changes.
   `IN_PROGRESS` and live acceptance is `BLOCKED` on the authorized
   401/credential path; no completion snapshot, final review, or DONE status is
   claimed.
+- **Follow-up browser diagnostic (2026-09-09)**: after confirming the live
+  password-protected storefront rendered the Air 3 Widget in US/English context
+  and the Render Environment displayed the correctly named secret key
+  `DRONE_SHOPIFY_ACCESS_TOKEN`, one additional synthetic Air 3 price/availability
+  turn was issued with no retry and no external model call. The Widget returned
+  the redacted safe fallback `FALLBACK / unable to verify current store
+  information`; no answer or evidence was produced. No Shopify write occurred
+  (`0`), but the browser exposed no trustworthy per-turn Shopify read count or
+  correlation ID, so neither is claimed. T09 remains `IN_PROGRESS` and
+  `BLOCKED`; no further retry, completion snapshot, final review, or `DONE`
+  status is claimed.
