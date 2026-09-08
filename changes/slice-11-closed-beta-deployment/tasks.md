@@ -1291,3 +1291,15 @@ provider, hosting, CI, staging, or Widget-origin changes.
   evidence units, exact identity checks, and zero Shopify writes. This is
   local implementation evidence only; no new deployment or live acceptance is
   claimed yet.
+- **Post-push staging diagnostic (2026-09-09)**: feature commit `8d25849`
+  was pushed to `codex/s11-t09-implementation`; public `/healthz` and `/readyz`
+  returned `200` with dependency and corpus checks `ok` and reported
+  `shopify_write_count=0`. One and only one Air 3 price/availability turn was
+  then issued with the approved US Product/Variant identity. The redacted
+  response was `FALLBACK / TOOL_UNAUTHORIZED`; no answer/evidence was
+  produced. Automatic retries `0`, external model calls `0`, and Shopify
+  writes `0`. The one-shot metadata parser did not retain the response trace
+  correlation value, so no second turn is permitted to recover it. T09 remains
+  `IN_PROGRESS` and live acceptance is `BLOCKED` on the authorized
+  401/credential path; no completion snapshot, final review, or DONE status is
+  claimed.
