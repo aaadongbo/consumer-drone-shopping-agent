@@ -196,7 +196,9 @@ SLICE_11_TITLES = {
     "T04": "Model or restricted intent adapter boundary",
     "T05": "Embeddable Storefront Widget",
     "T06": "CI, staging deployment, and rollback path",
+    "T08": "Read-only Shopify commerce compatibility remediation",
     "T07": "Closed-beta acceptance and completion evidence",
+    "T09": "US-market English storefront acceptance remediation",
 }
 SLICE_11_DEPENDENCIES = {
     "T01": "S10 completion evidence; Human accepts S11 planning baseline",
@@ -208,7 +210,12 @@ SLICE_11_DEPENDENCIES = {
         "T03, T05; exact hosting vendor, staging URL, Secret Store, "
         "and rollback operator"
     ),
-    "T07": "T04, T06; explicit live smoke authority",
+    "T08": "T04, T06; explicit HIGH-risk remediation authority",
+    "T07": "T04, T06, T08; explicit live smoke authority",
+    "T09": (
+        "T07; reviewed planning baseline; separately reviewed and integrated "
+        "Workflow Policy baseline; current-context HIGH-risk implementation authority"
+    ),
 }
 RAG_TITLES = {
     "R01": "Identity binding, scope predicate, and regression matrix",
@@ -2295,7 +2302,17 @@ class WorkflowScriptTests(unittest.TestCase):
         state = inspect(repo.root)
         self.assertEqual(
             [task["canonical_id"] for task in state["tasks"]],
-            [f"S11-T{i:02d}" for i in range(1, 8)],
+            [
+                "S11-T01",
+                "S11-T02",
+                "S11-T03",
+                "S11-T04",
+                "S11-T05",
+                "S11-T06",
+                "S11-T08",
+                "S11-T07",
+                "S11-T09",
+            ],
         )
         self.assertEqual(state["ordered_candidate"], "S11-T01")
         self.assertIsNone(state["executable_task"])
@@ -2304,10 +2321,33 @@ class WorkflowScriptTests(unittest.TestCase):
         slice_policy = policy["slices"][
             "changes/slice-11-closed-beta-deployment/tasks.md"
         ]
-        self.assertEqual(slice_policy["completion_task"], "T07")
+        self.assertEqual(slice_policy["completion_task"], "T09")
         self.assertEqual(
-            [slice_policy["tasks"][f"T{i:02d}"]["risk_tier"] for i in range(1, 8)],
-            ["LOW", "MEDIUM", "MEDIUM", "HIGH", "MEDIUM", "HIGH", "MEDIUM"],
+            [
+                slice_policy["tasks"][task_id]["risk_tier"]
+                for task_id in (
+                    "T01",
+                    "T02",
+                    "T03",
+                    "T04",
+                    "T05",
+                    "T06",
+                    "T08",
+                    "T07",
+                    "T09",
+                )
+            ],
+            [
+                "LOW",
+                "MEDIUM",
+                "MEDIUM",
+                "HIGH",
+                "MEDIUM",
+                "HIGH",
+                "HIGH",
+                "MEDIUM",
+                "HIGH",
+            ],
         )
         self.assertTrue(slice_policy["execution_policy"]["automation"]["auto_advance"])
         self.assertEqual(
@@ -2317,6 +2357,116 @@ class WorkflowScriptTests(unittest.TestCase):
         self.assertIn("shopify_write", slice_policy["forbidden_actions"])
         self.assertIn("public_launch", slice_policy["forbidden_actions"])
         self.assertIn(".github/workflows/", slice_policy["risk_escalation_paths"])
+
+    def test_s11_t09_policy_is_high_risk_exact_and_fails_closed(self) -> None:
+        policy = json.loads(POLICY_PATH.read_text(encoding="utf-8"))
+        slice_policy = policy["slices"][
+            "changes/slice-11-closed-beta-deployment/tasks.md"
+        ]
+        task_policy = slice_policy["tasks"]["T09"]
+        expected_paths = {
+            "backend/agent/intent_adapter.py",
+            "backend/application/__init__.py",
+            "backend/application/comparison.py",
+            "backend/application/pilot_composition.py",
+            "backend/application/product_rag.py",
+            "backend/application/recommendation.py",
+            "backend/application/slice_1.py",
+            "backend/application/us_presales.py",
+            "backend/conversation/typed_handoff.py",
+            "backend/runtime/config.py",
+            "scripts/s11_runtime_entrypoint.py",
+            "scripts/s11_runtime_server.py",
+            "scripts/s11_staging_smoke.py",
+            "scripts/s11_t09_acceptance.py",
+            "storefront/__init__.py",
+            "storefront/product_links.py",
+            "storefront/shell.py",
+            "storefront/view_model.py",
+            "storefront/widget.py",
+            "storefront/assets/presales-widget.css",
+            "storefront/assets/presales-widget.js",
+            "tests/unit/test_s11_t09_english_presales.py",
+            "tests/unit/test_s11_t09_storefront_links.py",
+            "tests/unit/test_s11_t09_widget_assets.py",
+            "tests/integration/test_s11_t09_presales_flow.py",
+            "tests/e2e/test_s11_t09_browser_widget.py",
+            "tests/e2e/test_s11_t09_us_storefront_acceptance.py",
+            "changes/slice-11-closed-beta-deployment/tasks.md",
+        }
+        self.assertEqual(set(task_policy["allowed_paths"]), expected_paths)
+        self.assertEqual(task_policy["risk_tier"], "HIGH")
+        self.assertEqual(task_policy["dependency_policy"], "forbidden")
+        self.assertEqual(
+            task_policy["verification_marker"], "unit or integration or e2e"
+        )
+        self.assertNotIn("backend/common/contracts.py", expected_paths)
+        self.assertNotIn("pyproject.toml", expected_paths)
+        self.assertNotIn("uv.lock", expected_paths)
+        self.assertNotIn("deploy/", expected_paths)
+        self.assertNotIn(".github/workflows/", expected_paths)
+        self.assertIn("shopify_theme_write", slice_policy["forbidden_actions"])
+        self.assertIn(
+            "order_customer_cart_or_checkout_access",
+            slice_policy["forbidden_actions"],
+        )
+
+        allowed_holder, allowed_repo = self.repo(
+            slice_name="slice-11-closed-beta-deployment"
+        )
+        self.addCleanup(allowed_holder.cleanup)
+        base, snapshot = allowed_repo.snapshot(
+            task_id="T09", changed_path="storefront/assets/presales-widget.js"
+        )
+        git(allowed_repo.root, "switch", "--detach", snapshot)
+        allowed = check(
+            "S11-T09",
+            allowed_repo.root,
+            base_head=base,
+            snapshot_head=snapshot,
+        )
+        self.assertTrue(allowed["ok"], allowed)
+        self.assertEqual(allowed["risk_policy"]["effective_tier"], "HIGH")
+
+        rejected_holder, rejected_repo = self.repo(
+            slice_name="slice-11-closed-beta-deployment"
+        )
+        self.addCleanup(rejected_holder.cleanup)
+        bad_base, bad_snapshot = rejected_repo.snapshot(
+            task_id="T09", changed_path="storefront/unplanned-widget.js"
+        )
+        git(rejected_repo.root, "switch", "--detach", bad_snapshot)
+        rejected = check(
+            "S11-T09",
+            rejected_repo.root,
+            base_head=bad_base,
+            snapshot_head=bad_snapshot,
+        )
+        self.assertFalse(rejected["ok"])
+        self.assertIn("PATH_OUTSIDE_TASK_SCOPE", rejected["blocking_reasons"])
+
+    def test_s11_t09_is_selected_after_historical_tasks_but_requires_authority(
+        self,
+    ) -> None:
+        holder, repo = self.repo(slice_name="slice-11-closed-beta-deployment")
+        self.addCleanup(holder.cleanup)
+        repo.write_tasks(status_map(list(repo.titles), "T08"))
+        git(repo.root, "add", repo.tasks_path.relative_to(repo.root).as_posix())
+        git(repo.root, "commit", "-qm", "record completed S11 history")
+
+        state = inspect(repo.root)
+        self.assertEqual(state["ordered_candidate"], "S11-T09")
+        self.assertEqual(state["selected_task"], "S11-T09")
+        self.assertIsNone(state["executable_task"])
+        self.assertIn(
+            "HIGH_RISK_HUMAN_DECISION_REQUIRED",
+            next(task for task in state["tasks"] if task["canonical_id"] == "S11-T09")[
+                "execution_blockers"
+            ],
+        )
+
+        authorized = inspect(repo.root, implementation_authorized_task="S11-T09")
+        self.assertEqual(authorized["executable_task"], "S11-T09")
 
     def test_s11_scope_allows_runtime_but_blocks_release_artifacts(self) -> None:
         holder, repo = self.repo(slice_name="slice-11-closed-beta-deployment")

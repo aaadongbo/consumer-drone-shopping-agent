@@ -1485,7 +1485,7 @@
       }
     },
     "changes/slice-11-closed-beta-deployment/tasks.md": {
-      "completion_task": "T07",
+      "completion_task": "T09",
       "execution_policy": {
         "implementation_session": "slice",
         "review": "boundary-and-slice",
@@ -1518,10 +1518,13 @@
       "scope_notes": {
         "allowlist_precedence": "Task allowed_paths are evaluated before forbidden_path_prefixes; semantic release and data-boundary rules remain blocking.",
         "release_boundary": "S11 is closed-beta only; deployment, staging, model, credential, and external-service behavior remain explicit Human boundaries.",
-        "data_boundary": "Only metadata, checksums, counts, redacted logs, and stop reasons may enter the repository; secrets, raw Shopify responses, official text, and protected source data remain external."
+        "data_boundary": "Only metadata, checksums, counts, redacted logs, and stop reasons may enter the repository; secrets, raw Shopify responses, official text, and protected source data remain external.",
+        "t09_boundary": "T09 is the HIGH-risk US-market English storefront closure Task. It may change only the exact internal implementation and test files listed for T09; public Contracts, dependencies, Workflow, Render configuration, Shopify data/scopes/writes, external source acquisition, and public launch remain separately gated."
       },
       "forbidden_actions": [
         "shopify_write",
+        "shopify_theme_write",
+        "order_customer_cart_or_checkout_access",
         "write_capable_credential",
         "copy_raw_pdf",
         "copy_official_text",
@@ -1550,7 +1553,10 @@
         "Shopify-write capability",
         "production traffic or public launch",
         "security boundary relaxation",
-        "credential provisioning or scope change"
+        "credential provisioning or scope change",
+        "US source acquisition or applicability decision",
+        "Shopify storefront theme or embed installation",
+        "new staging smoke budget or deployment"
       ],
       "core_artifacts": [
         "changes/slice-11-closed-beta-deployment/plan.md",
@@ -1595,7 +1601,7 @@
       ],
       "semantic_path_rules": [
         {
-          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07"],
+          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T09"],
           "path_patterns": [
             "*.pdf", "**/*.pdf", "*raw*official*", "**/*raw*official*",
             "*official*text*", "**/*official*text*", "*shopify*export*",
@@ -1607,7 +1613,7 @@
           "reason": "S11 must not commit secrets, raw protected data, generated indexes, or training artifacts."
         },
         {
-          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07"],
+          "tasks": ["T01", "T02", "T03", "T04", "T05", "T06", "T07", "T09"],
           "path_patterns": ["backend/common/contracts.py"],
           "behavior": "public_contract_change",
           "reason": "S11 keeps the existing public wire Contract unchanged unless separately approved."
@@ -1677,6 +1683,42 @@
           "dependency_policy": "forbidden",
           "verification_marker": "unit or integration",
           "verification_rationale": "HIGH-risk read-only Shopify response compatibility remediation under approved Product/Variant mappings",
+          "risk_tier": "HIGH"
+        },
+        "T09": {
+          "allowed_paths": [
+            "backend/agent/intent_adapter.py",
+            "backend/application/__init__.py",
+            "backend/application/comparison.py",
+            "backend/application/pilot_composition.py",
+            "backend/application/product_rag.py",
+            "backend/application/recommendation.py",
+            "backend/application/slice_1.py",
+            "backend/application/us_presales.py",
+            "backend/conversation/typed_handoff.py",
+            "backend/runtime/config.py",
+            "scripts/s11_runtime_entrypoint.py",
+            "scripts/s11_runtime_server.py",
+            "scripts/s11_staging_smoke.py",
+            "scripts/s11_t09_acceptance.py",
+            "storefront/__init__.py",
+            "storefront/product_links.py",
+            "storefront/shell.py",
+            "storefront/view_model.py",
+            "storefront/widget.py",
+            "storefront/assets/presales-widget.css",
+            "storefront/assets/presales-widget.js",
+            "tests/unit/test_s11_t09_english_presales.py",
+            "tests/unit/test_s11_t09_storefront_links.py",
+            "tests/unit/test_s11_t09_widget_assets.py",
+            "tests/integration/test_s11_t09_presales_flow.py",
+            "tests/e2e/test_s11_t09_browser_widget.py",
+            "tests/e2e/test_s11_t09_us_storefront_acceptance.py",
+            "changes/slice-11-closed-beta-deployment/tasks.md"
+          ],
+          "dependency_policy": "forbidden",
+          "verification_marker": "unit or integration or e2e",
+          "verification_rationale": "HIGH-risk US-market English pre-sales application, exact-link, browser Widget, handoff, and fail-closed acceptance boundary",
           "risk_tier": "HIGH"
         }
       }
