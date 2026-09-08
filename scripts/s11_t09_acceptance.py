@@ -19,6 +19,8 @@ def inspect_assets(root: Path) -> dict[str, object]:
         "credential_free": "Authorization" not in javascript,
         "wildcard_cors_absent": '"*"' not in javascript,
         "navigation_reset": "presales:navigate" in javascript,
+        "support_destination_is_host_supplied": "data-support-url" in javascript,
+        "admin_support_destination_absent": "admin.shopify.com" not in javascript,
         "responsive_css": "max-width: 480px" in stylesheet,
     }
 

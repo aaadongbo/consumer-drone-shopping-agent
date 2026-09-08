@@ -6,6 +6,8 @@
   function mount(root) {
     var endpoint = root.dataset.apiEndpoint || "/v1/conversation/turn";
     var origin = root.dataset.apiOrigin || window.location.origin;
+    // Host configuration: data-support-url is exposed as dataset.supportUrl.
+    var supportUrl = root.dataset.supportUrl || null;
     var context = {
       store_id: root.dataset.storeId,
       product_id: root.dataset.productId,
@@ -22,19 +24,20 @@
     var form = root.querySelector("form");
     var input = form.querySelector("input");
 
-    function show(text, kind, link) {
+    function show(text, kind, link, linkLabel) {
       var item = document.createElement("div");
       item.className = "presales-widget__message presales-widget__message--" + kind;
       item.textContent = text;
       if (link) {
         var anchor = document.createElement("a");
         anchor.href = link;
-        anchor.textContent = "View product";
+        anchor.textContent = linkLabel || "View product";
         anchor.target = "_self";
         item.appendChild(document.createTextNode(" "));
         item.appendChild(anchor);
       }
       messages.appendChild(item);
+      return item;
     }
 
     function updateContext(next) {
@@ -75,7 +78,27 @@
         var body = payload.answer || payload.fallback || payload;
         var message = body.text || body.message || "I cannot verify that yet.";
         var link = root.dataset.productUrl || null;
-        show(message, payload.outcome === "ANSWER" ? "answer" : "fallback", link);
+        var messageItem = show(
+          message,
+          payload.outcome === "ANSWER" ? "answer" : "fallback",
+          link
+        );
+        if (
+          payload.outcome !== "ANSWER" &&
+          payload.fallback &&
+          payload.fallback.reason_code === "OUT_OF_SCOPE" &&
+          supportUrl
+        ) {
+          var support = new URL(supportUrl, origin);
+          if (support.origin === new URL(origin).origin) {
+            var supportLink = document.createElement("a");
+            supportLink.href = support.toString();
+            supportLink.textContent = "Contact store support";
+            supportLink.target = "_self";
+            messageItem.appendChild(document.createTextNode(" "));
+            messageItem.appendChild(supportLink);
+          }
+        }
       }).catch(function () {
         show("The storefront assistant is unavailable. Please try again.", "error");
       });

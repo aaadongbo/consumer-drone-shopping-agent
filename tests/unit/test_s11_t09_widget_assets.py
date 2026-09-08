@@ -18,6 +18,7 @@ def test_assets_are_credential_free_and_conversation_only() -> None:
     assert "admin.shopify.com" not in js
     assert '"*"' not in js
     assert "presales:navigate" in js
+    assert "data-support-url" in js
     assert "@media" in css
 
 
@@ -40,6 +41,28 @@ def test_widget_navigation_clears_old_product_context() -> None:
     )
     assert widget._turn_request("hello").page_context.product_id == "p2"
     assert widget._turn_request("hello").page_context.variant_id == "v2"
+
+
+def test_widget_support_url_is_explicit_same_origin_configuration() -> None:
+    config = WidgetEmbedConfig(
+        current_origin="https://shop.example",
+        allowed_origins=("https://shop.example",),
+        store_id="store",
+        product_id="p1",
+        support_url="https://shop.example/pages/contact",
+    )
+    assert config.support_url == "https://shop.example/pages/contact"
+
+
+def test_widget_rejects_cross_origin_support_url() -> None:
+    with pytest.raises(ValueError, match="same-origin"):
+        WidgetEmbedConfig(
+            current_origin="https://shop.example",
+            allowed_origins=("https://shop.example",),
+            store_id="store",
+            product_id="p1",
+            support_url="https://admin.shopify.com/support",
+        )
 
 
 class _NoopTransport:

@@ -56,6 +56,7 @@ class WidgetEmbedConfig(WireModel):
     product_id: str
     variant_id: str | None = None
     locale: str = "en-US"
+    support_url: str | None = None
 
     @model_validator(mode="after")
     def validate_closed_beta_embed_boundary(self) -> "WidgetEmbedConfig":
@@ -67,6 +68,20 @@ class WidgetEmbedConfig(WireModel):
         current = _validate_exact_origin(self.current_origin)
         if current not in normalized_allowed:
             raise ValueError("current origin must be explicitly allowlisted")
+        if self.support_url is not None:
+            support = urlparse(self.support_url)
+            if (
+                support.scheme != "https"
+                or not support.netloc
+                or support.username
+                or support.password
+                or f"{support.scheme}://{support.netloc}" != current
+                or support.fragment
+                or support.query
+            ):
+                raise ValueError(
+                    "support URL must be an explicit same-origin HTTPS URL"
+                )
         return self
 
     @property
