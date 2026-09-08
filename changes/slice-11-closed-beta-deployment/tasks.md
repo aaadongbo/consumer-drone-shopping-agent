@@ -1,6 +1,6 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: S11-T09 PLANNING RECONCILIATION / T01-T08 HISTORICALLY DONE / T09 NOT_STARTED / NON-EXECUTABLE
+> Status: S11-T09 IMPLEMENTATION / T01-T08 HISTORICALLY DONE / T09 BLOCKED
 >
 > The completed T01-T08 rows and their evidence remain historical records. T09 is a
 > proposed HIGH-risk US-market English storefront closure boundary. This planning
@@ -20,7 +20,7 @@
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
 | T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06, T08; explicit live smoke authority |
-| T09 | US-market English storefront acceptance remediation | NOT_STARTED | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
+| T09 | US-market English storefront acceptance remediation | BLOCKED | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
 
 | Task | Risk |
 |---|---|
@@ -1187,3 +1187,36 @@ provider, hosting, CI, staging, or Widget-origin changes.
   the approved internal adapter paths because the active T07 Workflow allowlist
   contains only scripts/tests/tasks.md. A separate governance decision is required
   before completion snapshot/review can be recorded.
+
+### T09 Execution Record
+
+- **Status**: `BLOCKED — local implementation and verification complete; live acceptance prerequisites missing`
+- **Start commit**: `56dfa6655300f8411ebf31dbf7bacba2e2c5b632`
+- **Worktree**: `/private/tmp/s11-t09-implementation`; feature branch
+  `codex/s11-t09-implementation`; unrelated root/worktree changes were not touched.
+- **Authorization**: current-context explicit HIGH-risk S11-T09 implementation authority
+  after Workflow Policy snapshot `56dfa6655300f8411ebf31dbf7bacba2e2c5b632` was
+  fast-forward integrated locally.
+- **Implemented boundary**: deterministic English en-US pre-sales routing and
+  localized safe handoffs; exact identity-bound storefront link registry; browser
+  Widget assets with Conversation-API-only requests, responsive layout, and explicit
+  navigation context reset; local acceptance guard and targeted fixtures. No public
+  Contract, dependency, Shopify scope/data/write, Render, Workflow, or Data-Staging
+  change was made.
+- **Verification actually run**:
+  - `./.venv/bin/pytest -q tests/unit/test_s11_t09_english_presales.py
+    tests/unit/test_s11_t09_storefront_links.py tests/unit/test_s11_t09_widget_assets.py
+    tests/integration/test_s11_t09_presales_flow.py tests/e2e/test_s11_t09_browser_widget.py`
+    exited `0` (`13 passed`).
+  - Regression command covering Product RAG, existing Widget, Slice 1, and dynamic
+    commerce tests exited `0` (`23 passed`).
+  - Combined local targeted command exited `0` (`36 passed`).
+  - Ruff check and format check over all touched implementation/test paths exited `0`.
+  - `./.venv/bin/python scripts/s11_t09_acceptance.py` exited `0`; local-only checks
+    passed and live smoke was explicitly `NOT_RUN`.
+  - `git diff --check` and Python compile checks exited `0`.
+- **Blocking prerequisites**: exact approved US storefront Product/Variant URL
+  manifest, configured support destination, approved US-English source manifest, and
+  a fresh Human-authorized staging/browser/Shopify read-only budget were not present
+  in this local task context. No live external acceptance was claimed, and T09 is
+  intentionally `BLOCKED` rather than marked `DONE`.

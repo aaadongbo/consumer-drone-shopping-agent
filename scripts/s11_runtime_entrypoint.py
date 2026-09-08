@@ -18,6 +18,7 @@ from typing import Any
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from backend.api import install_cors_guardrail, install_safe_exception_handler
 from backend.catalog import (
@@ -230,6 +231,12 @@ def create_runtime_app(
         return JSONResponse(
             status_code=200 if state.ready else 503,
             content=_health_payload(state, ready=True),
+        )
+
+    assets = Path(__file__).resolve().parents[1] / "storefront" / "assets"
+    if assets.is_dir():
+        api.mount(
+            "/widget/assets", StaticFiles(directory=str(assets)), name="widget-assets"
         )
 
     api.mount("/", _CompositionDispatch(state, _unavailable_application()))

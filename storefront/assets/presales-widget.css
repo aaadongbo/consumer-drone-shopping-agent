@@ -1,0 +1,10 @@
+.presales-widget { box-sizing: border-box; width: min(100%, 420px); border: 1px solid #d8d8d8; border-radius: 12px; padding: 12px; background: #fff; color: #202124; font: 16px/1.45 system-ui, sans-serif; }
+.presales-widget__messages { display: grid; gap: 8px; min-height: 72px; max-height: 360px; overflow: auto; margin-bottom: 10px; }
+.presales-widget__message { padding: 8px 10px; border-radius: 8px; overflow-wrap: anywhere; }
+.presales-widget__message--answer { background: #eef8f0; }
+.presales-widget__message--fallback, .presales-widget__message--error { background: #fff4e5; }
+.presales-widget__message--loading { background: #f3f4f6; }
+.presales-widget__form { display: flex; gap: 8px; }
+.presales-widget__form input { min-width: 0; flex: 1; border: 1px solid #aaa; border-radius: 7px; padding: 8px; font: inherit; }
+.presales-widget__form button { border: 0; border-radius: 7px; padding: 8px 14px; background: #111827; color: #fff; font: inherit; }
+@media (max-width: 480px) { .presales-widget { width: 100%; border-radius: 8px; padding: 10px; } .presales-widget__form { flex-direction: column; } .presales-widget__form button { width: 100%; } }

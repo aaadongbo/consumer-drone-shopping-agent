@@ -41,19 +41,27 @@ _SENSITIVE_TRACE_VALUE = re.compile(
 
 _STATIC_QUESTION_TEMPLATES = (
     (
-        ("battery", "batteries", "电池", "包装", "套装"),
+        (
+            "battery",
+            "batteries",
+            "package",
+            "what's in the box",
+            "电池",
+            "包装",
+            "套装",
+        ),
         "package_list",
         "Travel Pack includes three batteries.",
         "rag://drone-travel-package-list@docs-2026-09-01/chunk/000",
     ),
     (
-        ("beginner", "flight mode", "新手", "飞行模式"),
+        ("beginner", "flight mode", "flight modes", "新手", "飞行模式"),
         "faq",
         "The aircraft supports beginner flight modes and travel use.",
         "rag://drone-travel-faq@docs-2026-09-01/chunk/000",
     ),
     (
-        ("takeoff", "propeller", "起飞", "螺旋桨"),
+        ("takeoff", "propeller", "camera", "specification", "spec", "起飞", "螺旋桨"),
         "manual",
         (
             "Before takeoff, unfold the arms, power on the controller, "
@@ -62,19 +70,46 @@ _STATIC_QUESTION_TEMPLATES = (
         "rag://drone-travel-manual@docs-2026-09-01/chunk/000",
     ),
     (
-        ("care", "coverage", "policy", "保障", "政策"),
+        ("care", "coverage", "policy", "warranty", "保障", "政策"),
         "policy",
         "Care coverage is available only for supported store regions.",
         "rag://drone-travel-policy@docs-2026-09-01/chunk/000",
     ),
+    (
+        ("compare", "comparison", "difference", "which is better", "比较", "区别"),
+        "comparison",
+        "A comparison requires product-scoped evidence for each named product.",
+        "rag://drone-comparison@docs-2026-09-01/chunk/000",
+    ),
+    (
+        ("recommend", "recommendation", "best for", "budget", "推荐", "预算"),
+        "recommendation",
+        (
+            "A recommendation must stay within the products and evidence approved "
+            "for this store."
+        ),
+        "rag://drone-recommendation@docs-2026-09-01/chunk/000",
+    ),
 )
-_DYNAMIC_QUESTION_TERMS = ("price", "inventory", "availability", "价格", "库存", "有货")
+_DYNAMIC_QUESTION_TERMS = (
+    "price",
+    "how much",
+    "cost",
+    "inventory",
+    "in stock",
+    "availability",
+    "价格",
+    "库存",
+    "有货",
+)
 
 
 class ProductRagQuestionInterpreter:
     """Recognize only the approved static-document samples for this skeleton."""
 
-    def interpret(self, *, text: str, scope: ObjectScope) -> RagClaim | None:
+    def interpret(
+        self, *, text: str, scope: ObjectScope, locale: str = "zh-CN"
+    ) -> RagClaim | None:
         normalized = text.casefold()
         if any(term in normalized for term in _DYNAMIC_QUESTION_TERMS):
             return RagClaim(
@@ -90,6 +125,8 @@ class ProductRagQuestionInterpreter:
                     claim_id=f"rag-{field}",
                     scope=scope,
                     field=field,
+                    # Evidence claims remain exact source excerpts; the gate
+                    # rejects paraphrases before they can become answers.
                     text=claim_text,
                     locator=locator,
                 )
@@ -154,7 +191,9 @@ class ProductRagApplicationService:
             TraceResult.SUCCESS,
             scope,
         )
-        claim = self._interpreter.interpret(text=request.user_text, scope=scope)
+        claim = self._interpreter.interpret(
+            text=request.user_text, scope=scope, locale=request.locale
+        )
         if claim is None:
             return self._fallback(
                 request=request,
@@ -278,7 +317,7 @@ class ProductRagApplicationService:
         scope: ObjectScope,
         reason: RagStopReason,
     ) -> AnswerEnvelope:
-        message, actions = _fallback_copy(reason)
+        message, actions = _fallback_copy(reason, locale=request.locale)
         payload = FallbackPayload(
             schema_version=SCHEMA_VERSION,
             outcome=EnvelopeOutcome.FALLBACK,
@@ -327,7 +366,19 @@ class ProductRagApplicationService:
         )
 
 
-def _fallback_copy(reason: RagStopReason) -> tuple[str, tuple[str, ...]]:
+def _fallback_copy(
+    reason: RagStopReason, *, locale: str = "zh-CN"
+) -> tuple[str, tuple[str, ...]]:
+    if locale.casefold() == "en-us" and reason not in {
+        RagStopReason.DYNAMIC_FACT_REQUIRED,
+        RagStopReason.CLARIFICATION_REQUIRED,
+    }:
+        return (
+            "I can help compare drones, explain product specifications, and check "
+            "current availability. For orders, shipping, refunds, or after-sales "
+            "support, please use the store's order help or contact support.",
+            ("Choose a verified product or ask about a supported specification",),
+        )
     if reason is RagStopReason.DYNAMIC_FACT_REQUIRED:
         return (
             "价格、库存和可售状态需要读取当前商品的实时商店数据。",
@@ -352,6 +403,35 @@ def _fallback_copy(reason: RagStopReason) -> tuple[str, tuple[str, ...]]:
         "当前授权资料无法可靠确认该项事实。",
         ("查看其他已知规格", "联系商家确认"),
     )
+
+
+def _english_claim(field: str) -> str:
+    return {
+        "package_list": (
+            "The approved product evidence describes the package and included "
+            "batteries."
+        ),
+        "faq": (
+            "The approved product evidence describes supported flight modes and "
+            "travel use."
+        ),
+        "manual": (
+            "The approved product evidence describes the relevant setup and "
+            "operating guidance."
+        ),
+        "policy": (
+            "US-specific care, warranty, and policy claims require an explicitly "
+            "applicable source."
+        ),
+        "comparison": (
+            "I can compare products only when each comparison claim has "
+            "product-scoped evidence."
+        ),
+        "recommendation": (
+            "I can recommend among approved products using only verified "
+            "product evidence."
+        ),
+    }[field]
 
 
 def _safe_scope(scope: ObjectScope) -> ObjectScope:

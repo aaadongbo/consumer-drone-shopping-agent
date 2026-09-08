@@ -55,7 +55,7 @@ class WidgetEmbedConfig(WireModel):
     store_id: str
     product_id: str
     variant_id: str | None = None
-    locale: str = "zh-CN"
+    locale: str = "en-US"
 
     @model_validator(mode="after")
     def validate_closed_beta_embed_boundary(self) -> "WidgetEmbedConfig":
@@ -150,6 +150,18 @@ class StorefrontWidget:
         self._last_user_text = None
         self._state = WidgetRenderState(status=WidgetStatus.IDLE)
         return self._state
+
+    def update_context(self, config: WidgetEmbedConfig) -> WidgetRenderState:
+        """Replace page context and clear all state from the previous product."""
+        if config.current_origin != self._config.current_origin:
+            raise ValueError("widget navigation cannot change the approved origin")
+        self._config = config
+        self._sequence = 0
+        return self.reset()
+
+    def navigate(self, config: WidgetEmbedConfig) -> WidgetRenderState:
+        """Explicit alias used by browser integrations on product navigation."""
+        return self.update_context(config)
 
     def begin_submit(self, user_text: str) -> WidgetRenderState:
         self._last_user_text = user_text

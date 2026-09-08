@@ -59,6 +59,24 @@ _OUT_OF_SCOPE_QUESTIONS = frozenset(
     }
 )
 _DYNAMIC_FIELDS = frozenset({"price", "inventory", "availability"})
+_ENGLISH_OUT_OF_SCOPE_TERMS = (
+    "order status",
+    "where is my order",
+    "my order",
+    "track my order",
+    "tracking number",
+    "shipping",
+    "refund",
+    "return",
+    "warranty",
+    "repair",
+    "account",
+    "payment",
+    "invoice",
+    "address",
+    "cart",
+    "checkout",
+)
 _SENSITIVE_TRACE_VALUE = re.compile(
     r"(?i)(?:authorization|bearer|api[_-]?key|password|secret|token|sk[-_])"
 )
@@ -81,6 +99,85 @@ class DeterministicQuestionInterpreter:
 
     def interpret(self, request: TurnRequest) -> MinimalRouteDecision:
         request_scope = _request_scope(request)
+        normalized = request.user_text.strip().casefold()
+        if any(term in normalized for term in _ENGLISH_OUT_OF_SCOPE_TERMS):
+            return MinimalRouteDecision(
+                intent=RouteIntent.OUT_OF_SCOPE,
+                action=RouteAction.RETURN_FALLBACK,
+                resolved_scope=request_scope,
+                reason="T09 pre-sales boundary handoff",
+            )
+        if normalized in {
+            "what is the price",
+            "what's the price",
+            "how much is this",
+            "how much does this cost",
+            "is this in stock",
+            "is this available",
+            "what is the current availability",
+        } or any(
+            term in normalized
+            for term in (
+                "current price",
+                "how much does this cost",
+                "in stock",
+                "availability",
+            )
+        ):
+            return MinimalRouteDecision(
+                intent=RouteIntent.PRODUCT_QA,
+                action=RouteAction.READ_VARIANT_FACT,
+                requested_field="price",
+                field_scope=FieldScope.DYNAMIC_VARIANT,
+                resolved_scope=request_scope,
+                reason="T09 deterministic English commerce classification",
+            )
+        if normalized in {"who makes this drone", "who is the manufacturer"}:
+            return MinimalRouteDecision(
+                intent=RouteIntent.PRODUCT_QA,
+                action=RouteAction.READ_PRODUCT_FACT,
+                requested_field="manufacturer",
+                field_scope=FieldScope.PRODUCT_SHARED,
+                resolved_scope=_product_scope(request_scope),
+                reason="T09 deterministic English Product-shared question",
+            )
+        if any(
+            term in normalized
+            for term in ("how many batteries", "what's in the box", "package includes")
+        ):
+            action = (
+                RouteAction.READ_VARIANT_FACT
+                if request_scope.variant_id is not None
+                else RouteAction.REQUEST_VARIANT_CLARIFICATION
+            )
+            return MinimalRouteDecision(
+                intent=RouteIntent.PRODUCT_QA,
+                action=action,
+                requested_field="battery_count",
+                field_scope=FieldScope.VARIANT_SPECIFIC,
+                resolved_scope=request_scope,
+                reason="T09 deterministic English Variant question",
+            )
+        if any(
+            term in normalized
+            for term in ("obstacle sensing", "obstacle avoidance", "remote controller")
+        ):
+            requested_field = (
+                "obstacle_sensing" if "obstacle" in normalized else "remote_controller"
+            )
+            action = (
+                RouteAction.READ_VARIANT_FACT
+                if request_scope.variant_id is not None
+                else RouteAction.REQUEST_VARIANT_CLARIFICATION
+            )
+            return MinimalRouteDecision(
+                intent=RouteIntent.PRODUCT_QA,
+                action=action,
+                requested_field=requested_field,
+                field_scope=FieldScope.VARIANT_SPECIFIC,
+                resolved_scope=request_scope,
+                reason="T09 deterministic English Variant question",
+            )
         if request.user_text == _MANUFACTURER_QUESTION:
             return MinimalRouteDecision(
                 intent=RouteIntent.PRODUCT_QA,
@@ -321,7 +418,11 @@ class Slice1ApplicationService:
             source=result.source,
             observed_at=result.observed_at,
             field_locator=f"shared_attributes.{requested_field}",
-            text=f"这款无人机的制造商是 {fact.value}。",
+            text=(
+                f"This drone's manufacturer is {fact.value}."
+                if request.locale.casefold() == "en-us"
+                else f"这款无人机的制造商是 {fact.value}。"
+            ),
         )
 
     def _answer_variant_fact(
@@ -384,7 +485,9 @@ class Slice1ApplicationService:
             source=result.source,
             observed_at=result.observed_at,
             field_locator=f"variant_attributes.{requested_field}",
-            text=_variant_fact_text(requested_field, fact),
+            text=_variant_fact_text(
+                requested_field, fact, english=request.locale.casefold() == "en-us"
+            ),
         )
 
     def _answer_dynamic_fact(
@@ -444,7 +547,11 @@ class Slice1ApplicationService:
             source=result.source,
             observed_at=observed_at,
             field_locator=f"commerce.{requested_field}",
-            text=_dynamic_fact_text(requested_field, current_fact),
+            text=_dynamic_fact_text(
+                requested_field,
+                current_fact,
+                english=request.locale.casefold() == "en-us",
+            ),
             freshness=FreshnessDisclosure(
                 observed_at=observed_at,
                 source=result.source,
@@ -534,7 +641,9 @@ class Slice1ApplicationService:
         scope: ObjectScope,
         reason_code: FallbackReasonCode,
     ) -> AnswerEnvelope:
-        message, retryable, next_actions = _fallback_copy(reason_code)
+        message, retryable, next_actions = _fallback_copy(
+            reason_code, english=request.locale.casefold() == "en-us"
+        )
         payload = FallbackPayload(
             schema_version=SCHEMA_VERSION,
             outcome=EnvelopeOutcome.FALLBACK,
@@ -695,7 +804,16 @@ def _required_requested_field(decision: MinimalRouteDecision) -> str:
     return decision.requested_field
 
 
-def _variant_fact_text(requested_field: str, fact: AttributeValue) -> str:
+def _variant_fact_text(
+    requested_field: str, fact: AttributeValue, *, english: bool = False
+) -> str:
+    if english:
+        if requested_field == "battery_count":
+            return f"This Variant includes {fact.value} batteries."
+        if requested_field == "obstacle_sensing":
+            return f"This Variant's obstacle-sensing specification is {fact.value}."
+        if requested_field == "remote_controller":
+            return f"This Variant's remote-controller configuration is {fact.value}."
     if requested_field == "battery_count":
         return f"这个套装有 {fact.value} 块电池。"
     if requested_field == "obstacle_sensing":
@@ -705,16 +823,62 @@ def _variant_fact_text(requested_field: str, fact: AttributeValue) -> str:
     raise _LocalNonAnswer("Variant fact has no approved answer template")
 
 
-def _dynamic_fact_text(requested_field: str, fact: AttributeValue) -> str:
+def _dynamic_fact_text(
+    requested_field: str, fact: AttributeValue, *, english: bool = False
+) -> str:
     if requested_field == "price":
         unit = f" {fact.unit}" if fact.unit is not None else ""
+        if english:
+            return f"The current price for this Variant is {fact.value}{unit}."
         return f"这款当前价格为 {fact.value}{unit}。"
     raise _LocalNonAnswer("Dynamic fact has no approved answer template")
 
 
 def _fallback_copy(
     reason_code: FallbackReasonCode,
+    *,
+    english: bool = False,
 ) -> tuple[str, bool, tuple[str, ...]]:
+    if english:
+        if reason_code is FallbackReasonCode.OUT_OF_SCOPE:
+            return (
+                "I can help compare drones, explain product specifications, and check "
+                "current availability. For orders, shipping, refunds, or after-sales "
+                "support, please use the store's order help or contact support.",
+                False,
+                ("Use the store's order help or contact support",),
+            )
+        if reason_code is FallbackReasonCode.VARIANT_REQUIRED:
+            return (
+                "Please select a specific Product Variant so I can verify that fact.",
+                False,
+                ("Select a specific Variant",),
+            )
+        if reason_code is FallbackReasonCode.VARIANT_NOT_FOUND:
+            return (
+                "I could not verify that Variant under the current Product.",
+                False,
+                ("Select a valid Variant",),
+            )
+        if reason_code is FallbackReasonCode.TOOL_UNAUTHORIZED:
+            return (
+                "I cannot verify current store information right now.",
+                False,
+                ("Contact store support",),
+            )
+        if reason_code is FallbackReasonCode.TOOL_TIMEOUT:
+            return ("The store lookup timed out. Please try again.", True, ("Retry",))
+        if reason_code is FallbackReasonCode.TOOL_RATE_LIMITED:
+            return (
+                "The store is receiving too many lookups. Please try again shortly.",
+                True,
+                ("Retry later",),
+            )
+        return (
+            "I cannot verify that fact from the currently approved evidence.",
+            False,
+            ("Ask about another verified specification",),
+        )
     return {
         FallbackReasonCode.VARIANT_REQUIRED: (
             "该信息取决于具体 Variant，请先选择或提供具体 Variant。",

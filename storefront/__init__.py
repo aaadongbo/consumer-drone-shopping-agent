@@ -4,6 +4,11 @@ These types are local presentation models. They are derived from existing
 public envelopes plus local UI state and are not API DTOs.
 """
 
+from storefront.product_links import (
+    LinkConfigurationError,
+    ProductVariantLink,
+    StorefrontLinkRegistry,
+)
 from storefront.shell import (
     MinimalStorefrontShell,
     StorefrontActionRequest,
@@ -52,4 +57,7 @@ __all__ = [
     "WidgetRenderState",
     "WidgetStatus",
     "widget_state_from_turn_view",
+    "LinkConfigurationError",
+    "ProductVariantLink",
+    "StorefrontLinkRegistry",
 ]
