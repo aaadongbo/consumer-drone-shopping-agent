@@ -1,10 +1,12 @@
 # Slice 11 Tasks - Closed-beta Deployment and Release
 
-> Status: S11 COMPLETE / ALL TASKS DONE / FINAL REVIEW PASS / HUMAN INTEGRATION PENDING
+> Status: S11-T09 PLANNING RECONCILIATION / T01-T08 HISTORICALLY DONE / T09 NOT_STARTED / NON-EXECUTABLE
 >
-> The ordered table below is a planning proposal only. It does not authorize
-> implementation, external service use, credential access, CI changes, deployment,
-> push, merge, or closed-beta traffic.
+> The completed T01-T08 rows and their evidence remain historical records. T09 is a
+> proposed HIGH-risk US-market English storefront closure boundary. This planning
+> update does not authorize T09 implementation, Workflow changes, external source
+> acquisition, external service use, credential access, Shopify calls, deployment,
+> push, merge, or public Contract/Architecture changes.
 
 ## Ordered Tasks
 
@@ -18,6 +20,7 @@
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
 | T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06, T08; explicit live smoke authority |
+| T09 | US-market English storefront acceptance remediation | NOT_STARTED | T07; reviewed T09 planning baseline; separately reviewed and integrated T09 Workflow Policy; current-context HIGH-risk implementation authority |
 
 | Task | Risk |
 |---|---|
@@ -29,6 +32,7 @@
 | T06 | HIGH |
 | T07 | MEDIUM |
 | T08 | HIGH |
+| T09 | HIGH |
 
 Risk labels are provisional planning labels. HIGH Tasks stop for current-context Human
 authority before implementation because they involve external providers, release
@@ -409,6 +413,115 @@ T04, T06, and explicit authority for live read-only smoke and staging checks.
 
 Human release approval, public launch, production traffic expansion, main integration,
 merge, push, roadmap planning, or any post-beta implementation.
+
+## T09 - US-market English Storefront Acceptance Remediation
+
+### Goal
+
+Close the gap between the historically completed three-product read-only closed beta
+and the narrower product claim `US_SHOPIFY_PRESALES_V1_ACCEPTANCE_READY`: an English
+Shopify storefront Widget that preserves exact Product/Variant scope, answers only
+verified US-applicable pre-sales facts, and links to the correct purchase destination.
+
+### Why
+
+Read-only reconciliation found that the current deployed path uses a `zh-CN` /
+China-mainland corpus, returns Chinese fallback copy for ordinary English questions,
+does not route the required recommendation/comparison journeys through the pilot
+composition, and provides Python Widget view models rather than a verified browser
+embed with exact product links. The earlier S11 acceptance remains valid for its
+closed-beta scope but is insufficient for the US-English V1 claim.
+
+### Risk
+
+`HIGH`. T09 changes customer-visible Product Behavior, application routing, Widget
+delivery, evidence applicability, and later staging traffic. Planning does not unlock
+implementation. A separate reviewed/integrated Workflow Policy and a new explicit
+Human implementation authorization are mandatory.
+
+### Scope
+
+- Deterministic/restricted English routing for clarification, Product RAG,
+  comparison, recommendation, and exact-Variant commerce facts.
+- `en-US` answer, clarification, fallback, error, and Shopify-native/store-support
+  handoff copy using the existing public response schema.
+- Browser-embeddable Widget behavior for load, send, render, reset/retry, Product and
+  Variant navigation, Evidence/freshness display, safe errors, and desktop/mobile
+  viewports.
+- Internal checksum-bound mappings for exact approved storefront Product/Variant URLs
+  and the configured support destination; no guessed handles or URLs.
+- A new append-only US-English external corpus manifest with source-level
+  applicability metadata, plus application-path execution of the 30-row
+  Expert/Synthetic acceptance candidate.
+- Local targeted/full verification, then one separately authorized, budgeted staging
+  browser/Conversation/Shopify read-only acceptance and final independent Slice
+  review.
+
+### Contract / Inputs and Outputs
+
+Inputs: the approved three Product/Variant identities, exact storefront origin,
+existing public Conversation Contract, configured store/support URLs, approved
+US-English source manifest, existing deterministic/restricted adapter, current
+read-only Shopify Port, and the external synthetic acceptance candidate.
+
+Outputs: internal English intent/presentation behavior, browser Widget assets and
+configuration, checksum-bound URL/source metadata, redacted acceptance evidence, and
+either `US_SHOPIFY_PRESALES_V1_ACCEPTANCE_READY` or `BLOCKED` with exact reasons. No
+new public field or enum is implied.
+
+### Acceptance
+
+- Every `S11-A16` through `S11-A23` row in `plan.md` has actual evidence.
+- English clarification, specification, comparison, recommendation, current
+  price/inventory/availability, pronoun follow-up, and target-switch scenarios use the
+  actual application path and preserve Answer/Evidence scope.
+- The browser Widget works on the real password-protected Shopify storefront at the
+  approved desktop/mobile widths and never carries a stale Product/Variant after page
+  navigation.
+- Every purchase link resolves through an exact approved store mapping. Every support
+  handoff uses the configured support destination; neither is inferred from a display
+  name.
+- USD commerce facts come from the approved store. US-sensitive static claims use an
+  explicitly applicable source; missing evidence remains a visible gap.
+- Order, logistics, refund, return, warranty/repair, account, payment, invoice,
+  address, cart, and checkout inputs invoke no excluded Shopify surface and no write.
+- Shopify writes, retries beyond the approved budget, and external model calls are
+  `0`; secrets, full requests/responses, protected source text, raw queries, and user
+  data are absent from Git/log/review evidence.
+- The Expert/Synthetic set remains `CANDIDATE_NOT_GOLDEN` until Human review. Fixture
+  label consistency is reported separately from runtime acceptance.
+- One true full-project test run records the exact unfiltered command and result;
+  filtered marker runs are never called the full suite.
+
+### Verification
+
+- Targeted unit/integration/E2E tests for English routing and copy, recommendation and
+  comparison composition, Product/Variant switch isolation, URL mapping, handoff,
+  failure classification, no-write enforcement, and browser Widget states.
+- A browser-level local test at approved desktop/mobile dimensions using the actual
+  Widget asset and Conversation API boundary.
+- One unfiltered full project suite, Ruff/format, diff, dependency-lock, and
+  data/secret-boundary checks at completion.
+- One new Human-authorized staging plan with explicit maximum HTTP requests,
+  Conversation turns, Shopify reads, writes `0`, retries `0`, and external model
+  calls `0`; exhausted budgets are never reused.
+- Final immutable T09 snapshot and fresh independent Slice review after the Workflow
+  identifies T09 as the completion Task.
+
+### Dependencies
+
+T07 historical completion evidence; Human-reviewed T09 planning baseline; a separate
+reviewed and Human-integrated T09 Workflow Policy; current-context HIGH-risk
+implementation authority; exact approved storefront Product/Variant URLs and support
+destination; approved US-English source manifest; and a separately authorized live
+acceptance budget.
+
+### Out of Scope
+
+Public Contract or Architecture changes; dependency changes; Hybrid/BGE-M3 runtime,
+Reranker, vector database, Redis/MongoDB, external model Provider; Shopify Product,
+Variant, inventory, theme, scope, order, customer, cart, checkout, or other writes;
+customer-service implementation; public launch; main integration; push; or Slice 12.
 
 ## Human Escalation Conditions
 

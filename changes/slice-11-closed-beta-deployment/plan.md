@@ -1,11 +1,13 @@
 # Slice 11 Plan - Closed-beta Deployment and Release
 
-> Status: PLANNING REVIEW / NON-EXECUTABLE / INDEPENDENT REVIEW + HUMAN REVIEW REQUIRED
+> Status: S11-T09 PLANNING RECONCILIATION / NON-EXECUTABLE / HUMAN REVIEW REQUIRED
 >
-> This planning artifact reconciles the completed Slice 10 local pilot handoff into
-> the smallest closed-beta deployment Slice. It does not authorize implementation,
-> external services, production traffic, credential use, Shopify calls, deployment,
-> CI changes, push, merge, or public Contract/Architecture changes.
+> T01-T08 and their closed-beta evidence remain immutable historical delivery
+> records. This reconciliation adds only the proposed HIGH-risk T09 boundary for a
+> US-market English pre-sales storefront experience. It does not authorize T09
+> implementation, Workflow changes, external source acquisition, external services,
+> production traffic, credential use, Shopify calls, deployment, push, merge, or
+> public Contract/Architecture changes.
 
 ## 1. Goal
 
@@ -20,6 +22,15 @@ high availability, complete recommendation-platform coverage, or open public tra
 Slice 11 is the only planned deployment/release Slice before the initial closed beta.
 No Slice 12 is created by this plan. Post-beta improvements remain unnumbered
 operational iterations until Human review decides otherwise.
+
+After the original closed-beta completion, read-only acceptance reconciliation found
+that the delivered runtime does not yet satisfy the narrower product claim "US-market
+Shopify pre-sales guide V1": the deployed corpus is `zh-CN` / China-mainland scoped,
+the deterministic application path does not cover the required English recommendation
+and comparison journeys, and the repository Widget is a Python presentation boundary
+rather than a browser-embeddable storefront client with verified product links. T09
+addresses only those gaps and does not invalidate the earlier three-product read-only
+commerce acceptance.
 
 ## 2. Closed-beta Boundary
 
@@ -229,10 +240,108 @@ Stop before implementation continues if S11 requires:
 
 ## 11. Completion Boundary
 
-Slice 11 is complete only when all planned S11 Tasks are `DONE`, the final acceptance
-matrix has actual evidence, Shopify write count remains zero, staging and rollback
-evidence pass, and an independent Slice review reports no blocking findings.
+The original closed-beta completion through T08 remains historical evidence. The
+expanded US-market V1 claim is complete only when T09 is `DONE`, the English/US
+acceptance matrix has actual application-path and storefront-browser evidence,
+Shopify write count remains zero, staging and rollback evidence pass, and a fresh
+independent Slice review reports no blocking findings. The later Workflow Policy
+session must explicitly make T09 the completion Task before implementation can begin.
 
-The completion label is `CLOSED_BETA_READY_FOR_HUMAN_RELEASE_DECISION`. Human release
+The T09 completion label is `US_SHOPIFY_PRESALES_V1_ACCEPTANCE_READY`. Human release
 approval, public launch, main integration, merge, push, and any post-beta roadmap
-remain separate authorities.
+remain separate authorities. Until T09 passes, the earlier label
+`CLOSED_BETA_READY_FOR_HUMAN_RELEASE_DECISION` must not be broadened into a US-English
+V1 claim.
+
+## 12. S11-T09 Planning Reconciliation — US-market English Storefront Closure
+
+### Risk and authority
+
+T09 is `HIGH` because it changes customer-visible Product Behavior, wires additional
+application journeys into the deployed composition, introduces a real browser Widget
+surface, depends on market-specific evidence, and requires a later external staging
+acceptance. This planning reconciliation is non-executable. A separate reviewed and
+integrated Workflow Policy must define the exact allowlist and verification profile;
+T09 then requires a new current-context Human implementation authorization.
+
+### Fixed product boundary
+
+- Market, currency, and storefront language: United States, USD, `en-US`.
+- Store: `shopify-store:bys-user-store-578412-7a11gk0u`; storefront origin remains
+  `https://bys-user-store-578412-7a11gk0u.myshopify.com`.
+- Products and canonical Variants remain the already approved Mini 3, Air 3, and
+  Mavic 3 identities. T09 may not replace an identity or invent a Variant.
+- Supported journeys are pre-sales clarification, specifications, capabilities,
+  comparison, recommendation, and current read-only price/inventory/availability.
+- Order, shipment, refund, return, warranty/repair, account, payment, invoice,
+  address, cart, and checkout requests remain typed safe handoffs to the configured
+  Shopify-native/store-support destination. They must not invoke an order, customer,
+  cart, checkout, or write API.
+- Shopify scopes remain exactly `read_products` and `read_inventory`; writes remain
+  `0`.
+
+### Implementation scope proposed for later authorization
+
+1. Extend the existing deterministic/restricted application path to classify and
+   answer the approved English pre-sales journeys using verified Evidence. Reuse the
+   existing recommendation, comparison, Product RAG, target-resolution, and commerce
+   boundaries; do not add an external model Provider.
+2. Localize answer, clarification, fallback, transport-error, and handoff copy for
+   `en-US` without adding a public enum or changing the public wire schema. Unsupported
+   and evidence-deficient requests remain fail-closed.
+3. Add a browser-embeddable Widget client that calls only the existing Conversation
+   API, derives exact Product/Variant page context, resets stale context on navigation,
+   renders Evidence/freshness and safe errors, and remains usable at desktop and mobile
+   widths.
+4. Resolve recommendation links through an internal, checksum-bound mapping from the
+   approved Product/Variant identities to exact configured Shopify storefront URLs.
+   Handles and support destinations must be obtained from approved store metadata;
+   they may not be guessed, derived from display names, or added to the public
+   Contract.
+5. Admit only approved US-applicable English sources into a new append-only external
+   corpus manifest. China-mainland material may be reused only when its applicability
+   to the corresponding US product fact is explicitly verified. It may not support
+   US warranty, regulation, pricing, packaging, or sales commitments by translation
+   alone.
+6. Exercise the existing 30-row Expert/Synthetic candidate set through the actual
+   application path. Human review is required before any row is frozen or described
+   as approved; fixture-label validation alone is not runtime acceptance.
+7. After local verification, run one separately authorized staging/browser acceptance
+   with a new explicit HTTP, Conversation-turn, and Shopify-read budget. No exhausted
+   smoke budget may be reused or silently reset.
+
+### Acceptance additions
+
+| ID | Acceptance | PASS condition |
+|---|---|---|
+| S11-A16 | English pre-sales journeys | `en-US` clarification, specification, comparison, recommendation, and commerce questions traverse the actual application path and return English verified answers or explicit safe fallbacks. |
+| S11-A17 | Target continuity | Current Product/Variant, pronoun follow-up, product switch, and Variant switch preserve the intended scope; stale page context is never reused after navigation. |
+| S11-A18 | Recommendation grounding | Every recommendation/comparison claim is bound to admitted Evidence; insufficient evidence produces clarification or fallback rather than a forced recommendation. |
+| S11-A19 | US-market evidence | USD price is read from the approved US Shopify store, and US-sensitive specifications, packaging, availability, warranty, regulatory, and sales claims use explicitly US-applicable sources or report an evidence gap. |
+| S11-A20 | Browser Widget | The real Shopify page can load the Widget, send a turn, render answer/evidence/fallback/error states, reset safely, and remain usable at approved desktop and mobile viewports. |
+| S11-A21 | Storefront links | Product links are clickable and resolve to the exact approved Shopify Product/Variant destination; no handle, support URL, or destination is guessed. |
+| S11-A22 | Pre-sales handoff | Order, logistics, refund, return, warranty/repair, account, payment, invoice, address, cart, and checkout requests use existing typed handoff semantics, call no excluded Shopify surface, and link only to an explicitly configured support destination. |
+| S11-A23 | Failure and operations | Shopify 401/429/timeout, corpus failure, budget exhaustion, and unsupported intent remain distinguishable, redacted, non-fabricating, observable, and recoverable through the existing token and rollback runbooks. |
+
+### Explicit non-goals
+
+- Hybrid runtime, BGE-M3 serving, reranking, vector databases, Redis, MongoDB, or a
+  new model Provider. The offline Hybrid verdict remains `NOT_ADOPTED`.
+- Customer-service, order, shipment, payment, account, cart, checkout, refund, return,
+  warranty, repair, or Shopify write implementation.
+- New public Contract fields or enums, Architecture changes, dependency changes,
+  Shopify scope/data changes, public launch, or Slice 12.
+- Treating synthetic fixtures, translated China-mainland material, or a temporary
+  access-token smoke as evidence of real-user satisfaction or long-term operations.
+
+### Decisions required before T09 implementation or staging
+
+- Exact internal files and tests permitted by the T09 Workflow Policy.
+- Exact approved Shopify storefront Product/Variant URLs and configured support URL.
+- Exact official US-English source list, immutable source checksums, applicability
+  annotations, and Data-Staging manifest identity.
+- Whether the browser Widget is injected through a theme app extension, an approved
+  theme snippet, or another explicitly selected non-write delivery mechanism.
+- A fresh staging acceptance budget and authority for browser/storefront access,
+  Render deployment, and read-only Shopify calls.
+- Exact deployed commit/deployment ID to use as the acceptance and rollback boundary.
