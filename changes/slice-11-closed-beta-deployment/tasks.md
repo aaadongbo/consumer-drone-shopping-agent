@@ -1345,3 +1345,18 @@ provider, hosting, CI, staging, or Widget-origin changes.
   outcome, Shopify read count, write count, or correlation ID is claimed for
   this attempt. T09 remains `IN_PROGRESS` and `BLOCKED`; completion evidence,
   final Slice Review, `DONE`, push, and main integration remain unperformed.
+
+- **Final three-product staging acceptance (2026-09-09)**: after configuring
+  Python to use the macOS system CA bundle via `SSL_CERT_FILE=/etc/ssl/cert.pem`
+  with certificate verification enabled, exactly one bounded direct-network
+  acceptance run completed. Mini 3, Air 3, and Mavic 3 each returned HTTP `200`
+  / `ANSWER` for the approved English price/availability question. Resolved
+  Product/Variant IDs matched the approved mappings exactly; each response had
+  one claim, one `VARIANT_SPECIFIC` evidence item, and `USD` evidence units.
+  Correlation IDs and response checksums were retained as redacted metadata only.
+  The three dynamic-commerce turns consumed three Shopify read calls in total
+  (one per turn), with zero writes, zero automatic retries, and zero external
+  model calls. The approved storefront Origin returned the exact CORS header;
+  an unapproved Origin returned no allow-origin header. This is the acceptance
+  evidence for the pending immutable completion snapshot and final Slice Review;
+  no completion status change is claimed by this record alone.
