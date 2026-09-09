@@ -1336,3 +1336,12 @@ provider, hosting, CI, staging, or Widget-origin changes.
   integration was created; T09 remains `IN_PROGRESS` and `BLOCKED` pending a
   fresh explicitly authorized staging smoke after the transport boundary is
   resolved.
+
+- **Authorized direct-network retry (2026-09-09)**: the explicitly authorized
+  one-time direct-network retry was attempted for Mini 3, Air 3, and Mavic 3.
+  Each client call failed locally with `SSLCertVerificationError` before an
+  HTTP response/status or response body was received. TLS verification was not
+  disabled and no additional retry was made. Therefore no Conversation
+  outcome, Shopify read count, write count, or correlation ID is claimed for
+  this attempt. T09 remains `IN_PROGRESS` and `BLOCKED`; completion evidence,
+  final Slice Review, `DONE`, push, and main integration remain unperformed.
