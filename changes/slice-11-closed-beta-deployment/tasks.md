@@ -1314,3 +1314,25 @@ provider, hosting, CI, staging, or Widget-origin changes.
   correlation ID, so neither is claimed. T09 remains `IN_PROGRESS` and
   `BLOCKED`; no further retry, completion snapshot, final review, or `DONE`
   status is claimed.
+
+- **Credential refresh and redeploy (2026-09-09)**: the approved local
+  Keychain Client Credentials Grant returned a temporary token for the fixed
+  Shopify store with `expires_in=86399` and the exact required scopes
+  `read_products`/`read_inventory`. The token value was held only in memory and
+  the temporary clipboard, written only to Render Secret
+  `DRONE_SHOPIFY_ACCESS_TOKEN`, and the clipboard was cleared immediately.
+  `DRONE_CREDENTIAL_REF` was unchanged. Render redeployed the immutable T09
+  commit `5c632d6edc5feb7ab81f9e21514184e638a607e8` as deployment
+  `dep-dagbj89t0dsc73cg83ig`; `/healthz` and `/readyz` both returned `200`.
+
+- **Final smoke transport boundary (2026-09-09)**: the first bounded client
+  invocation for Mini 3, Air 3, and Mavic 3 received client-side `URLError`
+  transport failures before any HTTP response/status or response body was
+  available. No response-level Shopify read count, write, outcome, or
+  correlation ID is claimed. A second direct-network invocation was refused by
+  the workflow safety reviewer because it would be an additional retry after an
+  external transport exception under the approved `retry=0` boundary. No
+  completion snapshot, final Slice Review, `DONE` status, push, or main
+  integration was created; T09 remains `IN_PROGRESS` and `BLOCKED` pending a
+  fresh explicitly authorized staging smoke after the transport boundary is
+  resolved.
