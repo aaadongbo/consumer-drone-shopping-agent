@@ -8,6 +8,7 @@ import pytest
 from backend.agent import (
     BoundedProductRagLoop,
     IntentAdapterBudget,
+    ProductRagBudget,
     RestrictedIntentRouter,
 )
 from backend.application.pilot_composition import PilotConversationApplication
@@ -28,7 +29,13 @@ from backend.common import (
     PageContext,
     TurnRequest,
 )
-from backend.rag import DocumentManifest, InMemoryProductRetriever, chunk_manifest
+from backend.rag import (
+    DocumentManifest,
+    InMemoryProductRetriever,
+    RetrievalResult,
+    RetrievalStrategy,
+    chunk_manifest,
+)
 from backend.shopify import (
     RealShopifyReadAdapter,
     ShopifyTransportResult,
@@ -244,6 +251,45 @@ def test_live_pilot_requires_explicit_us_variant_package_evidence() -> None:
     ).root
     assert payload.outcome is EnvelopeOutcome.FALLBACK
     assert payload.claims == payload.evidence == payload.bindings == []
+
+
+def test_live_preflight_respects_single_read_budget_and_uses_english_fallback() -> None:
+    class _EmptyRetriever:
+        calls = 0
+
+        def retrieve(self, request):
+            self.calls += 1
+            return RetrievalResult(
+                request=request,
+                evidence=(),
+                retrieval_strategy=RetrievalStrategy.KEYWORD_OVERLAP,
+                index_version="t09-empty",
+                filtered_out_count=0,
+                missing_reason="NO_SCOPED_MATCH",
+            )
+
+    retriever = _EmptyRetriever()
+    budget = ProductRagBudget(max_tool_calls=1, max_action_rounds=1)
+    service = ProductRagApplicationService(
+        loop=BoundedProductRagLoop(
+            retriever=retriever,
+            budget=budget,
+            clock_ms=lambda: 0,
+        ),
+        interpreter=ProductRagQuestionInterpreter(),
+        trace_sink=InMemoryTraceSink(),
+        correlation_id_factory=lambda: "t09-budget-correlation",
+        clock=lambda: datetime(2026, 9, 8, tzinfo=UTC),
+        retriever=retriever,
+        rag_budget=budget,
+    )
+    payload = service.answer_resolved(
+        _request("How many batteries are in the package?"),
+        _page_context_resolution(_request("How many batteries are in the package?")),
+    ).root
+    assert retriever.calls == 1
+    assert payload.outcome is EnvelopeOutcome.FALLBACK
+    assert payload.text.isascii()
 
 
 def _page_context_resolution(request: TurnRequest):

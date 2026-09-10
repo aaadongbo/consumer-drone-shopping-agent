@@ -247,6 +247,20 @@ class ProductRagApplicationService:
             effective_request = retrieval_request
             selected = preflight.evidence[0] if preflight.evidence else None
             if selected is None:
+                if (
+                    self._rag_budget.max_tool_calls < 2
+                    or self._rag_budget.max_action_rounds < 2
+                ):
+                    return self._fallback(
+                        request=request,
+                        correlation_id=correlation_id,
+                        scope=scope,
+                        reason=(
+                            RagStopReason.TOOL_CALL_LIMIT
+                            if self._rag_budget.max_tool_calls < 2
+                            else RagStopReason.ACTION_ROUND_LIMIT
+                        ),
+                    )
                 effective_request = retrieval_request.model_copy(
                     update={"field_hint": claim.field}
                 )
@@ -474,7 +488,11 @@ class ProductRagApplicationService:
         scope: ObjectScope,
         reason: RagStopReason,
     ) -> AnswerEnvelope:
-        message, actions = _fallback_copy(reason, locale=request.locale)
+        message, actions = _fallback_copy(
+            reason,
+            locale=request.locale,
+            english_runtime=self._retriever is not None,
+        )
         payload = FallbackPayload(
             schema_version=SCHEMA_VERSION,
             outcome=EnvelopeOutcome.FALLBACK,
@@ -524,12 +542,23 @@ class ProductRagApplicationService:
 
 
 def _fallback_copy(
-    reason: RagStopReason, *, locale: str = "zh-CN"
+    reason: RagStopReason,
+    *,
+    locale: str = "zh-CN",
+    english_runtime: bool = False,
 ) -> tuple[str, tuple[str, ...]]:
-    if locale.casefold() == "en-us" and reason not in {
-        RagStopReason.DYNAMIC_FACT_REQUIRED,
-        RagStopReason.CLARIFICATION_REQUIRED,
-    }:
+    if english_runtime and locale.casefold() == "en-us":
+        if reason is RagStopReason.DYNAMIC_FACT_REQUIRED:
+            return (
+                "Current price, inventory, and availability require a live store read.",
+                ("Ask about the current price, inventory, or availability",),
+            )
+        if reason is RagStopReason.CLARIFICATION_REQUIRED:
+            return (
+                "I need a typed comparison or recommendation target before I can "
+                "answer reliably.",
+                ("Choose the specific products or Variants to compare",),
+            )
         return (
             "I can help compare drones, explain product specifications, and check "
             "current availability. For orders, shipping, refunds, or after-sales "

@@ -1437,7 +1437,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
   recommendation answer; those requests fall back until a typed multi-member
   handoff is present. Added T09 integration coverage for these fail-closed paths.
 - **Follow-up verification actually run**:
-  - `uv run --frozen pytest -q` exited `0` (`856 passed`).
+  - `uv run --frozen pytest -q` exited `0` (`857 passed`).
   - Ruff check and format check over the changed allowlisted paths exited `0`.
   - `git diff --check` exited `0`; `check_scope.py T09` reports only the three
     allowlisted changed paths and no dependency/core-artifact violations.
@@ -1445,3 +1445,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
     integration was performed in this follow-up. Real desktop/mobile browser
     interaction and live monitoring evidence remain pending external staging
     verification.
+- **Budget/language correction (2026-09-11)**: the preflight refuses a second
+  retrieval when `max_tool_calls` or `max_action_rounds` is `1`, and live en-US
+  clarification/dynamic fallbacks are English; historical fixture-mode contract
+  fallbacks retain their existing locale behavior.
