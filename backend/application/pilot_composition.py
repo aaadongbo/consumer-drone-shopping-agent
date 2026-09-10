@@ -161,6 +161,7 @@ def build_pilot_composition(config: PilotCompositionConfig) -> PilotComposition:
         correlation_id_factory=correlation_id_factory,
         clock=clock,
         retriever=config.static_retriever,
+        rag_budget=config.rag_budget,
     )
     intent_router = RestrictedIntentRouter(
         adapter=config.intent_adapter,

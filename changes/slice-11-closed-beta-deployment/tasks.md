@@ -1427,3 +1427,21 @@ provider, hosting, CI, staging, or Widget-origin changes.
     Contract/Architecture/Workflow changes. No external request or Shopify call
     was made during this remediation; live browser/staging evidence remains a
     separate acceptance gate.
+- **Follow-up remediation (2026-09-11)**: live Product RAG now preflights at
+  most the configured two read calls, applies the configured deadline, then
+  replays the immutable result through `BoundedProductRagLoop` so action-round,
+  tool-call, retrieval-token, and Evidence Gate checks remain active. US `en-US`
+  package claims fail closed unless the chunk carries explicit US applicability
+  and the exact approved Variant; legacy fixture metadata is not treated as
+  US evidence. A page-scoped single chunk can no longer become a comparison or
+  recommendation answer; those requests fall back until a typed multi-member
+  handoff is present. Added T09 integration coverage for these fail-closed paths.
+- **Follow-up verification actually run**:
+  - `uv run --frozen pytest -q` exited `0` (`856 passed`).
+  - Ruff check and format check over the changed allowlisted paths exited `0`.
+  - `git diff --check` exited `0`; `check_scope.py T09` reports only the three
+    allowlisted changed paths and no dependency/core-artifact violations.
+  - No external requests, Shopify reads/writes, deployment, push, or main
+    integration was performed in this follow-up. Real desktop/mobile browser
+    interaction and live monitoring evidence remain pending external staging
+    verification.

@@ -3,8 +3,14 @@
 import re
 from collections.abc import Callable
 from datetime import datetime
+from time import monotonic
 
-from backend.agent import BoundedProductRagLoop, ProductRagRetriever, RagStopReason
+from backend.agent import (
+    BoundedProductRagLoop,
+    ProductRagBudget,
+    ProductRagRetriever,
+    RagStopReason,
+)
 from backend.application.slice_1 import InMemoryTraceSink
 from backend.application.target_fact_adapter import (
     TargetFactIdentityAdapter,
@@ -32,7 +38,7 @@ from backend.common import (
     TurnRequest,
 )
 from backend.conversation import TargetResolution
-from backend.evidence import RagClaim, gate_retrieval_evidence
+from backend.evidence import RagClaim
 from backend.rag import RetrievalRequest
 
 _SENSITIVE_TRACE_VALUE = re.compile(
@@ -143,6 +149,7 @@ class ProductRagApplicationService:
         correlation_id_factory: Callable[[], str],
         clock: Callable[[], datetime],
         retriever: ProductRagRetriever | None = None,
+        rag_budget: ProductRagBudget | None = None,
     ) -> None:
         self._loop = loop
         self._interpreter = interpreter
@@ -150,6 +157,7 @@ class ProductRagApplicationService:
         self._correlation_id_factory = correlation_id_factory
         self._clock = clock
         self._retriever = retriever
+        self._rag_budget = rag_budget or ProductRagBudget()
 
     def answer_resolved(
         self, request: TurnRequest, resolution: TargetResolution
@@ -201,37 +209,83 @@ class ProductRagApplicationService:
                 scope=scope,
                 reason=RagStopReason.EVIDENCE_REJECTED,
             )
+        if self._retriever is not None and claim.field in {
+            "comparison",
+            "recommendation",
+        }:
+            # The live single-target pilot has no typed multi-member target in
+            # this request.  Never turn a one-product chunk into a comparison
+            # or recommendation claim; the downstream comparison/recommendation
+            # services require an explicit typed handoff with member scopes.
+            return self._fallback(
+                request=request,
+                correlation_id=correlation_id,
+                scope=scope,
+                reason=RagStopReason.CLARIFICATION_REQUIRED,
+            )
 
         retrieval_request = RetrievalRequest(
             turn_target=scope, question=request.user_text
         )
         if self._retriever is not None:
-            # The live pilot resolves the user-visible claim from the exact
-            # chunk returned by the bounded, scope-first retriever.  This
-            # prevents fixture claim text/locators from crossing the runtime
-            # boundary while leaving historical fixture tests unchanged.
-            retrieval = self._retriever.retrieve(retrieval_request)
-            runtime_claim = None
-            selected = None
-            for attempt in range(2):
-                if retrieval.evidence:
-                    candidate = retrieval.evidence[0]
-                    candidate_claim = claim.model_copy(
-                        update={
-                            "text": candidate.text,
-                            "locator": candidate.locator.locator,
-                        }
+            # The external corpus supplies the exact claim text, so first take
+            # one bounded preflight read to learn the candidate excerpt, then
+            # replay that immutable result through the same bounded loop.  The
+            # preflight is capped at the loop's two-read budget; the replay
+            # still enforces deadline, action-round, tool-call, and token gates.
+            preflight_started = monotonic()
+            preflight = self._retriever.retrieve(retrieval_request)
+            if _preflight_deadline_exceeded(
+                preflight_started, self._rag_budget.turn_deadline_ms
+            ):
+                return self._fallback(
+                    request=request,
+                    correlation_id=correlation_id,
+                    scope=scope,
+                    reason=RagStopReason.TURN_DEADLINE,
+                )
+            effective_request = retrieval_request
+            selected = preflight.evidence[0] if preflight.evidence else None
+            if selected is None:
+                effective_request = retrieval_request.model_copy(
+                    update={"field_hint": claim.field}
+                )
+                preflight = self._retriever.retrieve(effective_request)
+                if _preflight_deadline_exceeded(
+                    preflight_started, self._rag_budget.turn_deadline_ms
+                ):
+                    return self._fallback(
+                        request=request,
+                        correlation_id=correlation_id,
+                        scope=scope,
+                        reason=RagStopReason.TURN_DEADLINE,
                     )
-                    gate = gate_retrieval_evidence(retrieval, claims=(candidate_claim,))
-                    if gate.accepted_claim_ids:
-                        selected = candidate
-                        runtime_claim = candidate_claim
-                        break
-                if attempt == 0:
-                    retrieval = self._retriever.retrieve(
-                        retrieval_request.model_copy(update={"field_hint": claim.field})
-                    )
-            if selected is None or runtime_claim is None:
+                selected = preflight.evidence[0] if preflight.evidence else None
+            if selected is None:
+                return self._fallback(
+                    request=request,
+                    correlation_id=correlation_id,
+                    scope=scope,
+                    reason=RagStopReason.EVIDENCE_REJECTED,
+                )
+            runtime_claim = claim.model_copy(
+                update={
+                    "text": selected.text,
+                    "locator": selected.locator.locator,
+                }
+            )
+            replay_loop = BoundedProductRagLoop(
+                retriever=_ReplayRetriever(preflight),
+                budget=self._rag_budget,
+            )
+            loop_result = replay_loop.run(
+                request=effective_request,
+                claim=runtime_claim,
+            )
+            if (
+                loop_result.stop_reason is not RagStopReason.EVIDENCE_ACCEPTED
+                or loop_result.evidence_gate is None
+            ):
                 self._trace(
                     correlation_id,
                     TraceEventType.EVIDENCE_REJECTED,
@@ -242,13 +296,21 @@ class ProductRagApplicationService:
                     request=request,
                     correlation_id=correlation_id,
                     scope=scope,
-                    reason=RagStopReason.EVIDENCE_REJECTED,
+                    reason=loop_result.stop_reason,
                 )
+            quality = loop_result.evidence_gate.quality[0]
+            locator = quality.evidence_locators[0]
+            selected = next(
+                item
+                for item in loop_result.evidence_gate.retrieval.evidence
+                if item.locator.locator == locator
+            )
             if not _chunk_is_admitted_for_locale(
                 selected,
                 field=runtime_claim.field,
                 scope=scope,
                 locale=request.locale,
+                require_us_metadata=True,
             ):
                 return self._fallback(
                     request=request,
@@ -529,6 +591,20 @@ def _english_claim(field: str) -> str:
     }[field]
 
 
+class _ReplayRetriever:
+    """Replay one preflight retrieval without a second external read."""
+
+    def __init__(self, result) -> None:
+        self._result = result
+
+    def retrieve(self, request: RetrievalRequest):
+        return self._result.model_copy(update={"request": request})
+
+
+def _preflight_deadline_exceeded(started: float, deadline_ms: int) -> bool:
+    return (monotonic() - started) * 1000 > deadline_ms
+
+
 def _safe_scope(scope: ObjectScope) -> ObjectScope:
     return ObjectScope(
         store_id=_safe_trace_value(scope.store_id),
@@ -542,7 +618,12 @@ def _safe_scope(scope: ObjectScope) -> ObjectScope:
 
 
 def _chunk_is_admitted_for_locale(
-    chunk, *, field: str, scope: ObjectScope, locale: str
+    chunk,
+    *,
+    field: str,
+    scope: ObjectScope,
+    locale: str,
+    require_us_metadata: bool = False,
 ) -> bool:
     """Reject known non-US evidence without weakening legacy fixtures.
 
@@ -562,9 +643,12 @@ def _chunk_is_admitted_for_locale(
         return True
     applicability = metadata.get("applicability") or metadata.get("market")
     if applicability is None:
-        return True
+        return not require_us_metadata
     if "us" not in applicability.casefold():
         return False
+    if field == "package_list" and require_us_metadata:
+        # A shared/product-level chunk cannot prove a US Variant package.
+        return chunk.variant_id == scope.variant_id
     if field == "package_list" and chunk.variant_id is not None:
         return chunk.variant_id == scope.variant_id
     return True
