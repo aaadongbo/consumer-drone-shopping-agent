@@ -20,7 +20,7 @@
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
 | T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06, T08; explicit live smoke authority |
-| T09 | US-market English storefront acceptance remediation | IN_PROGRESS | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
+| T09 | US-market English storefront acceptance remediation | DONE | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
 
 | Task | Risk |
 |---|---|
@@ -1190,7 +1190,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ### T09 Execution Record
 
-- **Status**: `IN_PROGRESS — approved HIGH-risk commerce compatibility remediation and staging acceptance`
+- **Status**: `DONE — US-market English password-protected closed-beta staging acceptance passed`
 - **Start commit**: `56dfa6655300f8411ebf31dbf7bacba2e2c5b632`
 - **Worktree**: `/private/tmp/s11-t09-implementation`; feature branch
   `codex/s11-t09-implementation`; unrelated root/worktree changes were not touched.
@@ -1360,3 +1360,25 @@ provider, hosting, CI, staging, or Widget-origin changes.
   an unapproved Origin returned no allow-origin header. This is the acceptance
   evidence for the pending immutable completion snapshot and final Slice Review;
   no completion status change is claimed by this record alone.
+
+- **Closed-beta operational readiness (2026-09-11)**: the minimum operating
+  checklist is recorded here without adding a new runtime dependency or external
+  service. Token rotation uses the existing macOS Keychain Client Credentials
+  Grant, verifies the fixed store identity and `read_products`/
+  `read_inventory` scopes, writes only `DRONE_SHOPIFY_ACCESS_TOKEN` to the
+  existing Render Secret, redeploys the immutable release, verifies `/healthz`
+  and `/readyz`, and performs one separately budgeted read-only smoke. Tokens,
+  secrets, headers, cookies, and full responses remain excluded from logs and
+  evidence. Operators must watch health/readiness, HTTP 5xx, latency, Shopify
+  401/429, fallback rate, Shopify read/write counters, deployed commit, and
+  rollback events using the existing Render logs/metrics and redacted runtime
+  metadata. Rollback operator is `russeell`; rollback target is the recorded
+  previous known-good immutable Render deployment, followed by health/readiness
+  verification. Audience remains invited closed-beta users behind the existing
+  password-protected storefront; public launch and audience expansion are out
+  of scope.
+
+- **T09 completion boundary**: the final smoke evidence above is the basis for
+  the immutable completion snapshot and fresh independent Slice Review. No
+  Shopify write, public launch, main integration, or new paid resource is part
+  of this closure.
