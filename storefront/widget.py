@@ -75,12 +75,13 @@ class WidgetEmbedConfig(WireModel):
                 or not support.netloc
                 or support.username
                 or support.password
-                or f"{support.scheme}://{support.netloc}" != current
+                or f"{support.scheme}://{support.netloc}" not in normalized_allowed
                 or support.fragment
                 or support.query
             ):
                 raise ValueError(
-                    "support URL must be an explicit same-origin HTTPS URL"
+                    "support URL must be an explicit allowlisted HTTPS URL "
+                    "(same-origin to an allowlisted storefront)"
                 )
         return self
 

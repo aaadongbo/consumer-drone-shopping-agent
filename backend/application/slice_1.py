@@ -77,6 +77,15 @@ _ENGLISH_OUT_OF_SCOPE_TERMS = (
     "cart",
     "checkout",
 )
+
+
+def is_out_of_scope_question(text: str) -> bool:
+    """Return whether the deterministic pre-sales boundary requires handoff."""
+
+    normalized = text.strip().casefold()
+    return any(term in normalized for term in _ENGLISH_OUT_OF_SCOPE_TERMS)
+
+
 _SENSITIVE_TRACE_VALUE = re.compile(
     r"(?i)(?:authorization|bearer|api[_-]?key|password|secret|token|sk[-_])"
 )
@@ -100,34 +109,45 @@ class DeterministicQuestionInterpreter:
     def interpret(self, request: TurnRequest) -> MinimalRouteDecision:
         request_scope = _request_scope(request)
         normalized = request.user_text.strip().casefold()
-        if any(term in normalized for term in _ENGLISH_OUT_OF_SCOPE_TERMS):
+        if is_out_of_scope_question(normalized):
             return MinimalRouteDecision(
                 intent=RouteIntent.OUT_OF_SCOPE,
                 action=RouteAction.RETURN_FALLBACK,
                 resolved_scope=request_scope,
                 reason="T09 pre-sales boundary handoff",
             )
-        if normalized in {
-            "what is the price",
-            "what's the price",
-            "how much is this",
+        price_terms = (
+            "price",
+            "cost",
             "how much does this cost",
-            "is this in stock",
-            "is this available",
-            "what is the current availability",
-        } or any(
-            term in normalized
-            for term in (
-                "current price",
-                "how much does this cost",
-                "in stock",
-                "availability",
-            )
-        ):
+            "how much is this",
+        )
+        inventory_terms = (
+            "inventory",
+            "stock count",
+            "units in stock",
+            "units are in stock",
+            "how many are in stock",
+        )
+        availability_terms = (
+            "availability",
+            "available",
+            "in stock",
+            "sellable",
+        )
+        if any(term in normalized for term in inventory_terms):
+            requested_field = "inventory"
+        elif any(term in normalized for term in availability_terms):
+            requested_field = "availability"
+        elif any(term in normalized for term in price_terms):
+            requested_field = "price"
+        else:
+            requested_field = None
+        if requested_field is not None:
             return MinimalRouteDecision(
                 intent=RouteIntent.PRODUCT_QA,
                 action=RouteAction.READ_VARIANT_FACT,
-                requested_field="price",
+                requested_field=requested_field,
                 field_scope=FieldScope.DYNAMIC_VARIANT,
                 resolved_scope=request_scope,
                 reason="T09 deterministic English commerce classification",
@@ -831,6 +851,20 @@ def _dynamic_fact_text(
         if english:
             return f"The current price for this Variant is {fact.value}{unit}."
         return f"这款当前价格为 {fact.value}{unit}。"
+    if requested_field == "inventory":
+        unit = f" {fact.unit}" if fact.unit is not None else " units"
+        if english:
+            return f"This Variant currently has {fact.value}{unit} in inventory."
+        return f"这款当前库存为 {fact.value}{unit}。"
+    if requested_field == "availability":
+        available = bool(fact.value)
+        if english:
+            return (
+                "This Variant is currently available."
+                if available
+                else "This Variant is currently not available."
+            )
+        return "这款当前可售。" if available else "这款当前不可售。"
     raise _LocalNonAnswer("Dynamic fact has no approved answer template")
 
 

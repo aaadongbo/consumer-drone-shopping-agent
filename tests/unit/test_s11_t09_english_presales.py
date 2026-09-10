@@ -3,6 +3,7 @@
 from datetime import UTC, datetime
 
 import pytest
+from fastapi.testclient import TestClient
 
 from backend.application.slice_1 import (
     DeterministicQuestionInterpreter,
@@ -19,6 +20,7 @@ from backend.common import (
     TurnRequest,
 )
 from backend.shopify import RealShopifyReadAdapter, ShopifyTransportResult
+from scripts.s11_runtime_entrypoint import create_runtime_app
 
 pytestmark = pytest.mark.unit
 
@@ -90,10 +92,14 @@ class _UsCommerceTransport:
 def test_english_commerce_and_variant_questions_are_bounded() -> None:
     interpreter = DeterministicQuestionInterpreter()
     price = interpreter.interpret(_request("What is the current price?"))
+    inventory = interpreter.interpret(_request("How many units are in stock?"))
+    availability = interpreter.interpret(_request("Is this available?"))
     battery = interpreter.interpret(_request("How many batteries are in the package?"))
 
     assert price.action is RouteAction.READ_VARIANT_FACT
     assert price.requested_field == "price"
+    assert inventory.requested_field == "inventory"
+    assert availability.requested_field == "availability"
     assert battery.action is RouteAction.READ_VARIANT_FACT
     assert battery.requested_field == "battery_count"
 
@@ -130,9 +136,28 @@ def test_english_dynamic_answer_is_read_only_and_localized() -> None:
     assert payload.evidence[0].fact.unit == "USD"
     assert shopify.write_call_count == 0
 
+    inventory = service.answer(_request("How many units are in stock?")).root
+    availability = service.answer(_request("Is this available?")).root
+    assert inventory.outcome is EnvelopeOutcome.ANSWER
+    assert "inventory" in inventory.text
+    assert availability.outcome is EnvelopeOutcome.ANSWER
+    assert "available" in availability.text
+    assert shopify.write_call_count == 0
+
 
 def test_product_only_english_variant_question_fails_closed() -> None:
     decision = DeterministicQuestionInterpreter().interpret(
         _request("How many batteries are in the package?", variant_id=None)
     )
     assert decision.action is RouteAction.REQUEST_VARIANT_CLARIFICATION
+
+
+def test_runtime_health_exposes_redacted_monitoring_signals() -> None:
+    response = TestClient(create_runtime_app({})).get("/healthz")
+    payload = response.json()
+    assert response.status_code == 200
+    assert payload["credential_values_exposed"] is False
+    assert payload["shopify_write_count"] == 0
+    assert payload["monitoring"]["redacted"] is True
+    assert payload["monitoring"]["http_5xx"] == 0
+    assert "fallback_count" in payload["monitoring"]["signals"]

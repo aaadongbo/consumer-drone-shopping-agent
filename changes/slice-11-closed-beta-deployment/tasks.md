@@ -20,7 +20,7 @@
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
 | T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06, T08; explicit live smoke authority |
-| T09 | US-market English storefront acceptance remediation | BLOCKED | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
+| T09 | US-market English storefront acceptance remediation | IN_PROGRESS | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
 
 | Task | Risk |
 |---|---|
@@ -1190,7 +1190,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ### T09 Execution Record
 
-- **Status**: `BLOCKED — fresh independent review identified unfulfilled Widget, routing, evidence, and operations acceptance`
+- **Status**: `IN_PROGRESS — remediation of fresh independent review findings`
 - **Start commit**: `56dfa6655300f8411ebf31dbf7bacba2e2c5b632`
 - **Worktree**: `/private/tmp/s11-t09-implementation`; feature branch
   `codex/s11-t09-implementation`; unrelated root/worktree changes were not touched.
@@ -1406,3 +1406,24 @@ provider, hosting, CI, staging, or Widget-origin changes.
   This review made zero external requests, Conversation turns, Shopify reads,
   or Shopify writes. Release/push remains held on these findings; no main
   integration or deployment was performed.
+
+- **Review remediation (2026-09-11)**: the T09 allowlisted implementation now
+  validates support destinations against the approved storefront origin rather
+  than the Render API origin; context navigation increments a generation token,
+  clears the current Product link, and discards late responses/errors from the
+  previous Product. English commerce routing distinguishes `price`, `inventory`,
+  and `availability`, while the live pilot checks the typed out-of-scope route
+  before the restricted intent router so order/shipping/refund questions cannot
+  enter static RAG. The pilot RAG path resolves the answer text and locator from
+  the accepted scope/version-gated retrieval chunk; fixed fixture claims remain
+  limited to historical in-process tests. Runtime health metadata now exposes
+  aggregate, redacted HTTP latency/5xx, fallback, Shopify 401/429, deployment,
+  and zero-write signals without payloads or credentials.
+- **Remediation verification actually run**:
+  - T09 and affected RAG/Widget/runtime targeted tests exited `0` (`30 passed`).
+  - `uv run --frozen pytest -q` exited `0` (`854 passed`).
+  - Ruff check and format check over all changed allowlisted paths exited `0`.
+  - Scope inspection reports no disallowed paths, no dependency changes, and no
+    Contract/Architecture/Workflow changes. No external request or Shopify call
+    was made during this remediation; live browser/staging evidence remains a
+    separate acceptance gate.

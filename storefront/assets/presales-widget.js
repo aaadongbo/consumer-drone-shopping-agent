@@ -6,6 +6,7 @@
   function mount(root) {
     var endpoint = root.dataset.apiEndpoint || "/v1/conversation/turn";
     var origin = root.dataset.apiOrigin || window.location.origin;
+    var storefrontOrigin = root.dataset.storefrontOrigin || window.location.origin;
     // Host configuration: data-support-url is exposed as dataset.supportUrl.
     var supportUrl = root.dataset.supportUrl || null;
     var context = {
@@ -15,6 +16,7 @@
     };
     var conversationId = root.dataset.conversationId || "storefront-widget";
     var sequence = 0;
+    var contextGeneration = 0;
     root.innerHTML =
       '<div class="presales-widget" role="region" aria-label="Product assistant">' +
       '<div class="presales-widget__messages" aria-live="polite"></div>' +
@@ -41,11 +43,13 @@
     }
 
     function updateContext(next) {
+      contextGeneration += 1;
       context = {
         store_id: next.store_id,
         product_id: next.product_id,
         variant_id: next.variant_id || null
       };
+      root.dataset.productUrl = next.product_url || next.productUrl || "";
       messages.textContent = "";
       sequence = 0;
     }
@@ -59,6 +63,7 @@
       sequence += 1;
       var text = input.value.trim();
       if (!text) return;
+      var requestGeneration = contextGeneration;
       show("Loading…", "loading");
       fetch(new URL(endpoint, origin).toString(), {
         method: "POST",
@@ -75,6 +80,7 @@
         if (!response.ok) throw new Error("conversation request rejected");
         return response.json();
       }).then(function (payload) {
+        if (requestGeneration !== contextGeneration) return;
         var body = payload.answer || payload.fallback || payload;
         var message = body.text || body.message || "I cannot verify that yet.";
         var link = root.dataset.productUrl || null;
@@ -89,8 +95,8 @@
           payload.fallback.reason_code === "OUT_OF_SCOPE" &&
           supportUrl
         ) {
-          var support = new URL(supportUrl, origin);
-          if (support.origin === new URL(origin).origin) {
+          var support = new URL(supportUrl, storefrontOrigin);
+          if (support.origin === new URL(storefrontOrigin).origin) {
             var supportLink = document.createElement("a");
             supportLink.href = support.toString();
             supportLink.textContent = "Contact store support";
@@ -100,6 +106,7 @@
           }
         }
       }).catch(function () {
+        if (requestGeneration !== contextGeneration) return;
         show("The storefront assistant is unavailable. Please try again.", "error");
       });
     });

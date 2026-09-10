@@ -27,6 +27,7 @@ from backend.application.slice_1 import (
     DeterministicQuestionInterpreter,
     InMemoryTraceSink,
     Slice1ApplicationService,
+    is_out_of_scope_question,
 )
 from backend.catalog import PILOT_PRODUCT_COUNT, PilotDataReadinessReport
 from backend.common import AnswerEnvelope, ObjectScope, TurnRequest
@@ -102,6 +103,12 @@ class PilotConversationApplication:
     def answer(self, request: TurnRequest) -> AnswerEnvelope:
         if request.store_id != self._store_id:
             raise PilotCompositionError("request store is outside the pilot scope")
+        # Keep the live pilot on the typed commerce handoff path for orders,
+        # refunds, shipping, and account questions.  The restricted intent
+        # adapter is deliberately only a pre-sales router and must not turn an
+        # out-of-scope request into a static Product RAG answer.
+        if is_out_of_scope_question(request.user_text):
+            return self._commerce.answer(request)
         decision = self._intent_router.decide(request)
         if decision.route is IntentRoute.COMMERCE_FACT:
             try:
@@ -153,6 +160,7 @@ def build_pilot_composition(config: PilotCompositionConfig) -> PilotComposition:
         trace_sink=trace_sink,
         correlation_id_factory=correlation_id_factory,
         clock=clock,
+        retriever=config.static_retriever,
     )
     intent_router = RestrictedIntentRouter(
         adapter=config.intent_adapter,

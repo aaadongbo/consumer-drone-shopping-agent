@@ -19,6 +19,8 @@ def test_assets_are_credential_free_and_conversation_only() -> None:
     assert '"*"' not in js
     assert "presales:navigate" in js
     assert "data-support-url" in js
+    assert "storefrontOrigin" in js
+    assert "contextGeneration" in js
     assert "@media" in css
 
 

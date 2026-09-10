@@ -14,6 +14,7 @@ import os
 import threading
 from collections.abc import Mapping
 from pathlib import Path
+from time import monotonic
 from typing import Any
 
 from fastapi import FastAPI
@@ -132,6 +133,9 @@ class _RuntimeState:
         self.failure_code: str | None = None
         self._initialization_started = False
         self._lock = threading.Lock()
+        self._http_requests = 0
+        self._http_5xx = 0
+        self._latency_ms_total = 0.0
         try:
             self.config = ReleaseConfig.from_env(environ)
         except (ReleaseConfigError, RuntimeDependencyError, ValueError):
@@ -193,6 +197,25 @@ class _RuntimeState:
         with self._lock:
             return self.composition.api if self.composition is not None else None
 
+    def record_http_response(self, status_code: int, duration_ms: float) -> None:
+        with self._lock:
+            self._http_requests += 1
+            if status_code >= 500:
+                self._http_5xx += 1
+            self._latency_ms_total += max(0.0, duration_ms)
+
+    def http_metrics(self) -> dict[str, object]:
+        with self._lock:
+            requests = self._http_requests
+            total_latency = self._latency_ms_total
+            return {
+                "http_requests": requests,
+                "http_5xx": self._http_5xx,
+                "latency_ms_avg": round(total_latency / requests, 2)
+                if requests
+                else None,
+            }
+
 
 class _CompositionDispatch:
     """Delegate non-health requests once the closed-beta composition is ready."""
@@ -206,7 +229,17 @@ class _CompositionDispatch:
         if application is None:
             await self._unavailable_app(scope, receive, send)
             return
-        await application(scope, receive, send)
+        started = monotonic()
+
+        async def record_send(message: Any) -> None:
+            if message.get("type") == "http.response.start":
+                self._state.record_http_response(
+                    int(message.get("status", 500)),
+                    (monotonic() - started) * 1000,
+                )
+            await send(message)
+
+        await application(scope, receive, record_send)
 
 
 def create_runtime_app(
@@ -283,6 +316,7 @@ def _health_payload(state: _RuntimeState, *, ready: bool) -> dict[str, object]:
             },
             "credential_values_exposed": False,
             "shopify_write_count": 0,
+            "monitoring": _monitoring_payload(state),
         }
     report = build_health_report(
         config,
@@ -295,9 +329,52 @@ def _health_payload(state: _RuntimeState, *, ready: bool) -> dict[str, object]:
     payload = report.to_safe_dict()
     payload["credential_values_exposed"] = False
     payload["shopify_write_count"] = 0
+    payload["monitoring"] = _monitoring_payload(state)
     if not ready:
         payload["status"] = "ok"
     return payload
+
+
+def _monitoring_payload(state: _RuntimeState) -> dict[str, object]:
+    """Expose only aggregate, redacted operator signals."""
+
+    metrics = state.http_metrics()
+    metrics.update(
+        {
+            "redacted": True,
+            "shopify_writes": 0,
+            "signals": (
+                "http_requests",
+                "http_5xx",
+                "latency_ms_avg",
+                "fallback_count",
+                "shopify_401",
+                "shopify_429",
+                "deployment_commit",
+            ),
+            "deployment_commit": state._environ.get("RENDER_GIT_COMMIT", "unknown"),
+            "fallback_count": 0,
+            "shopify_401": 0,
+            "shopify_429": 0,
+        }
+    )
+    composition = state.composition
+    if composition is not None:
+        events = composition.trace_sink.events
+        metrics["fallback_count"] = sum(
+            event.event_type.value == "FALLBACK_PRODUCED" for event in events
+        )
+        metrics["shopify_401"] = sum(
+            event.summary.fallback_reason is not None
+            and event.summary.fallback_reason.value == "TOOL_UNAUTHORIZED"
+            for event in events
+        )
+        metrics["shopify_429"] = sum(
+            event.summary.fallback_reason is not None
+            and event.summary.fallback_reason.value == "TOOL_RATE_LIMITED"
+            for event in events
+        )
+    return metrics
 
 
 def _build_dependencies(

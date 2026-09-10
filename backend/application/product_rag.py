@@ -4,7 +4,7 @@ import re
 from collections.abc import Callable
 from datetime import datetime
 
-from backend.agent import BoundedProductRagLoop, RagStopReason
+from backend.agent import BoundedProductRagLoop, ProductRagRetriever, RagStopReason
 from backend.application.slice_1 import InMemoryTraceSink
 from backend.application.target_fact_adapter import (
     TargetFactIdentityAdapter,
@@ -32,7 +32,7 @@ from backend.common import (
     TurnRequest,
 )
 from backend.conversation import TargetResolution
-from backend.evidence import RagClaim
+from backend.evidence import RagClaim, gate_retrieval_evidence
 from backend.rag import RetrievalRequest
 
 _SENSITIVE_TRACE_VALUE = re.compile(
@@ -125,8 +125,6 @@ class ProductRagQuestionInterpreter:
                     claim_id=f"rag-{field}",
                     scope=scope,
                     field=field,
-                    # Evidence claims remain exact source excerpts; the gate
-                    # rejects paraphrases before they can become answers.
                     text=claim_text,
                     locator=locator,
                 )
@@ -144,12 +142,14 @@ class ProductRagApplicationService:
         trace_sink: InMemoryTraceSink,
         correlation_id_factory: Callable[[], str],
         clock: Callable[[], datetime],
+        retriever: ProductRagRetriever | None = None,
     ) -> None:
         self._loop = loop
         self._interpreter = interpreter
         self._trace_sink = trace_sink
         self._correlation_id_factory = correlation_id_factory
         self._clock = clock
+        self._retriever = retriever
 
     def answer_resolved(
         self, request: TurnRequest, resolution: TargetResolution
@@ -202,8 +202,71 @@ class ProductRagApplicationService:
                 reason=RagStopReason.EVIDENCE_REJECTED,
             )
 
+        retrieval_request = RetrievalRequest(
+            turn_target=scope, question=request.user_text
+        )
+        if self._retriever is not None:
+            # The live pilot resolves the user-visible claim from the exact
+            # chunk returned by the bounded, scope-first retriever.  This
+            # prevents fixture claim text/locators from crossing the runtime
+            # boundary while leaving historical fixture tests unchanged.
+            retrieval = self._retriever.retrieve(retrieval_request)
+            runtime_claim = None
+            selected = None
+            for attempt in range(2):
+                if retrieval.evidence:
+                    candidate = retrieval.evidence[0]
+                    candidate_claim = claim.model_copy(
+                        update={
+                            "text": candidate.text,
+                            "locator": candidate.locator.locator,
+                        }
+                    )
+                    gate = gate_retrieval_evidence(retrieval, claims=(candidate_claim,))
+                    if gate.accepted_claim_ids:
+                        selected = candidate
+                        runtime_claim = candidate_claim
+                        break
+                if attempt == 0:
+                    retrieval = self._retriever.retrieve(
+                        retrieval_request.model_copy(update={"field_hint": claim.field})
+                    )
+            if selected is None or runtime_claim is None:
+                self._trace(
+                    correlation_id,
+                    TraceEventType.EVIDENCE_REJECTED,
+                    TraceResult.REJECTED,
+                    scope,
+                )
+                return self._fallback(
+                    request=request,
+                    correlation_id=correlation_id,
+                    scope=scope,
+                    reason=RagStopReason.EVIDENCE_REJECTED,
+                )
+            if not _chunk_is_admitted_for_locale(
+                selected,
+                field=runtime_claim.field,
+                scope=scope,
+                locale=request.locale,
+            ):
+                return self._fallback(
+                    request=request,
+                    correlation_id=correlation_id,
+                    scope=scope,
+                    reason=RagStopReason.EVIDENCE_REJECTED,
+                )
+            return self._answer_from_chunk(
+                request=request,
+                correlation_id=correlation_id,
+                scope=scope,
+                claim=runtime_claim,
+                chunk=selected,
+                locator=selected.locator.locator,
+            )
+
         loop_result = self._loop.run(
-            request=RetrievalRequest(turn_target=scope, question=request.user_text),
+            request=retrieval_request,
             claim=claim,
         )
         if loop_result.stop_reason is not RagStopReason.EVIDENCE_ACCEPTED:
@@ -228,9 +291,41 @@ class ProductRagApplicationService:
             for item in loop_result.evidence_gate.retrieval.evidence
             if item.locator.locator == locator
         )
+        if not _chunk_is_admitted_for_locale(
+            chunk,
+            field=claim.field,
+            scope=scope,
+            locale=request.locale,
+        ):
+            return self._fallback(
+                request=request,
+                correlation_id=correlation_id,
+                scope=scope,
+                reason=RagStopReason.EVIDENCE_REJECTED,
+            )
+        return self._answer_from_chunk(
+            request=request,
+            correlation_id=correlation_id,
+            scope=scope,
+            claim=claim,
+            chunk=chunk,
+            locator=locator,
+        )
+
+    def _answer_from_chunk(
+        self,
+        *,
+        request: TurnRequest,
+        correlation_id: str,
+        scope: ObjectScope,
+        claim: RagClaim,
+        chunk,
+        locator: str,
+    ) -> AnswerEnvelope:
+        fact_text = claim.text
         fact = AttributeValue(
             status=AttributeStatus.KNOWN,
-            value=claim.text,
+            value=fact_text,
             source_ref=locator,
         )
         evidence = Evidence(
@@ -258,7 +353,7 @@ class ProductRagApplicationService:
             conversation=request.conversation,
             trace_correlation_id=correlation_id,
             resolved_scope=scope,
-            text=claim.text,
+            text=fact_text,
             claims=[claim_wire],
             evidence=[evidence],
             bindings=[binding],
@@ -444,6 +539,35 @@ def _safe_scope(scope: ObjectScope) -> ObjectScope:
             else None
         ),
     )
+
+
+def _chunk_is_admitted_for_locale(
+    chunk, *, field: str, scope: ObjectScope, locale: str
+) -> bool:
+    """Reject known non-US evidence without weakening legacy fixtures.
+
+    Older in-repository fixtures intentionally omit applicability metadata.  A
+    mounted corpus that declares language/market metadata must satisfy the
+    US-English boundary; missing metadata remains a fail-closed gap only for
+    claims that explicitly declare a regional or Variant-specific requirement.
+    """
+
+    if locale.casefold() != "en-us":
+        return True
+    metadata = chunk.metadata
+    language = metadata.get("language")
+    if language is not None and not language.casefold().startswith("en"):
+        return False
+    if field not in {"package_list", "policy"}:
+        return True
+    applicability = metadata.get("applicability") or metadata.get("market")
+    if applicability is None:
+        return True
+    if "us" not in applicability.casefold():
+        return False
+    if field == "package_list" and chunk.variant_id is not None:
+        return chunk.variant_id == scope.variant_id
+    return True
 
 
 def _safe_trace_value(value: str) -> str:
