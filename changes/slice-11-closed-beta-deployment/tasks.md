@@ -20,7 +20,7 @@
 | T06 | CI, staging deployment, and rollback path | DONE | T03, T05; exact hosting vendor, staging URL, Secret Store, and rollback operator |
 | T08 | Read-only Shopify commerce compatibility remediation | DONE | T04, T06; explicit HIGH-risk remediation authority |
 | T07 | Closed-beta acceptance and completion evidence | DONE | T04, T06, T08; explicit live smoke authority |
-| T09 | US-market English storefront acceptance remediation | DONE | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
+| T09 | US-market English storefront acceptance remediation | BLOCKED | T07; reviewed planning baseline; separately reviewed and integrated Workflow Policy baseline; current-context HIGH-risk implementation authority |
 
 | Task | Risk |
 |---|---|
@@ -1190,7 +1190,7 @@ provider, hosting, CI, staging, or Widget-origin changes.
 
 ### T09 Execution Record
 
-- **Status**: `DONE — US-market English password-protected closed-beta staging acceptance passed`
+- **Status**: `BLOCKED — fresh independent review identified unfulfilled Widget, routing, evidence, and operations acceptance`
 - **Start commit**: `56dfa6655300f8411ebf31dbf7bacba2e2c5b632`
 - **Worktree**: `/private/tmp/s11-t09-implementation`; feature branch
   `codex/s11-t09-implementation`; unrelated root/worktree changes were not touched.
@@ -1382,3 +1382,27 @@ provider, hosting, CI, staging, or Widget-origin changes.
   the immutable completion snapshot and fresh independent Slice Review. No
   Shopify write, public launch, main integration, or new paid resource is part
   of this closure.
+
+- **Fresh independent Slice review (2026-09-11)**: `AI_REVIEW_NEEDS_CHANGES`.
+  Reviewed snapshot `f1bfb8cd4cb0b2609e579ef1c2faaf9cafda0b94`, base
+  `10789af37c2e61285136d63b150e2883515e8e53`, digest
+  `6340c3e50d3dc062d21313d3b5682e534e4d21ed6434f354c9062ac19f096cf8`.
+  Independent child `/root/final_review` used clean detached checkout
+  `/private/tmp/s11-t09-final-review-v2`; evidence is
+  `/private/tmp/s11-t09-independent-review-f1bfb8c.json`. Immutable readiness
+  passed after the two explicitly authorized clean stale review worktrees were
+  removed; their commits remain intact. The unfiltered independent command
+  `PYTHONDONTWRITEBYTECODE=1 /private/tmp/s11-t09-implementation/.venv/bin/pytest -q -p no:cacheprovider`
+  exited `0` with `852 passed`; targeted Ruff exited `0`.
+  These results do not establish semantic acceptance. Findings require:
+  Shopify-origin support link validation; distinct inventory/availability
+  answers; admitted source-derived static facts and comparison/recommendation;
+  typed handoff through the actual pilot route; navigation generation checks
+  and refreshed links; real browser interaction evidence; and verified redacted
+  operational observations. Existing E2E source-substring checks are not browser
+  execution. Three price answers do not establish all T09 journeys.
+  The earlier DONE state and completion claim are superseded by BLOCKED.
+  The operating checklist above is guidance, not proof that monitoring is active.
+  This review made zero external requests, Conversation turns, Shopify reads,
+  or Shopify writes. Release/push remains held on these findings; no main
+  integration or deployment was performed.
